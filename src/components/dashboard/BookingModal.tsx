@@ -215,6 +215,19 @@ export default function BookingModal({
     try {
       const { startTimeISO, endTimeISO } = getISODateStrings()
       
+      // Check if currentUserId exists in employee table to avoid foreign key constraint violation
+      let validatedUserId: string | null = null
+      if (currentUserId) {
+        const { data: empExists } = await supabase
+          .from('employee')
+          .select('id')
+          .eq('id', currentUserId)
+          .maybeSingle()
+        if (empExists) {
+          validatedUserId = currentUserId
+        }
+      }
+
       let assignedId: number | null = null
       let assignedName = ''
 
@@ -285,7 +298,7 @@ export default function BookingModal({
         await supabase.from('reservation_logs').insert({
           reservation_id: selectedReservation.id,
           action: 'update',
-          performed_by: currentUserId,
+          performed_by: validatedUserId,
           details: detailsText
         })
       } else {
@@ -299,7 +312,7 @@ export default function BookingModal({
             end_time: endTimeISO,
             price,
             therapist_id: assignedId,
-            created_by: currentUserId,
+            created_by: validatedUserId,
             status: 'confirmed'
           })
           .select()
@@ -338,6 +351,19 @@ export default function BookingModal({
     setErrorMsg(null)
 
     try {
+      // Check if currentUserId exists in employee table to avoid foreign key constraint violation
+      let validatedUserId: string | null = null
+      if (currentUserId) {
+        const { data: empExists } = await supabase
+          .from('employee')
+          .select('id')
+          .eq('id', currentUserId)
+          .maybeSingle()
+        if (empExists) {
+          validatedUserId = currentUserId
+        }
+      }
+
       const { error } = await supabase
         .from('reservations')
         .update({ status: 'cancelled' })
@@ -349,7 +375,7 @@ export default function BookingModal({
       await supabase.from('reservation_logs').insert({
         reservation_id: selectedReservation.id,
         action: 'cancel',
-        performed_by: currentUserId,
+        performed_by: validatedUserId,
         details: `예약 취소 - 고객: ${selectedReservation.customer_name}`
       })
 

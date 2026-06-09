@@ -13,23 +13,38 @@ export async function GET() {
   try {
     const logs: string[] = []
 
-    // Helper: Register user via signUp
+    // Helper: Register user via signUp, or sign in if already exists
     const getOrCreateUser = async (email: string, pass: string, name: string) => {
-      logs.push(`Registering/Checking Auth account: ${email}`)
+      logs.push(`Checking if Auth account exists by signing in: ${email}`)
+      
+      // Try to sign in first
+      const { data: signInData, error: signInError } = await supabase.auth.signInWithPassword({
+        email: email.trim(),
+        password: pass.trim()
+      })
+
+      if (!signInError && signInData?.user) {
+        logs.push(`Auth account already exists, signed in: ${signInData.user.id}`)
+        return signInData.user
+      }
+
+      // If sign in fails, register the user
+      logs.push(`Auth account does not exist or signin failed: ${signInError?.message}. Registering account...`)
       const { data: authData, error: authError } = await supabase.auth.signUp({
-        email,
-        password: pass,
+        email: email.trim(),
+        password: pass.trim(),
         options: {
-          data: { name }
+          data: { name: name.trim() }
         }
       })
 
       if (authError) {
-        // If user already exists, we will try to find them by mapping or reset password
-        logs.push(`Auth signup error/already exists for ${email}: ${authError.message}`)
-        
-        // Let's attempt to sign in to see if it exists, or just query profiles
-        // We will return null if we can't get user, but we will proceed
+        logs.push(`Auth signup error for ${email}: ${authError.message}`)
+        return null
+      }
+      
+      if (authData?.user) {
+        logs.push(`Registered new account: ${authData.user.id}`)
       }
       
       return authData?.user || null
@@ -149,7 +164,7 @@ export async function GET() {
 
     return NextResponse.json({
       success: true,
-      message: '사용자 데이터 및 로그인 계정 셋업 완료',
+      message: `사용자 데이터 및 로그인 계정 셋업 완료 (URL: ${supabaseUrl}, KEY: ${supabaseKey.substring(0, 25)}...)`,
       logs
     })
   } catch (err: any) {
