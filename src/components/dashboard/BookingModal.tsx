@@ -1,0 +1,694 @@
+'use client'
+
+import React, { useState, useEffect } from 'react'
+import { X, Calendar, User, Phone, DollarSign, UserCheck, Trash2, Ban } from 'lucide-react'
+import { assignTherapist } from '@/utils/booking/assignTherapist'
+import { Reservation, Therapist } from './CalendarView'
+import { SupabaseClient } from '@supabase/supabase-js'
+import { toLocalDateString, toLocalTimeString } from '@/utils/booking/dateUtils'
+
+interface BookingModalProps {
+  isOpen: boolean
+  onClose: () => void
+  onSuccess: () => void
+  supabase: SupabaseClient
+  therapists: Therapist[]
+  reservations: Reservation[]
+  currentUserId: string
+  currentUserRole: 'manager' | 'staff' | 'therapist'
+  
+  // 수정 모드일 때 전달받을 예약 정보
+  selectedReservation?: Reservation | null
+  // 신규 등록 시 미리 클릭한 시간/마사지사 정보
+  initialTime?: Date | null
+  initialTherapistId?: number | null
+}
+
+export default function BookingModal({
+  isOpen,
+  onClose,
+  onSuccess,
+  supabase,
+  therapists,
+  reservations,
+  currentUserId,
+  currentUserRole,
+  selectedReservation,
+  initialTime,
+  initialTherapistId
+}: BookingModalProps) {
+  const [customerName, setCustomerName] = useState('')
+  const [customerPhone, setCustomerPhone] = useState('')
+  const [price, setPrice] = useState(80000) // 기본 8만원
+  const [date, setDate] = useState('')
+  const [startHour, setStartHour] = useState(9)
+  const [startMinute, setStartMinute] = useState(0)
+  const [endHour, setEndHour] = useState(10)
+  const [endMinute, setEndMinute] = useState(0)
+  const [therapistId, setTherapistId] = useState<string>('auto') // 'auto' 또는 마사지사 ID
+
+  const [loading, setLoading] = useState(false)
+  const [errorMsg, setErrorMsg] = useState<string | null>(null)
+  
+  // 예약 성공 결과를 저장하는 상태 (결과 화면 전환용)
+  const [successResult, setSuccessResult] = useState<{
+    customerName: string
+    therapistName: string
+    date: string
+    startTime: number
+    startMinute: number
+    endTime: number
+    endMinute: number
+    isEdit: boolean
+  } | null>(null)
+ 
+  const isEditMode = !!selectedReservation
+ 
+  const getDefaultEndTime = (h: number, m: number) => {
+    let eh = h + 1
+    let em = m + 30
+    if (em >= 60) {
+      eh += 1
+      em -= 60
+    }
+    if (eh >= 24) {
+      eh = 24
+      em = 0
+    }
+    return { endHour: eh, endMinute: em }
+  }
+
+  useEffect(() => {
+    const roundTo10Minutes = (min: number) => Math.floor(min / 10) * 10
+
+    if (isOpen) {
+      setErrorMsg(null)
+      setSuccessResult(null) // 매번 모달이 새로 열릴 때 성공 팝업 초기화
+ 
+      if (isEditMode && selectedReservation) {
+        // 수정 모드
+        setCustomerName(selectedReservation.customer_name)
+        setCustomerPhone(selectedReservation.customer_phone || '')
+        setPrice(Number(selectedReservation.price))
+        
+        const start = new Date(selectedReservation.start_time)
+        const end = new Date(selectedReservation.end_time)
+        
+        setDate(toLocalDateString(start))
+        setStartHour(start.getHours())
+        setStartMinute(roundTo10Minutes(start.getMinutes()))
+        setEndHour(end.getHours())
+        setEndMinute(roundTo10Minutes(end.getMinutes()))
+        setTherapistId(selectedReservation.therapist_id?.toString() || 'auto')
+      } else {
+        // 신규 등록 모드
+        setCustomerName('')
+        setCustomerPhone('')
+        setPrice(80000)
+        setTherapistId(initialTherapistId?.toString() || 'auto')
+        
+        if (initialTime) {
+          const sh = initialTime.getHours()
+          const sm = roundTo10Minutes(initialTime.getMinutes())
+          setDate(toLocalDateString(initialTime))
+          setStartHour(sh)
+          setStartMinute(sm)
+          
+          const { endHour: eh, endMinute: em } = getDefaultEndTime(sh, sm)
+          setEndHour(eh)
+          setEndMinute(em)
+        } else {
+          setDate(toLocalDateString(new Date()))
+          setStartHour(9)
+          setStartMinute(0)
+          setEndHour(10)
+          setEndMinute(30)
+        }
+      }
+    }
+  }, [isOpen, isEditMode, selectedReservation, initialTime, initialTherapistId])
+
+
+  if (!isOpen) return null
+
+  // 2. 권한 검사 (모든 가입된 직원 상호 수정 허용)
+  const isOwner = selectedReservation?.created_by === currentUserId
+  const isManager = currentUserRole === 'manager'
+  const isStaff = currentUserRole === 'staff'
+  const canModify = isManager || isStaff
+
+  // 선택된 마사지사의 오늘자 예약 범위 리스트 반환
+  const getTherapistScheduleList = () => {
+    if (therapistId === 'auto' || !date) return []
+ 
+    const selectedTherapistId = Number(therapistId)
+    
+    // 이 날짜의 이 마사지사의 확정된 예약들 필터링
+    const selectedDayRes = reservations.filter(res => {
+      if (res.therapist_id !== selectedTherapistId || res.status !== 'confirmed') return false
+      
+      // 만약 수정 모드인 경우, 자기 자신의 현재 예약은 제외
+      if (isEditMode && selectedReservation && res.id === selectedReservation.id) {
+        return false
+      }
+      
+      const resDateStr = toLocalDateString(new Date(res.start_time))
+      return resDateStr === date
+    })
+ 
+    return selectedDayRes
+      .map(res => {
+        const start = new Date(res.start_time)
+        const end = new Date(res.end_time)
+        return {
+          id: res.id,
+          customerName: res.customer_name,
+          timeStr: `${toLocalTimeString(start)} ~ ${toLocalTimeString(end)}`
+        }
+      })
+      .sort((a, b) => a.timeStr.localeCompare(b.timeStr))
+  }
+ 
+  const scheduleList = getTherapistScheduleList()
+
+  // 3. 시간 포맷 도우미 (ISO String 변환)
+  const getISODateStrings = () => {
+    const [y, m, d] = date.split('-').map(Number)
+    const start = new Date(y, m - 1, d, startHour, startMinute, 0, 0)
+    const end = new Date(y, m - 1, d, endHour, endMinute, 0, 0)
+
+    return {
+      startTimeISO: start.toISOString(),
+      endTimeISO: end.toISOString()
+    }
+  }
+
+  // 4. 예약 등록 / 수정 처리 핸들러
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault()
+    if (!customerName.trim()) {
+      setErrorMsg('고객 이름을 입력해 주세요.')
+      return
+    }
+    if (startHour >= endHour) {
+      setErrorMsg('종료 시간은 시작 시간보다 늦어야 합니다.')
+      return
+    }
+
+    // [과거 시간 예약 제한 검증]
+    const [y, m, d] = date.split('-').map(Number)
+    const bookingStart = new Date(y, m - 1, d, startHour, 0, 0, 0)
+    const now = new Date()
+    const isTimeChanged = !selectedReservation || new Date(selectedReservation.start_time).getTime() !== bookingStart.getTime()
+
+    if (isTimeChanged && bookingStart < now) {
+      const msg = '과거 시간으로 예약할 수 없습니다.'
+      setErrorMsg(msg)
+      alert(msg)
+      return
+    }
+
+
+    setLoading(true)
+    setErrorMsg(null)
+
+    try {
+      const { startTimeISO, endTimeISO } = getISODateStrings()
+      
+      let assignedId: number | null = null
+      let assignedName = ''
+
+      // [자동 배정 / 수동 검증 단계]
+      const reqTherapistId = therapistId === 'auto' ? undefined : Number(therapistId)
+
+      const assignResult = await assignTherapist({
+        supabase,
+        startTime: startTimeISO,
+        endTime: endTimeISO,
+        price,
+        therapistId: reqTherapistId
+      })
+
+      if (!assignResult.success || !assignResult.therapistId) {
+        setErrorMsg(assignResult.error || '마사지사 배정에 실패했습니다.')
+        setLoading(false)
+        return
+      }
+
+      assignedId = assignResult.therapistId
+      assignedName = assignResult.therapistName || ''
+
+      if (isEditMode && selectedReservation) {
+        // [수정 모드 처리]
+        const changes: string[] = []
+        if (selectedReservation.customer_name !== customerName) {
+          changes.push(`고객명: ${selectedReservation.customer_name} -> ${customerName}`)
+        }
+        if ((selectedReservation.customer_phone || '') !== customerPhone) {
+          changes.push(`연락처: ${selectedReservation.customer_phone || '없음'} -> ${customerPhone || '없음'}`)
+        }
+        if (Number(selectedReservation.price) !== price) {
+          changes.push(`금액: ${Number(selectedReservation.price).toLocaleString()}원 -> ${price.toLocaleString()}원`)
+        }
+        if (selectedReservation.start_time !== startTimeISO || selectedReservation.end_time !== endTimeISO) {
+          const oldStart = toLocalTimeString(new Date(selectedReservation.start_time))
+          const oldEnd = toLocalTimeString(new Date(selectedReservation.end_time))
+          const newStart = toLocalTimeString(new Date(startTimeISO))
+          const newEnd = toLocalTimeString(new Date(endTimeISO))
+          changes.push(`시간: ${oldStart}~${oldEnd} -> ${newStart}~${newEnd}`)
+        }
+        if (selectedReservation.therapist_id !== assignedId) {
+          const oldTherapist = therapists.find(t => t.id === selectedReservation.therapist_id)?.name || '미배정'
+          changes.push(`마사지사: ${oldTherapist} -> ${assignedName}`)
+        }
+
+        const detailsText = changes.length > 0 
+          ? `예약 정보 변경 - [${changes.join(', ')}]`
+          : '예약 정보 수정 (변경사항 없음)'
+
+        const { error } = await supabase
+          .from('reservations')
+          .update({
+            customer_name: customerName,
+            customer_phone: customerPhone,
+            start_time: startTimeISO,
+            end_time: endTimeISO,
+            price,
+            therapist_id: assignedId,
+            status: 'confirmed'
+          })
+          .eq('id', selectedReservation.id)
+
+        if (error) throw error
+
+        // 이력 로그 기록
+        await supabase.from('reservation_logs').insert({
+          reservation_id: selectedReservation.id,
+          action: 'update',
+          performed_by: currentUserId,
+          details: detailsText
+        })
+      } else {
+        // [신규 등록 모드 처리]
+        const { data: insertedData, error } = await supabase
+          .from('reservations')
+          .insert({
+            customer_name: customerName,
+            customer_phone: customerPhone,
+            start_time: startTimeISO,
+            end_time: endTimeISO,
+            price,
+            therapist_id: assignedId,
+            created_by: currentUserId,
+            status: 'confirmed'
+          })
+          .select()
+
+        if (error) throw error
+
+        // 신규 등록 시 이력 로그(create)는 남기지 않음
+      }
+
+      // 즉시 닫지 않고 성공 팝업 정보를 세팅합니다.
+      setSuccessResult({
+        customerName,
+        therapistName: assignedName,
+        date,
+        startTime: startHour,
+        startMinute: startMinute,
+        endTime: endHour,
+        endMinute: endMinute,
+        isEdit: isEditMode
+      })
+
+    } catch (err: any) {
+      console.error(err)
+      setErrorMsg(err.message || '예약 처리 중 오류가 발생했습니다.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // 5. 예약 취소 처리 핸들러 (Soft Cancel)
+  const handleCancelReservation = async () => {
+    if (!selectedReservation) return
+    if (!confirm('정말로 이 예약을 취소하시겠습니까?')) return
+
+    setLoading(true)
+    setErrorMsg(null)
+
+    try {
+      const { error } = await supabase
+        .from('reservations')
+        .update({ status: 'cancelled' })
+        .eq('id', selectedReservation.id)
+
+      if (error) throw error
+
+      // 이력 로그 기록
+      await supabase.from('reservation_logs').insert({
+        reservation_id: selectedReservation.id,
+        action: 'cancel',
+        performed_by: currentUserId,
+        details: `예약 취소 - 고객: ${selectedReservation.customer_name}`
+      })
+
+      onSuccess()
+      onClose()
+    } catch (err: any) {
+      console.error(err)
+      setErrorMsg(err.message || '예약 취소 중 오류가 발생했습니다.')
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // 성공 팝업 최종 확인 클릭 핸들러
+  const handleConfirmClose = () => {
+    onSuccess() // 대시보드 리로드 트리거
+    onClose()   // 모달 닫기
+    setSuccessResult(null)
+  }
+
+  // ==========================================
+  // [성공 팝업 상태 렌더러 분기]
+  // ==========================================
+  if (successResult) {
+    return (
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-in fade-in duration-200">
+        <div className="w-full max-w-md bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl p-6 flex flex-col items-center text-center space-y-5">
+          {/* 성공 뱃지 */}
+          <div className="w-14 h-14 rounded-full bg-gradient-to-tr from-emerald-500 to-teal-500 flex items-center justify-center shadow-lg shadow-emerald-950/20 text-white text-xl font-bold animate-bounce">
+            🎉
+          </div>
+          
+          <div className="space-y-1.5">
+            <h2 className="text-lg font-bold text-slate-100">
+              {successResult.isEdit ? '예약 변경 완료' : '예약 접수 완료'}
+            </h2>
+            <p className="text-xs text-slate-500">
+              실시간 마사지사 배정 및 DB 저장이 정상 완료되었습니다.
+            </p>
+          </div>
+
+          {/* 성공 메시지 상세 디테일 (고객명, 시간, 배정 마사지사) */}
+          <div className="w-full bg-slate-950/60 border border-slate-850 rounded-xl p-4.5 text-xs text-slate-350 leading-relaxed text-left space-y-2.5">
+            <p className="font-semibold text-slate-400">
+              {successResult.isEdit ? '✏️ 변경 완료 정보:' : '📋 접수 완료 정보:'}
+            </p>
+            <p className="text-slate-300 text-sm">
+              고객 <span className="font-bold text-indigo-400">{successResult.customerName}</span>님이{' '}
+              마사지사 <span className="font-bold text-amber-400">{successResult.therapistName}</span>님에게{' '}
+              <span className="font-bold text-slate-200">{String(successResult.startTime).padStart(2, '0')}:{String(successResult.startMinute).padStart(2, '0')}</span>부터{' '}
+              <span className="font-bold text-slate-200">{String(successResult.endTime).padStart(2, '0')}:{String(successResult.endMinute).padStart(2, '0')}</span>까지 예약이{' '}
+              {successResult.isEdit ? '변경' : '등록'}되었습니다.
+            </p>
+            <div className="text-[10px] text-slate-500 pt-2 border-t border-slate-850/80">
+              예약 날짜: {successResult.date}
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={handleConfirmClose}
+            className="w-full rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white shadow-lg shadow-indigo-950/20 py-2.5 text-xs font-bold transition-all hover:scale-[1.01] active:scale-[0.99]"
+          >
+            확인
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  // ==========================================
+  // [기본 입력 폼 렌더러]
+  // ==========================================
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-in fade-in duration-200">
+      <div className="w-full max-w-lg bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl flex flex-col max-h-[90vh] overflow-hidden">
+        {/* 헤더 */}
+        <div className="flex items-center justify-between p-5 border-b border-slate-800/80 bg-slate-950/20">
+          <h2 className="text-lg font-bold tracking-tight text-slate-200 flex items-center gap-2">
+            <Calendar className="w-5 h-5 text-indigo-500" />
+            {isEditMode ? '예약 세부 정보 및 변경' : '새로운 마사지 예약 등록'}
+          </h2>
+          <button
+            onClick={onClose}
+            className="p-1 rounded-lg hover:bg-slate-850 text-slate-400 hover:text-slate-200 transition-colors"
+          >
+            <X className="w-5 h-5" />
+          </button>
+        </div>
+
+        {/* 폼 */}
+        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 space-y-4">
+          {errorMsg && (
+            <div className="p-3 text-xs font-semibold rounded-lg bg-rose-500/10 text-rose-400 border border-rose-500/20">
+              ⚠️ {errorMsg}
+            </div>
+          )}
+
+          {/* 권한 수정 제한 안내 */}
+          {isEditMode && !canModify && (
+            <div className="p-3 text-xs rounded-lg bg-amber-500/10 text-amber-400 border border-amber-500/20 flex items-center gap-1.5 font-medium">
+              <Ban className="w-4 h-4 flex-shrink-0" />
+              <span>본인 등록 예약이 아니므로 상세 수정이나 마사지사 재배치가 불가능합니다. (조회만 가능)</span>
+            </div>
+          )}
+
+          {/* 고객명 */}
+          <div>
+            <label className="block text-xs font-bold text-slate-400 mb-1.5 uppercase tracking-wider">고객 이름</label>
+            <div className="relative">
+              <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-600">
+                <User className="w-4 h-4" />
+              </span>
+              <input
+                type="text"
+                disabled={!canModify}
+                value={customerName}
+                onChange={(e) => setCustomerName(e.target.value)}
+                placeholder="고객 성함을 기입해 주세요"
+                className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-9 pr-3.5 py-2.5 text-sm text-slate-100 placeholder-slate-600 focus:outline-none focus:border-indigo-500/80 transition-colors disabled:opacity-50"
+              />
+            </div>
+          </div>
+
+          {/* 연락처 */}
+          <div>
+            <label className="block text-xs font-bold text-slate-400 mb-1.5 uppercase tracking-wider">연락처</label>
+            <div className="relative">
+              <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-600">
+                <Phone className="w-4 h-4" />
+              </span>
+              <input
+                type="text"
+                disabled={!canModify}
+                value={customerPhone}
+                onChange={(e) => setCustomerPhone(e.target.value)}
+                placeholder="예: 010-1234-5678"
+                className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-9 pr-3.5 py-2.5 text-sm text-slate-100 placeholder-slate-600 focus:outline-none focus:border-indigo-500/80 transition-colors disabled:opacity-50"
+              />
+            </div>
+          </div>
+
+          {/* 예약 일자 */}
+          <div>
+            <label className="block text-xs font-bold text-slate-400 mb-1.5 uppercase tracking-wider">예약 날짜</label>
+            <div className="relative">
+              <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-indigo-400">
+                <Calendar className="w-4 h-4" />
+              </span>
+              <input
+                type="date"
+                disabled={!canModify}
+                value={date}
+                onChange={(e) => setDate(e.target.value)}
+                onClick={(e) => e.currentTarget.showPicker?.()}
+                className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-9 pr-3.5 py-2.5 text-sm text-slate-100 focus:outline-none focus:border-indigo-500/80 transition-colors disabled:opacity-50 cursor-pointer font-medium"
+              />
+            </div>
+          </div>
+
+          {/* 예약 시간 */}
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-bold text-slate-400 mb-1.5 uppercase tracking-wider">시작 시간</label>
+              <div className="flex gap-2">
+                <select
+                  disabled={!canModify}
+                  value={startHour}
+                  onChange={(e) => {
+                    const newHour = Number(e.target.value)
+                    setStartHour(newHour)
+                    const { endHour: eh, endMinute: em } = getDefaultEndTime(newHour, startMinute)
+                    setEndHour(eh)
+                    setEndMinute(em)
+                  }}
+                  className="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 text-xs text-slate-100 focus:outline-none focus:border-indigo-500/80 transition-colors disabled:opacity-50"
+                >
+                  {Array.from({ length: 16 }, (_, i) => i + 9).map(h => (
+                    <option key={h} value={h}>{String(h).padStart(2, '0')}시</option>
+                  ))}
+                </select>
+                <select
+                  disabled={!canModify}
+                  value={startMinute}
+                  onChange={(e) => {
+                    const newMinute = Number(e.target.value)
+                    setStartMinute(newMinute)
+                    const { endHour: eh, endMinute: em } = getDefaultEndTime(startHour, newMinute)
+                    setEndHour(eh)
+                    setEndMinute(em)
+                  }}
+                  className="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 text-xs text-slate-100 focus:outline-none focus:border-indigo-500/80 transition-colors disabled:opacity-50"
+                >
+                  {[0, 10, 20, 30, 40, 50].map(m => (
+                    <option key={m} value={m}>{String(m).padStart(2, '0')}분</option>
+                  ))}
+                </select>
+              </div>
+            </div>
+            <div>
+              <label className="block text-xs font-bold text-slate-400 mb-1.5 uppercase tracking-wider">종료 시간</label>
+              <div className="flex gap-2">
+                <select
+                  disabled={!canModify}
+                  value={endHour}
+                  onChange={(e) => setEndHour(Number(e.target.value))}
+                  className="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 text-xs text-slate-100 focus:outline-none focus:border-indigo-500/80 transition-colors disabled:opacity-50"
+                >
+                  {Array.from({ length: 16 }, (_, i) => i + 9).map(h => (
+                    <option key={h} value={h} disabled={h < startHour}>{String(h).padStart(2, '0')}시</option>
+                  ))}
+                </select>
+                <select
+                  disabled={!canModify}
+                  value={endMinute}
+                  onChange={(e) => setEndMinute(Number(e.target.value))}
+                  className="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 text-xs text-slate-100 focus:outline-none focus:border-indigo-500/80 transition-colors disabled:opacity-50"
+                >
+                  {[0, 10, 20, 30, 40, 50].map(m => {
+                    const isDisabled = startHour === endHour && m <= startMinute
+                    return (
+                      <option key={m} value={m} disabled={isDisabled}>
+                        {String(m).padStart(2, '0')}분
+                      </option>
+                    )
+                  })}
+                </select>
+              </div>
+            </div>
+          </div>
+
+          {/* 마사지 금액 */}
+          <div>
+            <label className="block text-xs font-bold text-slate-400 mb-1.5 uppercase tracking-wider">
+              마사지 코스 금액 (원)
+            </label>
+            <div className="relative">
+              <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-600">
+                <DollarSign className="w-4 h-4" />
+              </span>
+              <input
+                type="number"
+                disabled={!canModify}
+                value={price}
+                onChange={(e) => setPrice(Number(e.target.value))}
+                step="10000"
+                min="10000"
+                className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-9 pr-3.5 py-2.5 text-sm text-slate-100 placeholder-slate-600 focus:outline-none focus:border-indigo-500/80 transition-colors disabled:opacity-50"
+              />
+            </div>
+            <p className="text-[10px] text-slate-500 mt-1.5">
+              * 100,000원 이상인 고급 코스는 당일 전담 마사지사(고급 우선)에게 최우선 배정됩니다.
+            </p>
+          </div>
+
+          {/* 마사지사 배정 (수동 지정 및 자동 배정 토글) */}
+          <div>
+            <label className="block text-xs font-bold text-slate-400 mb-1.5 uppercase tracking-wider">마사지사 배정</label>
+            <div className="relative">
+              <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-650">
+                <UserCheck className="w-4 h-4" />
+              </span>
+              <select
+                disabled={!canModify}
+                value={therapistId}
+                onChange={(e) => setTherapistId(e.target.value)}
+                className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-9 pr-3 py-2.5 text-sm text-slate-100 focus:outline-none focus:border-indigo-500/80 transition-colors disabled:opacity-50"
+              >
+                <option value="auto">✨ 시스템 자동 지정 (가장 비어 있는 마사지사 매핑)</option>
+                {therapists.map(t => (
+                  <option key={t.id} value={t.id} disabled={!t.is_active}>
+                    {t.name} ({t.is_active ? '근무 중' : '휴무'} {t.is_premium_target ? ' - 고급 담당' : ''})
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+
+          {/* 선택한 마사지사의 오늘자 예약 현황 (리스트) */}
+          {therapistId !== 'auto' && (
+            <div className="rounded-xl border border-slate-800 bg-slate-950/40 p-4 space-y-2">
+              <span className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                선택한 마사지사의 오늘 예약 선점 현황
+              </span>
+              {scheduleList.length === 0 ? (
+                <p className="text-xs text-emerald-400 font-medium">✓ 오늘 비어있는 상태입니다. (자유롭게 예약 가능)</p>
+              ) : (
+                <div className="space-y-1.5 max-h-36 overflow-y-auto scrollbar-thin">
+                  {scheduleList.map(item => (
+                    <div
+                      key={item.id}
+                      className="flex items-center justify-between text-xs rounded-lg bg-rose-500/5 border border-rose-500/10 text-rose-400 p-2 font-medium"
+                    >
+                      <span>👤 {item.customerName} 고객님</span>
+                      <span className="font-mono text-[11px] font-semibold">{item.timeStr}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </form>
+
+        {/* 푸터 액션 */}
+        <div className="p-5 border-t border-slate-800 bg-slate-950/20 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          {/* 예약 취소 버튼 (수정 모드이면서 권한 권한 소지 시 노출) */}
+          {isEditMode && canModify && selectedReservation.status === 'confirmed' ? (
+            <button
+              type="button"
+              onClick={handleCancelReservation}
+              disabled={loading}
+              className="inline-flex items-center justify-center rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/20 px-4 py-2.5 text-xs font-bold transition-all disabled:opacity-50"
+            >
+              <Trash2 className="w-4 h-4 mr-1.5" /> 예약 취소하기
+            </button>
+          ) : (
+            <div />
+          )}
+
+          <div className="flex gap-2">
+            <button
+              type="button"
+              onClick={onClose}
+              className="rounded-xl border border-slate-800 bg-slate-900 text-slate-300 hover:bg-slate-800 px-4 py-2.5 text-xs font-bold transition-all"
+            >
+              닫기
+            </button>
+            {canModify && (
+              <button
+                onClick={handleSubmit}
+                disabled={loading}
+                className="rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white shadow-lg shadow-indigo-950/20 px-6 py-2.5 text-xs font-bold transition-all disabled:opacity-50 flex items-center justify-center"
+              >
+                {loading ? '처리 중...' : isEditMode ? '변경사항 저장' : '예약 접수하기'}
+              </button>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  )
+}

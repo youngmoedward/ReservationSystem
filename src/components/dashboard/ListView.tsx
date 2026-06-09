@@ -1,0 +1,428 @@
+'use client'
+
+import React, { useState } from 'react'
+import { Calendar, User, Phone, DollarSign, ShieldAlert, Edit2 } from 'lucide-react'
+import { Reservation, Therapist } from './CalendarView'
+import { UserSim } from '@/app/providers'
+
+interface ListViewProps {
+  reservations: Reservation[]
+  therapists: Therapist[]
+  employees: UserSim[]
+  onSelectReservation: (r: Reservation) => void
+  currentUserId: string
+  currentUserRole: 'manager' | 'staff' | 'therapist'
+  startDate: string
+  endDate: string
+  onStartDateChange: (val: string) => void
+  onEndDateChange: (val: string) => void
+}
+
+export default function ListView({
+  reservations,
+  therapists,
+  employees,
+  onSelectReservation,
+  currentUserId,
+  currentUserRole,
+  startDate,
+  endDate,
+  onStartDateChange,
+  onEndDateChange
+}: ListViewProps) {
+  const [filterStatus, setFilterStatus] = useState<'all' | 'confirmed' | 'cancelled'>('confirmed')
+  const [searchTerm, setSearchTerm] = useState('')
+  const [viewType, setViewType] = useState<'table' | 'card'>('table') // 디폴트는 표(Table) 형식
+
+  // 직원 이름 매핑 헬퍼 함수
+  const getEmployeeName = (createdById: string | null) => {
+    if (!createdById) return '시스템'
+    const emp = employees.find(e => e.id === createdById)
+    return emp ? emp.name : `${createdById.slice(0, 8)}...`
+  }
+
+  // 1. 예약 필터링 로직
+  const filtered = reservations
+    .filter(res => {
+      const therapist = therapists.find(t => t.id === res.therapist_id)
+      const therapistName = therapist ? therapist.name : ''
+
+      // 검색어 (고객명, 연락처, 마사지사 이름)
+      const matchesSearch =
+        res.customer_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (res.customer_phone && res.customer_phone.includes(searchTerm)) ||
+        therapistName.toLowerCase().includes(searchTerm.toLowerCase())
+      
+      // 예약 상태 필터
+      if (filterStatus === 'all') return matchesSearch
+      return res.status === filterStatus && matchesSearch
+    })
+    // 최신 시간순 정렬
+    .sort((a, b) => new Date(a.start_time).getTime() - new Date(b.start_time).getTime())
+
+  // 2. 날짜 및 시간 포맷터
+  const formatDateTime = (isoStr: string) => {
+    const d = new Date(isoStr)
+    const year = d.getFullYear()
+    const month = String(d.getMonth() + 1).padStart(2, '0')
+    const date = String(d.getDate()).padStart(2, '0')
+    const hours = String(d.getHours()).padStart(2, '0')
+    const minutes = String(d.getMinutes()).padStart(2, '0')
+    return `${year}-${month}-${date} ${hours}:${minutes}`
+  }
+
+  // 3. 표 형식 (Table View) 렌더러
+  const renderTableView = () => {
+    return (
+      <div className="overflow-x-auto rounded-xl border border-slate-800 bg-slate-900/40 backdrop-blur-md animate-in fade-in duration-200">
+        <table className="w-full text-left text-xs border-collapse">
+          <thead>
+            <tr className="border-b border-slate-800 bg-slate-950/60 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+              <th className="p-4 text-center w-12">No</th>
+              <th className="p-4 text-center w-20">상태</th>
+              <th className="p-4">고객명</th>
+              <th className="p-4">연락처</th>
+              <th className="p-4">예약 일시</th>
+              <th className="p-4">배정 마사지사</th>
+              <th className="p-4 text-right">결제 금액</th>
+              <th className="p-4">등록자</th>
+              <th className="p-4 text-center w-16">관리</th>
+            </tr>
+          </thead>
+          <tbody className="divide-y divide-slate-850/60">
+            {filtered.map((res, index) => {
+              const therapist = therapists.find(t => t.id === res.therapist_id)
+              const isOwner = res.created_by === currentUserId
+              const isManager = currentUserRole === 'manager'
+              const isStaff = currentUserRole === 'staff'
+              const canModify = isManager || isStaff
+
+              return (
+                <tr
+                  key={res.id}
+                  className={`hover:bg-slate-800/25 transition-colors group ${
+                    res.status === 'cancelled'
+                      ? 'opacity-50 line-through text-slate-600'
+                      : res.is_premium
+                      ? 'bg-amber-500/5 border-l-2 border-l-amber-500/40'
+                      : ''
+                  }`}
+                >
+                  {/* 순번 No */}
+                  <td className="p-3 text-center text-slate-500 font-mono text-[11px]">
+                    {index + 1}
+                  </td>
+                  {/* 상태 배지 */}
+                  <td className="p-3 text-center">
+                    <span
+                      className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-[10px] font-semibold ${
+                        res.status === 'confirmed'
+                          ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                          : 'bg-rose-500/10 text-rose-400 border border-rose-500/20'
+                      }`}
+                    >
+                      {res.status === 'confirmed' ? '확정' : '취소됨'}
+                    </span>
+                  </td>
+                  
+                  {/* 고객명 */}
+                  <td className="p-3 font-semibold text-slate-200">
+                    <div className="flex items-center gap-1.5">
+                      {res.customer_name}
+                      {res.is_premium && (
+                        <span className="inline-flex items-center rounded-full bg-amber-500/10 px-2 py-0.5 text-[9px] font-medium text-amber-500 border border-amber-500/20">
+                          고급
+                        </span>
+                      )}
+                      {isOwner && (
+                        <span className="text-[9px] text-indigo-500/80 bg-indigo-500/5 px-1 py-0.5 rounded border border-indigo-500/10 font-bold">
+                          내예약
+                        </span>
+                      )}
+                    </div>
+                  </td>
+                  
+                  {/* 연락처 */}
+                  <td className="p-3 text-slate-400 font-mono">
+                    {res.customer_phone || '-'}
+                  </td>
+                  
+                  {/* 예약 일시 */}
+                  <td className="p-3 text-slate-350">
+                    {formatDateTime(res.start_time)}
+                  </td>
+                  
+                  {/* 배정 마사지사 */}
+                  <td className="p-3 text-slate-300">
+                    👤 {therapist ? therapist.name : '미배정 (삭제됨)'}
+                  </td>
+                  
+                  {/* 결제 금액 */}
+                  <td className={`p-3 text-right font-bold ${res.is_premium ? 'text-amber-400' : 'text-indigo-400'}`}>
+                    {res.price.toLocaleString()}원
+                  </td>
+                  
+                  {/* 등록자 */}
+                  <td className="p-3 text-slate-400">
+                    {getEmployeeName(res.created_by)}
+                  </td>
+                  
+                  {/* 관리 */}
+                  <td className="p-3 text-center">
+                    {canModify && (
+                      <button
+                        onClick={() => onSelectReservation(res)}
+                        className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-750 text-slate-400 hover:text-slate-100 transition-colors opacity-0 group-hover:opacity-100 focus:opacity-100"
+                        title="예약 변경/취소"
+                      >
+                        <Edit2 className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </td>
+                </tr>
+              )
+            })}
+          </tbody>
+        </table>
+      </div>
+    )
+  }
+
+  // 4. 카드 형식 (Card View) 렌더러
+  const renderCardView = () => {
+    return (
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 animate-in fade-in duration-200">
+        {filtered.map((res, index) => {
+          const therapist = therapists.find(t => t.id === res.therapist_id)
+          const isOwner = res.created_by === currentUserId
+          const isManager = currentUserRole === 'manager'
+          const isStaff = currentUserRole === 'staff'
+          const canModify = isManager || isStaff
+
+          return (
+            <div
+              key={res.id}
+              className={`relative rounded-xl border p-5 bg-slate-900/40 hover:bg-slate-900/60 transition-all flex flex-col justify-between group ${
+                res.status === 'cancelled'
+                  ? 'border-slate-850 opacity-60'
+                  : res.is_premium
+                  ? 'border-amber-500/30 shadow-lg shadow-amber-950/5'
+                  : 'border-slate-800'
+              }`}
+            >
+              {/* 상단 뱃지 및 상태 표기 */}
+              <div className="flex justify-between items-start gap-2 mb-3">
+                <div className="flex items-center gap-2">
+                  <span className="text-[10px] bg-slate-800 text-slate-400 font-bold px-1.5 py-0.5 rounded font-mono">
+                    #{index + 1}
+                  </span>
+                  <div className="flex flex-wrap gap-1.5">
+                    {res.is_premium && (
+                      <span className="inline-flex items-center rounded-full bg-amber-500/10 px-2.5 py-0.5 text-xs font-semibold text-amber-500 border border-amber-500/20">
+                        고급 마사지
+                      </span>
+                    )}
+                    <span
+                      className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase ${
+                        res.status === 'confirmed'
+                          ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
+                          : 'bg-rose-500/10 text-rose-400 border border-rose-500/20'
+                      }`}
+                    >
+                      {res.status === 'confirmed' ? '확정' : '취소됨'}
+                    </span>
+                  </div>
+                </div>
+
+                {/* 수정 버튼 (권한이 있는 경우 노출) */}
+                {canModify && (
+                  <button
+                    onClick={() => onSelectReservation(res)}
+                    className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-750 text-slate-400 hover:text-slate-100 transition-colors opacity-0 group-hover:opacity-100 focus:opacity-100"
+                    title="예약 변경/취소"
+                  >
+                    <Edit2 className="w-3.5 h-3.5" />
+                  </button>
+                )}
+              </div>
+
+              {/* 고객 및 예약 요약 */}
+              <div className="space-y-2.5 flex-1">
+                <h3 className="text-base font-bold text-slate-200 tracking-tight flex items-center gap-1.5">
+                  <User className="w-4 h-4 text-slate-500" /> {res.customer_name}
+                </h3>
+
+                {res.customer_phone && (
+                  <p className="text-xs text-slate-400 flex items-center gap-1.5">
+                    <Phone className="w-3.5 h-3.5 text-slate-500" /> {res.customer_phone}
+                  </p>
+                )}
+
+                <p className="text-xs text-slate-400 flex items-center gap-1.5">
+                  <Calendar className="w-3.5 h-3.5 text-slate-500" /> {formatDateTime(res.start_time)}
+                </p>
+
+                <div className="rounded-lg bg-slate-950/60 p-3 mt-3 border border-slate-850 flex items-center justify-between">
+                  <div>
+                    <span className="text-[10px] text-slate-500 block mb-0.5">배정 마사지사</span>
+                    <span className="text-xs font-semibold text-slate-300">
+                      {therapist ? therapist.name : '미배정 (삭제됨)'}
+                    </span>
+                  </div>
+                  <div className="text-right">
+                    <span className="text-[10px] text-slate-500 block mb-0.5">결제 금액</span>
+                    <span className="text-xs font-bold text-indigo-400 flex items-center justify-end">
+                      <DollarSign className="w-3.5 h-3.5" /> {res.price.toLocaleString()}원
+                    </span>
+                  </div>
+                </div>
+              </div>
+
+              {/* 하단 생성자(소유주) 정보 표시 */}
+              <div className="mt-4 pt-3 border-t border-slate-850 flex items-center justify-between text-[11px] text-slate-500">
+                <span>등록자: {getEmployeeName(res.created_by)}</span>
+                {isOwner && (
+                  <span className="font-semibold text-indigo-500/80 bg-indigo-500/5 px-1.5 py-0.5 rounded border border-indigo-500/10 text-[10px]">
+                    내 예약
+                  </span>
+                )}
+              </div>
+            </div>
+          )
+        })}
+      </div>
+    )
+  }
+
+  return (
+    <div className="space-y-4">
+      {/* 검색 및 필터 바 */}
+      <div className="flex flex-col lg:flex-row gap-4 items-center justify-between bg-slate-900/40 p-4 rounded-xl border border-slate-800">
+        <div className="flex flex-col sm:flex-row items-center gap-3 w-full lg:w-auto">
+          {/* 기간 필터 */}
+          <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+            <span className="text-[10px] font-bold text-slate-500 uppercase whitespace-nowrap mr-1">예약기간:</span>
+            <div className="flex items-center gap-1.5 bg-slate-950 border border-slate-800 hover:border-slate-700 rounded-xl px-3 py-1.5 transition-colors focus-within:border-indigo-500/80 shadow-inner group">
+              <Calendar className="w-3.5 h-3.5 text-indigo-400 group-hover:text-indigo-300 transition-colors" />
+              <input
+                type="date"
+                value={startDate}
+                onChange={(e) => onStartDateChange(e.target.value)}
+                onClick={(e) => e.currentTarget.showPicker?.()}
+                className="bg-transparent border-none text-xs text-slate-200 focus:outline-none w-28 cursor-pointer font-medium"
+              />
+            </div>
+            <span className="text-slate-600 text-xs px-0.5">~</span>
+            <div className="flex items-center gap-1.5 bg-slate-950 border border-slate-800 hover:border-slate-700 rounded-xl px-3 py-1.5 transition-colors focus-within:border-indigo-500/80 shadow-inner group">
+              <Calendar className="w-3.5 h-3.5 text-indigo-400 group-hover:text-indigo-300 transition-colors" />
+              <input
+                type="date"
+                value={endDate}
+                onChange={(e) => onEndDateChange(e.target.value)}
+                onClick={(e) => e.currentTarget.showPicker?.()}
+                className="bg-transparent border-none text-xs text-slate-200 focus:outline-none w-28 cursor-pointer font-medium"
+              />
+            </div>
+          </div>
+
+          {/* 텍스트 검색 */}
+          <div className="relative w-full sm:w-80">
+            <input
+              type="text"
+              placeholder="고객명, 연락처, 마사지사 검색..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-indigo-500/80 transition-colors"
+            />
+          </div>
+        </div>
+
+        <div className="flex flex-wrap gap-3 w-full lg:w-auto justify-end items-center">
+          {/* 보기 형식 토글 그룹 */}
+          <div className="flex bg-slate-950 border border-slate-800 rounded-xl p-0.5 shadow-inner">
+            <button
+              onClick={() => setViewType('card')}
+              className={`text-xs font-bold px-3.5 py-1.5 rounded-lg transition-all relative overflow-visible ${
+                viewType === 'card'
+                  ? 'bg-slate-900 text-indigo-400 border border-slate-850 shadow'
+                  : 'bg-indigo-950/20 text-indigo-300 hover:text-indigo-200 border border-indigo-500/20 hover:border-indigo-500/50 shadow-[0_0_10px_rgba(99,102,241,0.05)] hover:shadow-[0_0_12px_rgba(99,102,241,0.15)]'
+              }`}
+            >
+              카드 형식
+              {viewType !== 'card' && (
+                <span className="absolute -top-1 -right-1 flex h-2 w-2">
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-indigo-500"></span>
+                </span>
+              )}
+            </button>
+            <button
+              onClick={() => setViewType('table')}
+              className={`text-xs font-bold px-3.5 py-1.5 rounded-lg transition-all ${
+                viewType === 'table'
+                  ? 'bg-slate-900 text-indigo-400 border border-slate-850 shadow'
+                  : 'bg-transparent text-slate-500 hover:text-slate-350'
+              }`}
+            >
+              표 형식
+            </button>
+          </div>
+
+          {/* 상태 필터 그룹 */}
+          <div className="flex flex-wrap gap-2">
+            <button
+              onClick={() => setFilterStatus('confirmed')}
+              className={`text-xs font-bold px-3.5 py-1.5 rounded-lg transition-all ${
+                filterStatus === 'confirmed'
+                  ? 'bg-indigo-600 text-white shadow-md shadow-indigo-950/20'
+                  : 'bg-slate-800 hover:bg-slate-750 text-slate-400 hover:text-slate-200 border border-slate-750/50'
+              }`}
+            >
+              확정된 예약
+            </button>
+            <button
+              onClick={() => setFilterStatus('cancelled')}
+              className={`text-xs font-bold px-3.5 py-1.5 rounded-lg transition-all ${
+                filterStatus === 'cancelled'
+                  ? 'bg-indigo-600 text-white shadow-md shadow-indigo-950/20'
+                  : 'bg-slate-800 hover:bg-slate-750 text-slate-400 hover:text-slate-200 border border-slate-750/50'
+              }`}
+            >
+              취소된 예약
+            </button>
+            <button
+              onClick={() => setFilterStatus('all')}
+              className={`text-xs font-bold px-3.5 py-1.5 rounded-lg transition-all ${
+                filterStatus === 'all'
+                  ? 'bg-indigo-600 text-white shadow-md shadow-indigo-950/20'
+                  : 'bg-slate-800 hover:bg-slate-750 text-slate-400 hover:text-slate-200 border border-slate-750/50'
+              }`}
+            >
+              전체 보기
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* 조회 정보 메타 요약 */}
+      <div className="text-[11px] text-slate-450 font-bold flex items-center gap-1.5 pl-1.5">
+        <span>📊 조회된 예약 건수:</span>
+        <span className="text-indigo-400 font-extrabold font-mono text-xs">{filtered.length}건</span>
+        <span className="text-slate-700">|</span>
+        <span className="text-slate-500 font-mono">{startDate} ~ {endDate}</span>
+      </div>
+
+      {/* 예약 리스트 그리드/표 분기 */}
+      {filtered.length === 0 ? (
+        <div className="rounded-xl border border-slate-800 bg-slate-900/10 py-16 text-center">
+          <ShieldAlert className="w-10 h-10 text-slate-600 mx-auto mb-3" />
+          <p className="text-sm text-slate-400">조건에 부합하는 예약 데이터가 존재하지 않습니다.</p>
+        </div>
+      ) : viewType === 'table' ? (
+        renderTableView()
+      ) : (
+        renderCardView()
+      )}
+    </div>
+  )
+}

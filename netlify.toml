@@ -1,0 +1,12 @@
+# Netlify 빌드 및 배포 설정
+[build]
+  command = "npm run build"
+  publish = ".next"
+
+# Node.js 버전 정의 (Next.js 13.5.11 지원을 위해 Node 20 사용)
+[build.environment]
+  NODE_VERSION = "20"
+
+# Netlify의 Next.js 필수 플러그인 설정
+[[plugins]]
+  package = "@netlify/plugin-nextjs"
