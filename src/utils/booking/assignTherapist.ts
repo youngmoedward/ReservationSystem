@@ -96,8 +96,9 @@ export async function assignTherapist({
       const premiumTargets = availableTherapists.filter(t => t.is_premium_target)
       
       if (premiumTargets.length > 0) {
-        // ID 순서가 빠른 사람에게 최우선 배정
-        const selected = premiumTargets.sort((a, b) => a.id - b.id)[0]
+        // 가능한 고급 타겟 마사지사 중 무작위 배정
+        const randomIndex = Math.floor(Math.random() * premiumTargets.length)
+        const selected = premiumTargets[randomIndex]
         return {
           success: true,
           therapistId: selected.id,
@@ -109,8 +110,9 @@ export async function assignTherapist({
     // [조건 B] 일반 배정
     // - 금액이 10만 원 미만이거나
     // - 10만 원 이상이지만 고급 마사지 타겟 직원들이 모두 예약이 차 있는 경우
-    // 비어 있는 다른 마사지사 중 ID 순서가 빠른 직원에게 자동 배정
-    const selected = availableTherapists.sort((a, b) => a.id - b.id)[0]
+    // 비어 있는 다른 마사지사 중 무작위 배정
+    const randomIndex = Math.floor(Math.random() * availableTherapists.length)
+    const selected = availableTherapists[randomIndex]
     
     return {
       success: true,
