@@ -92,18 +92,32 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
       if (dynamicUsers.length > 0) {
         setUsers(dynamicUsers)
         
-        // Match user logic
         let matchedUser: UserSim | undefined
 
         // First priority: Real authenticated user
         if (authUser) {
           matchedUser = dynamicUsers.find(u => u.id === authUser.id || u.email === authUser.email)
+          
+          // If profile mapping is missing in DB, fallback to an ad-hoc UserSim object based on authUser metadata/email
+          if (!matchedUser) {
+            let role: 'manager' | 'staff' | 'therapist' = 'therapist'
+            if (authUser.email === 'manager@spa.com') {
+              role = 'manager'
+            } else if (authUser.email?.includes('staff')) {
+              role = 'staff'
+            }
+            
+            matchedUser = {
+              id: authUser.id,
+              name: authUser.user_metadata?.name || authUser.email?.split('@')[0] || '사용자',
+              role,
+              email: authUser.email
+            }
+          }
         }
 
-
-
-        // Second priority: Previously simulated user override from localStorage
-        if (!matchedUser) {
+        // Second priority (only if NOT authenticated): Previously simulated user override from localStorage
+        if (!authUser && !matchedUser) {
           const saved = localStorage.getItem('sim_user')
           if (saved) {
             try {
