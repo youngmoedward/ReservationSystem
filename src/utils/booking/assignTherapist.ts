@@ -1,4 +1,5 @@
 import { SupabaseClient } from '@supabase/supabase-js'
+import { toLocalDateString } from './dateUtils'
 
 export interface AssignTherapistParams {
   supabase: SupabaseClient
@@ -41,8 +42,58 @@ export async function assignTherapist({
       return { success: false, error: '예약 불가: 현재 근무 중(활성 상태)인 마사지사가 없습니다.' }
     }
 
-    // 2. 예약하려는 시간대(startTime ~ endTime)와 겹치며 확정(confirmed)된 기존 예약 목록 조회
-    // 시간 중복 조건: 기존예약.start_time < 신규예약.end_time AND 기존예약.end_time > 신규예약.start_time
+    // 2. 예약 날짜 및 시/분 추출 (로컬 타임 기준 분 단위 계산)
+    const startDate = new Date(startTime)
+    const endDate = new Date(endTime)
+    const bookingDateStr = toLocalDateString(startDate)
+
+    const startMinutes = startDate.getHours() * 60 + startDate.getMinutes()
+    const endMinutes = endDate.getHours() * 60 + endDate.getMinutes()
+
+    // 3. 해당 날짜의 마사지사 근무 일정 조회
+    const { data: schedules, error: schedulesError } = await supabase
+      .from('therapist_schedule')
+      .select('therapist_id, availability_type')
+      .eq('date', bookingDateStr)
+
+    if (schedulesError) {
+      console.error('Schedules fetch error:', schedulesError)
+      return { success: false, error: '마사지사 근무 일정을 불러오는 데 실패했습니다.' }
+    }
+
+    const scheduleMap = new Map<number, string>()
+    if (schedules) {
+      schedules.forEach((s: any) => {
+        if (s.availability_type) {
+          scheduleMap.set(s.therapist_id, s.availability_type)
+        }
+      })
+    }
+
+    // 4. 활성 마사지사 중 해당 예약 시간대에 근무 가능한 마사지사 필터링
+    const activeAndAvailableTherapists = therapists.filter(t => {
+      const type = scheduleMap.get(t.id)
+
+      // 'full' (근무): 무조건 근무 가능 (09:00 ~ 24:00)
+      if (type === 'full') {
+        return true
+      }
+
+      // 'am_half' (오전반차): 16:30(990분) 이후 예약만 가능 (오후 근무)
+      if (type === 'am_half') {
+        return startMinutes >= 990
+      }
+
+      // 'pm_half' (오후반차): 16:30(990분) 이전 예약만 가능 (오전 근무)
+      if (type === 'pm_half') {
+        return endMinutes <= 990
+      }
+
+      // 'off' (휴무) 및 미설정(undecided = null): 가용 불가
+      return false
+    })
+
+    // 5. 예약하려는 시간대(startTime ~ endTime)와 겹치며 확정(confirmed)된 기존 예약 목록 조회
     const { data: overlappingReservations, error: reservationsError } = await supabase
       .from('reservations')
       .select('therapist_id')
@@ -56,17 +107,20 @@ export async function assignTherapist({
       return { success: false, error: '기존 예약 내역을 조회하는 데 실패했습니다.' }
     }
 
-    // 해당 시간대에 예약이 차 있는 마사지사 ID들의 집합(Set)
     const busyTherapistIds = new Set<number>(
       overlappingReservations.map((res: any) => res.therapist_id)
     )
 
-    // 3. 프론트 직원이 마사지사를 수동으로 지정한 경우
+    // 6. 프론트 직원이 마사지사를 수동으로 지정한 경우
     if (therapistId !== undefined && therapistId !== null) {
-      const targetTherapist = therapists.find(t => t.id === therapistId)
+      const targetTherapist = activeAndAvailableTherapists.find(t => t.id === therapistId)
       
       if (!targetTherapist) {
-        return { success: false, error: '선택하신 마사지사는 현재 비활성화 상태이거나 존재하지 않습니다.' }
+        const hasTherapist = therapists.find(t => t.id === therapistId)
+        if (!hasTherapist) {
+          return { success: false, error: '선택하신 마사지사는 현재 비활성화 상태이거나 존재하지 않습니다.' }
+        }
+        return { success: false, error: '선택하신 마사지사는 해당 날짜/시간대에 근무하지 않습니다 (휴무/반차/미정).' }
       }
       
       if (busyTherapistIds.has(therapistId)) {
@@ -80,9 +134,9 @@ export async function assignTherapist({
       }
     }
 
-    // 4. 마사지사를 지정하지 않은 경우 (자동 배정)
-    // 해당 시간대에 비어 있는 활성 마사지사 필터링
-    const availableTherapists = therapists.filter(t => !busyTherapistIds.has(t.id))
+    // 7. 마사지사를 지정하지 않은 경우 (자동 배정)
+    // 해당 시간대에 비어 있는 근무 가능 마사지사 필터링
+    const availableTherapists = activeAndAvailableTherapists.filter(t => !busyTherapistIds.has(t.id))
 
     // 모든 마사지사가 예약이 가득 찬 경우
     if (availableTherapists.length === 0) {

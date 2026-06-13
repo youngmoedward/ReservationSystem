@@ -112,6 +112,17 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
               </button>
             )}
 
+            <button
+              onClick={() => navigateTo('/schedule')}
+              className={`inline-flex items-center gap-1.5 px-4 py-2.5 text-xs font-bold rounded-xl border transition-all ${
+                pathname === '/schedule'
+                  ? 'bg-slate-900 border-slate-850 text-indigo-400'
+                  : 'bg-transparent border-transparent text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              <Calendar className="w-4 h-4" /> 근무 여부 설정
+            </button>
+
             {/* [권한별 분기] Manager인 경우에만 마사지사 관리, 직원 등록 및 이력 탭 노출 */}
             {currentUser.role === 'manager' && (
               <>
@@ -143,7 +154,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
                       : 'bg-transparent border-transparent text-slate-400 hover:text-slate-200'
                   }`}
                 >
-                  <List className="w-4 h-4" /> 예약 변경 이력 조회
+                  <List className="w-4 h-4" /> 변경 이력 조회
                 </button>
                 <button
                   onClick={() => navigateTo('/stats')}

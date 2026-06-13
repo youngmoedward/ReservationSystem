@@ -137,3 +137,77 @@ CREATE TABLE reservation_logs (
   performed_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
   details TEXT
 );
+
+-- =========================================================================
+-- [추가] 마사지사 근무 일정 및 통합 변경 이력 마이그레이션 SQL
+-- =========================================================================
+
+-- 9. therapist_schedule (마사지사 날짜별 근무 여부) 테이블 생성
+CREATE TABLE IF NOT EXISTS therapist_schedule (
+  therapist_id INT REFERENCES therapists(id) ON DELETE CASCADE,
+  date DATE NOT NULL,
+  availability_type TEXT CHECK (availability_type IN ('full', 'off', 'am_half', 'pm_half')), -- NULL 허용 (미정)
+  updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  updated_by UUID REFERENCES auth.users(id) ON DELETE SET NULL,
+  PRIMARY KEY (therapist_id, date)
+);
+
+-- 10. 통합 변경 이력을 위해 기존 reservation_logs 테이블 확장
+-- log_type 컬럼 추가 (디폴트: reservation)
+ALTER TABLE reservation_logs ADD COLUMN IF NOT EXISTS log_type TEXT DEFAULT 'reservation' NOT NULL;
+
+-- action 컬럼의 기존 CHECK 제약 조건이 존재할 경우 삭제하여 다양한 액션명 허용
+ALTER TABLE reservation_logs DROP CONSTRAINT IF EXISTS reservation_logs_action_check;
+
+-- 11. 일정 변경 시 reservation_logs 테이블에 로그 적재를 위한 트리거 함수 및 트리거 생성
+CREATE OR REPLACE FUNCTION log_therapist_schedule_changes()
+RETURNS TRIGGER AS $$
+DECLARE
+  performer_uuid UUID;
+  t_name TEXT;
+  old_state_kr TEXT;
+  new_state_kr TEXT;
+BEGIN
+  IF (TG_OP = 'DELETE') THEN
+    performer_uuid := OLD.updated_by;
+    SELECT name INTO t_name FROM therapists WHERE id = OLD.therapist_id;
+  ELSE
+    performer_uuid := NEW.updated_by;
+    SELECT name INTO t_name FROM therapists WHERE id = NEW.therapist_id;
+  END IF;
+
+  old_state_kr := CASE 
+    WHEN OLD.availability_type = 'full' THEN '근무' 
+    WHEN OLD.availability_type = 'off' THEN '휴무' 
+    WHEN OLD.availability_type = 'am_half' THEN '오전반차' 
+    WHEN OLD.availability_type = 'pm_half' THEN '오후반차' 
+    ELSE '미정' 
+  END;
+
+  new_state_kr := CASE 
+    WHEN NEW.availability_type = 'full' THEN '근무' 
+    WHEN NEW.availability_type = 'off' THEN '휴무' 
+    WHEN NEW.availability_type = 'am_half' THEN '오전반차' 
+    WHEN NEW.availability_type = 'pm_half' THEN '오후반차' 
+    ELSE '미정' 
+  END;
+
+  IF (TG_OP = 'UPDATE') THEN
+    IF (OLD.availability_type IS DISTINCT FROM NEW.availability_type) THEN
+      INSERT INTO reservation_logs (log_type, action, performed_by, details)
+      VALUES ('schedule', 'update', performer_uuid, 
+              COALESCE(t_name, '마사지사') || '의 ' || NEW.date || ' 근무 일정을 [' || new_state_kr || 
+              ']로 변경함. (이전: ' || old_state_kr || ')');
+    END IF;
+  ELSIF (TG_OP = 'DELETE') THEN
+    INSERT INTO reservation_logs (log_type, action, performed_by, details)
+    VALUES ('schedule', 'delete', performer_uuid, 
+            COALESCE(t_name, '마사지사') || '의 ' || OLD.date || ' 근무 일정을 [미정]으로 초기화함.');
+  END IF;
+  RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE OR REPLACE TRIGGER trg_log_therapist_schedule
+AFTER INSERT OR UPDATE OR DELETE ON therapist_schedule
+FOR EACH ROW EXECUTE FUNCTION log_therapist_schedule_changes();

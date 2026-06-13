@@ -50,6 +50,66 @@ export default function BookingModal({
   const [loading, setLoading] = useState(false)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
   
+  // 마사지사 날짜별 근무 일정 맵핑 상태
+  const [daySchedules, setDaySchedules] = useState<Record<number, string | null>>({})
+
+  const fetchDaySchedules = async (targetDate: string) => {
+    if (!targetDate) return
+    try {
+      const { data, error } = await supabase
+        .from('therapist_schedule')
+        .select('therapist_id, availability_type')
+        .eq('date', targetDate)
+
+      if (error) throw error
+      
+      const mapping: Record<number, string | null> = {}
+      if (data) {
+        data.forEach((s: any) => {
+          mapping[s.therapist_id] = s.availability_type
+        })
+      }
+      setDaySchedules(mapping)
+    } catch (err) {
+      console.error('Failed to fetch day schedules in BookingModal:', err)
+    }
+  }
+
+  useEffect(() => {
+    if (isOpen && date) {
+      fetchDaySchedules(date)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, date])
+
+  const checkTherapistAvailability = (tId: number) => {
+    const type = daySchedules[tId]
+    
+    // 기본은 미정(null), 미정일 때는 가용하지 않음
+    if (!type) {
+      return { available: false, reason: '미정' }
+    }
+    if (type === 'off') {
+      return { available: false, reason: '휴무' }
+    }
+    
+    const startMinutes = startHour * 60 + startMinute
+    const endMinutes = endHour * 60 + endMinute
+    const boundary = 16 * 60 + 30 // 16:30
+    
+    if (type === 'am_half') {
+      const ok = startMinutes >= boundary
+      return { available: ok, reason: ok ? '오전반차' : '오전반차 (반차휴무)' }
+    }
+    
+    if (type === 'pm_half') {
+      const ok = endMinutes <= boundary
+      return { available: ok, reason: ok ? '오후반차' : '오후반차 (반차휴무)' }
+    }
+    
+    return { available: true, reason: '근무' }
+  }
+  
   // 예약 성공 결과를 저장하는 상태 (결과 화면 전환용)
   const [successResult, setSuccessResult] = useState<{
     customerName: string
@@ -645,11 +705,24 @@ export default function BookingModal({
                 className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-9 pr-3 py-2.5 text-sm text-slate-100 focus:outline-none focus:border-indigo-500/80 transition-colors disabled:opacity-50"
               >
                 <option value="auto">✨ 시스템 자동 지정 (가장 비어 있는 마사지사 매핑)</option>
-                {therapists.map(t => (
-                  <option key={t.id} value={t.id} disabled={!t.is_active}>
-                    {t.name} ({t.is_active ? '근무 중' : '휴무'} {t.is_premium_target ? ' - 고급 담당' : ''})
-                  </option>
-                ))}
+                {therapists.map(t => {
+                  const avail = checkTherapistAvailability(t.id)
+                  const isDbActive = t.is_active
+                  const isSelectable = isDbActive && avail.available
+
+                  let statusText = ''
+                  if (!isDbActive) {
+                    statusText = '비활성'
+                  } else {
+                    statusText = avail.reason
+                  }
+
+                  return (
+                    <option key={t.id} value={t.id} disabled={!isSelectable}>
+                      {t.name} ({statusText}{t.is_premium_target ? ' - 고급 담당' : ''})
+                    </option>
+                  )
+                })}
               </select>
             </div>
           </div>
