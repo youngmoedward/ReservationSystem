@@ -2,6 +2,7 @@ import type { Metadata } from 'next'
 import { Inter } from 'next/font/google'
 import './globals.css'
 import { UserProvider } from './providers'
+import { LanguageProvider } from './LanguageContext'
 
 const inter = Inter({ subsets: ['latin'] })
 
@@ -18,9 +19,11 @@ export default function RootLayout({
   return (
     <html lang="ko" className="dark">
       <body className={`${inter.className} min-h-screen bg-slate-950 text-slate-100 antialiased`}>
-        <UserProvider>
-          {children}
-        </UserProvider>
+        <LanguageProvider>
+          <UserProvider>
+            {children}
+          </UserProvider>
+        </LanguageProvider>
       </body>
     </html>
   )

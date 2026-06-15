@@ -5,8 +5,9 @@ import { createClient } from '@/utils/supabase/client'
 import { useUserSim } from '@/app/providers'
 import DashboardLayout from '@/components/layout/DashboardLayout'
 import { ChevronLeft, ChevronRight, Calendar, User, Search, RefreshCw, X, AlertTriangle } from 'lucide-react'
-import { toLocalDateString } from '@/utils/booking/dateUtils'
+import { toLocalDateString, toUIDateString } from '@/utils/booking/dateUtils'
 import { Therapist } from '@/components/dashboard/CalendarView'
+import { useLanguage } from '@/app/LanguageContext'
 
 interface ScheduleRecord {
   therapist_id: number
@@ -17,6 +18,7 @@ interface ScheduleRecord {
 export default function SchedulePage() {
   const supabase = createClient()
   const { currentUser } = useUserSim()
+  const { t, language } = useLanguage()
 
   // 1. 달력 및 검색 상태 관리
   const [viewMode, setViewMode] = useState<'week' | 'month'>('month')
@@ -136,9 +138,9 @@ export default function SchedulePage() {
       const start = getStartOfWeek(currentDate)
       const end = new Date(start)
       end.setDate(start.getDate() + 6)
-      return `${start.getFullYear()}년 ${start.getMonth() + 1}월 ${start.getDate()}일 ~ ${end.getMonth() + 1}월 ${end.getDate()}일`
+      return `${toUIDateString(start)} ~ ${toUIDateString(end)}`
     } else {
-      return `${year}년 ${month}월`
+      return `${String(month).padStart(2, '0')}-${year}`
     }
   }
 
@@ -147,7 +149,7 @@ export default function SchedulePage() {
     // 과거 날짜는 수정 불가 조건 검사
     const todayStr = toLocalDateString(new Date())
     if (dateStr < todayStr) {
-      alert('지난 날짜의 근무 일정은 수정할 수 없습니다.')
+      alert(t('schedule.error.past_date'))
       return
     }
 
@@ -186,13 +188,13 @@ export default function SchedulePage() {
     const maxLimitStr = toLocalDateString(maxLimit)
 
     if (val < todayStr) {
-      setModalError('시작 날짜는 오늘 이전일 수 없습니다.')
+      setModalError(t('schedule.error.from_past'))
       setModalFromDate(todayStr)
       return
     }
 
     if (val > maxLimitStr) {
-      setModalError('설정 가능한 최대 범위는 오늘 기준 3주(21일)까지입니다.')
+      setModalError(t('schedule.error.max_limit'))
       setModalFromDate(maxLimitStr)
       return
     }
@@ -212,13 +214,13 @@ export default function SchedulePage() {
     const maxLimitStr = toLocalDateString(maxLimit)
 
     if (val < modalFromDate) {
-      setModalError('종료 날짜는 시작 날짜보다 빠를 수 없습니다.')
+      setModalError(t('schedule.error.to_before_from'))
       setModalToDate(modalFromDate)
       return
     }
 
     if (val > maxLimitStr) {
-      setModalError('설정 가능한 최대 범위는 오늘 기준 3주(21일)까지입니다.')
+      setModalError(t('schedule.error.max_limit'))
       setModalToDate(maxLimitStr)
       return
     }
@@ -238,13 +240,13 @@ export default function SchedulePage() {
   const handleSaveSchedule = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!modalTherapistId) {
-      setModalError('마사지사를 선택해 주세요.')
+      setModalError(t('schedule.error.select_therapist'))
       return
     }
 
     const todayStr = toLocalDateString(new Date())
     if (modalFromDate < todayStr) {
-      setModalError('과거 날짜를 포함한 근무 일정은 저장할 수 없습니다.')
+      setModalError(t('schedule.error.past_save'))
       return
     }
 
@@ -284,7 +286,7 @@ export default function SchedulePage() {
       fetchData()
     } catch (err: any) {
       console.error(err)
-      setModalError(err.message || '일정 저장 중 오류가 발생했습니다.')
+      setModalError(err.message || t('schedule.error.save_failed'))
     } finally {
       setSaving(false)
     }
@@ -306,13 +308,13 @@ export default function SchedulePage() {
   const getAvailTypeLabel = (type: string | null) => {
     switch (type) {
       case 'full':
-        return { text: '근무', class: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' }
+        return { text: t('schedule.type.full'), class: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' }
       case 'off':
-        return { text: '휴무', class: 'bg-rose-500/10 text-rose-450 border-rose-500/20' }
+        return { text: t('schedule.type.off'), class: 'bg-rose-500/10 text-rose-450 border-rose-500/20' }
       case 'am_half':
-        return { text: '오전반차', class: 'bg-amber-500/10 text-amber-400 border-amber-500/25' }
+        return { text: t('schedule.type.am_half'), class: 'bg-amber-500/10 text-amber-400 border-amber-500/25' }
       case 'pm_half':
-        return { text: '오후반차', class: 'bg-cyan-500/10 text-cyan-400 border-cyan-500/25' }
+        return { text: t('schedule.type.pm_half'), class: 'bg-cyan-500/10 text-cyan-400 border-cyan-500/25' }
       default:
         return { text: '-', class: 'bg-slate-800/20 text-slate-500 border-slate-800' }
     }
@@ -340,7 +342,15 @@ export default function SchedulePage() {
           const isToday = todayStr === dayStr
           const isPast = dayStr < todayStr
           
-          const dayNames = ['일', '월', '화', '수', '목', '금', '토']
+          const dayNames = [
+            t('schedule.weekday.sun'),
+            t('schedule.weekday.mon'),
+            t('schedule.weekday.tue'),
+            t('schedule.weekday.wed'),
+            t('schedule.weekday.thu'),
+            t('schedule.weekday.fri'),
+            t('schedule.weekday.sat')
+          ]
 
           return (
             <div
@@ -358,7 +368,7 @@ export default function SchedulePage() {
                   <span className={`text-[10px] font-bold uppercase ${
                     day.getDay() === 0 ? 'text-rose-500' : day.getDay() === 6 ? 'text-blue-500' : 'text-slate-500'
                   }`}>
-                    {dayNames[day.getDay()]}요일
+                    {dayNames[day.getDay()]}{language === 'ko' ? '요일' : ''}
                   </span>
                   <span className={`text-2xl font-bold tracking-tight mt-0.5 ${
                     isToday ? 'text-indigo-200' : 'text-slate-200'
@@ -367,7 +377,7 @@ export default function SchedulePage() {
                   </span>
                 </div>
                 {isPast && (
-                  <span className="text-[9px] text-slate-600 font-semibold uppercase">조회전용</span>
+                  <span className="text-[9px] text-slate-600 font-semibold uppercase">{t('schedule.view_only')}</span>
                 )}
               </div>
 
@@ -375,24 +385,24 @@ export default function SchedulePage() {
               <div className="flex-1 space-y-2 overflow-y-auto max-h-[260px] scrollbar-thin">
                 {selectedTherapistId === 'all' ? (
                   therapists
-                    .map(t => {
-                      const sch = daySchedules.find(s => s.therapist_id === t.id)
-                      return { t, sch }
+                    .map(tp => {
+                      const sch = daySchedules.find(s => s.therapist_id === tp.id)
+                      return { tp, sch }
                     })
                     // 근무나 휴무 등 명시적 일정을 정한 사람만 필터링 (미정 제외)
                     .filter(item => item.sch && item.sch.availability_type !== null)
-                    .map(({ t, sch }) => {
+                    .map(({ tp, sch }) => {
                       const badge = getAvailTypeLabel(sch!.availability_type)
                       return (
                         <div
-                          key={t.id}
+                          key={tp.id}
                           onClick={(e) => {
                             e.stopPropagation()
-                            handleCellClick(dayStr, t.id)
+                            handleCellClick(dayStr, tp.id)
                           }}
                           className="flex items-center justify-between text-[11px] bg-slate-950/40 border border-slate-900 rounded-lg p-2 hover:bg-slate-800 transition-colors"
                         >
-                          <span className="text-slate-300 font-medium">{t.name}</span>
+                          <span className="text-slate-300 font-medium">{tp.name}</span>
                           <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold border ${badge.class}`}>
                             {badge.text}
                           </span>
@@ -401,7 +411,7 @@ export default function SchedulePage() {
                     })
                 ) : (
                   (() => {
-                    const activeT = therapists.find(t => t.id === Number(selectedTherapistId))
+                    const activeT = therapists.find(tp => tp.id === Number(selectedTherapistId))
                     if (!activeT) return null
                     const sch = daySchedules.find(s => s.therapist_id === activeT.id)
                     const badge = getAvailTypeLabel(sch?.availability_type || null)
@@ -451,13 +461,13 @@ export default function SchedulePage() {
       <div className="border border-slate-800 rounded-2xl overflow-hidden bg-slate-900/40 shadow-xl">
         {/* 요일 헤더 */}
         <div className="grid grid-cols-7 border-b border-slate-800 bg-slate-950/50 p-3.5 text-center text-xs font-bold text-slate-400">
-          <div className="text-rose-500">일</div>
-          <div>월</div>
-          <div>화</div>
-          <div>수</div>
-          <div>목</div>
-          <div>금</div>
-          <div className="text-blue-500">토</div>
+          <div className="text-rose-500">{t('schedule.weekday.sun')}</div>
+          <div>{t('schedule.weekday.mon')}</div>
+          <div>{t('schedule.weekday.tue')}</div>
+          <div>{t('schedule.weekday.wed')}</div>
+          <div>{t('schedule.weekday.thu')}</div>
+          <div>{t('schedule.weekday.fri')}</div>
+          <div className="text-blue-500">{t('schedule.weekday.sat')}</div>
         </div>
 
         {/* 일자 그리드 */}
@@ -475,7 +485,7 @@ export default function SchedulePage() {
                 className="p-3.5 min-h-[120px] bg-slate-950/20 text-slate-700 text-xs text-left cursor-pointer hover:bg-slate-800/10 flex flex-col justify-between"
               >
                 <span className="font-semibold">{day}</span>
-                <span className="text-[9px] text-slate-700/50 font-bold self-end">이전달</span>
+                <span className="text-[9px] text-slate-700/50 font-bold self-end">{language === 'ko' ? '이전달' : 'Prev'}</span>
               </div>
             )
           })}
@@ -512,7 +522,7 @@ export default function SchedulePage() {
                     {day}
                   </span>
                   {isPast && (
-                    <span className="text-[8px] text-slate-700 font-bold tracking-tight">조회전용</span>
+                    <span className="text-[8px] text-slate-700 font-bold tracking-tight">{t('schedule.view_only')}</span>
                   )}
                 </div>
 
@@ -520,24 +530,24 @@ export default function SchedulePage() {
                 <div className="space-y-1.5 flex-1 overflow-y-auto max-h-[84px] scrollbar-thin">
                   {selectedTherapistId === 'all' ? (
                     therapists
-                      .map(t => {
-                        const sch = daySchedules.find(s => s.therapist_id === t.id)
-                        return { t, sch }
+                      .map(tp => {
+                        const sch = daySchedules.find(s => s.therapist_id === tp.id)
+                        return { tp, sch }
                       })
                       // 근무나 휴무 등 명시적 일정을 정한 사람만 필터링 (미정 제외)
                       .filter(item => item.sch && item.sch.availability_type !== null)
-                      .map(({ t, sch }) => {
+                      .map(({ tp, sch }) => {
                         const badge = getAvailTypeLabel(sch!.availability_type)
                         return (
                           <div
-                            key={t.id}
+                            key={tp.id}
                             onClick={(e) => {
                               e.stopPropagation()
-                              handleCellClick(dateStr, t.id)
+                              handleCellClick(dateStr, tp.id)
                             }}
                             className="flex items-center justify-between text-[10px] leading-tight bg-slate-950/20 border border-slate-900/40 rounded px-1.5 py-0.5 mt-0.5 hover:bg-slate-800 transition-colors"
                           >
-                            <span className="text-slate-300 font-medium truncate max-w-[54px]">{t.name}</span>
+                            <span className="text-slate-300 font-medium truncate max-w-[54px]">{tp.name}</span>
                             <span className={`px-1 rounded-[4px] text-[8px] font-bold border ${badge.class}`}>
                               {badge.text}
                             </span>
@@ -546,7 +556,7 @@ export default function SchedulePage() {
                       })
                   ) : (
                     (() => {
-                      const activeT = therapists.find(t => t.id === Number(selectedTherapistId))
+                      const activeT = therapists.find(tp => tp.id === Number(selectedTherapistId))
                       if (!activeT) return null
                       const sch = daySchedules.find(s => s.therapist_id === activeT.id)
                       const badge = getAvailTypeLabel(sch?.availability_type || null)
@@ -583,7 +593,7 @@ export default function SchedulePage() {
                 className="p-3.5 min-h-[120px] bg-slate-950/20 text-slate-700 text-xs text-left cursor-pointer hover:bg-slate-800/10 flex flex-col justify-between"
               >
                 <span className="font-semibold">{day}</span>
-                <span className="text-[9px] text-slate-700/50 font-bold self-end">다음달</span>
+                <span className="text-[9px] text-slate-700/50 font-bold self-end">{language === 'ko' ? '다음달' : 'Next'}</span>
               </div>
             )
           })}
@@ -599,7 +609,7 @@ export default function SchedulePage() {
         {/* 제어 바 (필터 및 검색) */}
         <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4 bg-slate-900/40 p-5 rounded-2xl border border-slate-800">
           <div className="flex flex-wrap items-center gap-3">
-            <span className="text-sm font-bold text-slate-200">🗓️ 마사지사 근무일 현황</span>
+            <span className="text-sm font-bold text-slate-200">{t('schedule.title_main')}</span>
             
             {/* 주간/월간 전환 탭 */}
             <div className="flex bg-slate-950 border border-slate-850 rounded-xl p-0.5 shadow-inner">
@@ -610,10 +620,10 @@ export default function SchedulePage() {
                   className={`text-[10px] font-bold uppercase px-3.5 py-1.5 rounded-lg transition-all ${
                     viewMode === mode
                       ? 'bg-slate-900 text-slate-100 border border-slate-800 shadow'
-                      : 'text-slate-500 hover:text-slate-350'
+                      : 'text-slate-500 hover:text-slate-300'
                   }`}
                 >
-                  {mode === 'week' ? '주간' : '월간'}
+                  {mode === 'week' ? t('schedule.mode.week') : t('schedule.mode.month')}
                 </button>
               ))}
             </div>
@@ -631,10 +641,10 @@ export default function SchedulePage() {
                 onChange={(e) => setSelectedTherapistId(e.target.value)}
                 className="bg-slate-950 border border-slate-800 rounded-xl pl-8 pr-3 py-2 text-xs text-slate-100 focus:outline-none focus:border-indigo-500 disabled:opacity-60 font-semibold"
               >
-                {!isTherapistRole && <option value="all">전체 마사지사 보기</option>}
-                {therapists.map(t => (
-                  <option key={t.id} value={t.id}>
-                    {t.name} (마사지사)
+                {!isTherapistRole && <option value="all">{t('schedule.filter.all_therapists')}</option>}
+                {therapists.map(tp => (
+                  <option key={tp.id} value={tp.id}>
+                    {tp.name}{t('schedule.filter.therapist_suffix')}
                   </option>
                 ))}
               </select>
@@ -642,8 +652,8 @@ export default function SchedulePage() {
 
             <button
               onClick={fetchData}
-              className="inline-flex items-center justify-center p-2 rounded-xl bg-slate-800 hover:bg-slate-750 text-slate-350 transition-all text-xs"
-              title="새로고침"
+              className="inline-flex items-center justify-center p-2 rounded-xl bg-slate-800 hover:bg-slate-750 text-slate-300 transition-all text-xs"
+              title={t('history.refresh')}
             >
               <RefreshCw className="w-3.5 h-3.5" />
             </button>
@@ -669,19 +679,19 @@ export default function SchedulePage() {
               onClick={handleToday}
               className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-750 text-slate-300 hover:text-slate-100 transition-colors ml-1"
             >
-              오늘
+              {t('calendar.today')}
             </button>
             <h2 className="text-base font-bold text-slate-200 ml-3">{getHeaderTitle()}</h2>
           </div>
           <span className="text-[10px] text-slate-500 self-end font-medium">
-            * 날짜 칸을 클릭해 From ~ To 일정을 일괄 편집할 수 있습니다. (3주 범위 내 제한)
+            {t('schedule.edit_guide')}
           </span>
         </div>
 
         {/* 달력 내용부 */}
         {loading && schedules.length === 0 ? (
           <div className="h-[400px] flex items-center justify-center border border-slate-800 bg-slate-900/10 rounded-2xl">
-            <span className="text-xs text-slate-400 animate-pulse font-medium">근무 일정을 동기화하는 중...</span>
+            <span className="text-xs text-slate-400 animate-pulse font-medium">{t('schedule.loading')}</span>
           </div>
         ) : (
           <div>
@@ -696,13 +706,13 @@ export default function SchedulePage() {
           <div className="w-full max-w-md bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl p-6 relative">
             <button
               onClick={() => setIsModalOpen(false)}
-              className="absolute top-4 right-4 text-slate-500 hover:text-slate-350 transition-colors"
+              className="absolute top-4 right-4 text-slate-500 hover:text-slate-300 transition-colors"
             >
               <X className="w-5 h-5" />
             </button>
 
             <h3 className="text-sm font-bold text-slate-200 mb-5 flex items-center gap-1.5 uppercase">
-              <Calendar className="w-4 h-4 text-indigo-400" /> 마사지사 근무 일정 설정
+              <Calendar className="w-4 h-4 text-indigo-400" /> {t('schedule.modal.title')}
             </h3>
 
             <form onSubmit={handleSaveSchedule} className="space-y-4">
@@ -715,15 +725,15 @@ export default function SchedulePage() {
 
               {/* 마사지사 선택 (마사지사는 비활성 고정) */}
               <div>
-                <label className="block text-xs font-bold text-slate-400 mb-1.5 uppercase tracking-wider">대상 마사지사</label>
+                <label className="block text-xs font-bold text-slate-400 mb-1.5 uppercase tracking-wider">{t('schedule.modal.therapist')}</label>
                 <select
                   disabled={isTherapistRole}
                   value={modalTherapistId}
                   onChange={(e) => handleModalTherapistChange(Number(e.target.value))}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 text-xs text-slate-100 focus:outline-none focus:border-indigo-500"
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 text-xs text-slate-100 focus:outline-none focus:border-indigo-500 disabled:bg-slate-900 disabled:text-slate-500"
                 >
-                  {therapists.map(t => (
-                    <option key={t.id} value={t.id}>{t.name} (마사지사)</option>
+                  {therapists.map(tp => (
+                    <option key={tp.id} value={tp.id}>{tp.name}{t('schedule.filter.therapist_suffix')}</option>
                   ))}
                 </select>
               </div>
@@ -731,44 +741,56 @@ export default function SchedulePage() {
               {/* 기간 설정 (From ~ To) */}
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-bold text-slate-400 mb-1.5 uppercase tracking-wider">시작 날짜 (From)</label>
-                  <input
-                    type="date"
-                    value={modalFromDate}
-                    onChange={(e) => handleFromDateChange(e.target.value)}
-                    min={toLocalDateString(new Date())}
-                    max={toLocalDateString(new Date(new Date().setDate(new Date().getDate() + 21)))}
-                    onClick={(e) => e.currentTarget.showPicker?.()}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 text-xs text-slate-100 focus:outline-none focus:border-indigo-500 cursor-pointer font-medium"
-                  />
+                  <label className="block text-xs font-bold text-slate-400 mb-1.5 uppercase tracking-wider">{t('schedule.modal.from')}</label>
+                  <div className="relative">
+                    <input
+                      type="date"
+                      value={modalFromDate}
+                      onChange={(e) => handleFromDateChange(e.target.value)}
+                      min={toLocalDateString(new Date())}
+                      max={toLocalDateString(new Date(new Date().setDate(new Date().getDate() + 21)))}
+                      onClick={(e) => e.currentTarget.showPicker?.()}
+                      className="absolute inset-0 w-full h-full opacity-0 z-10 cursor-pointer"
+                    />
+                    <div className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 text-xs text-slate-100 flex justify-between items-center pointer-events-none min-h-[38px] font-medium">
+                      <span>{modalFromDate ? toUIDateString(modalFromDate) : t('schedule.modal.from')}</span>
+                      <Calendar className="w-3.5 h-3.5 text-slate-550" />
+                    </div>
+                  </div>
                 </div>
                 <div>
-                  <label className="block text-xs font-bold text-slate-400 mb-1.5 uppercase tracking-wider">종료 날짜 (To)</label>
-                  <input
-                    type="date"
-                    value={modalToDate}
-                    onChange={(e) => handleToDateChange(e.target.value)}
-                    min={modalFromDate}
-                    max={toLocalDateString(new Date(new Date().setDate(new Date().getDate() + 21)))}
-                    onClick={(e) => e.currentTarget.showPicker?.()}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 text-xs text-slate-100 focus:outline-none focus:border-indigo-500 cursor-pointer font-medium"
-                  />
+                  <label className="block text-xs font-bold text-slate-400 mb-1.5 uppercase tracking-wider">{t('schedule.modal.to')}</label>
+                  <div className="relative">
+                    <input
+                      type="date"
+                      value={modalToDate}
+                      onChange={(e) => handleToDateChange(e.target.value)}
+                      min={modalFromDate}
+                      max={toLocalDateString(new Date(new Date().setDate(new Date().getDate() + 21)))}
+                      onClick={(e) => e.currentTarget.showPicker?.()}
+                      className="absolute inset-0 w-full h-full opacity-0 z-10 cursor-pointer"
+                    />
+                    <div className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 text-xs text-slate-100 flex justify-between items-center pointer-events-none min-h-[38px] font-medium">
+                      <span>{modalToDate ? toUIDateString(modalToDate) : t('schedule.modal.to')}</span>
+                      <Calendar className="w-3.5 h-3.5 text-slate-550" />
+                    </div>
+                  </div>
                 </div>
               </div>
               <p className="text-[10px] text-slate-500">
-                * 근무 일정은 오늘 날짜로부터 최대 3주(21일)까지만 설정 및 변경이 가능합니다.
+                {t('schedule.modal.limit_info')}
               </p>
 
               {/* 일정 상태 선택 (라디오 버튼) */}
               <div>
-                <label className="block text-xs font-bold text-slate-400 mb-2 uppercase tracking-wider">근무 형태 설정</label>
+                <label className="block text-xs font-bold text-slate-400 mb-2 uppercase tracking-wider">{t('schedule.modal.type_title')}</label>
                 <div className="grid grid-cols-2 gap-2 text-xs">
                   {[
-                    { type: 'full', label: '근무 (종일)' },
-                    { type: 'am_half', label: '오전반차 (오후근무)' },
-                    { type: 'pm_half', label: '오후반차 (오전근무)' },
-                    { type: 'off', label: '휴무 (종일)' },
-                    { type: 'undecided', label: '미정 (-)' }
+                    { type: 'full', label: t('schedule.type.full') },
+                    { type: 'am_half', label: t('schedule.type.am_half') },
+                    { type: 'pm_half', label: t('schedule.type.pm_half') },
+                    { type: 'off', label: t('schedule.type.off') },
+                    { type: 'undecided', label: t('schedule.type.undecided') }
                   ].map(item => (
                     <label
                       key={item.type}
@@ -796,14 +818,14 @@ export default function SchedulePage() {
                   onClick={() => setIsModalOpen(false)}
                   className="flex-1 bg-slate-950 border border-slate-800 rounded-xl py-2.5 text-xs font-bold text-slate-400 hover:text-slate-200 transition-all"
                 >
-                  취소
+                  {language === 'ko' ? '취소' : 'Cancel'}
                 </button>
                 <button
                   type="submit"
                   disabled={saving}
                   className="flex-1 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white shadow-lg shadow-indigo-950/20 py-2.5 text-xs font-bold transition-all disabled:opacity-50"
                 >
-                  {saving ? '저장 중...' : '근무 저장'}
+                  {saving ? t('schedule.saving') : t('schedule.save_button')}
                 </button>
               </div>
             </form>

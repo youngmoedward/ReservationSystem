@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react'
 import { SupabaseClient } from '@supabase/supabase-js'
 import { UserSim, useUserSim } from '@/app/providers'
 import { UserPlus, Trash2, Key, Users, Ban, Edit, X } from 'lucide-react'
+import { useLanguage } from '@/app/LanguageContext'
 
 interface EmployeeManagerProps {
   supabase: SupabaseClient
@@ -17,6 +18,7 @@ export default function EmployeeManager({
   onRefresh
 }: EmployeeManagerProps) {
   const { refreshUsers } = useUserSim()
+  const { t, language } = useLanguage()
   const [employees, setEmployees] = useState<UserSim[]>([])
   
   // 가입 폼 상태
@@ -61,7 +63,7 @@ export default function EmployeeManager({
   const handleAddEmployee = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!name || !email || !password) {
-      setErrorMsg('이름, 이메일, 비밀번호는 필수 입력 사항입니다.')
+      setErrorMsg(t('employee.required_fields'))
       return
     }
 
@@ -83,7 +85,7 @@ export default function EmployeeManager({
 
       if (authError) throw authError
       if (!authData.user?.id) {
-        throw new Error('계정 정보(UUID)를 발급받지 못했습니다.')
+        throw new Error(t('employee.uuid_error'))
       }
 
       const newUserId = authData.user.id
@@ -101,10 +103,14 @@ export default function EmployeeManager({
 
       if (dbError) {
         console.error('DB Insert error:', dbError)
-        throw new Error(`인증계정(${email})은 생성되었으나 권한 정보 입력에 실패했습니다: ${dbError.message}`)
+        throw new Error(t('employee.db_error').replace('{email}', email).replace('{msg}', dbError.message))
       }
 
-      setSuccessMsg(`성공: '${name}' 직원이 등록되었습니다! (초기 비번: ${password})`)
+      setSuccessMsg(
+        t('employee.add_success')
+          .replace('{name}', name)
+          .replace('{password}', password)
+      )
       setName('')
       setEmail('')
       setPhone('')
@@ -116,7 +122,7 @@ export default function EmployeeManager({
       refreshUsers()
     } catch (err: any) {
       console.error(err)
-      setErrorMsg(err.message || '직원 계정 등록 도중 오류가 발생했습니다.')
+      setErrorMsg(err.message || (language === 'ko' ? '직원 계정 등록 도중 오류가 발생했습니다.' : 'An error occurred while registering the staff account.'))
     } finally {
       setLoading(false)
     }
@@ -144,7 +150,7 @@ export default function EmployeeManager({
 
       if (error) throw error
 
-      setSuccessMsg(`성공: '${editName}' 직원의 정보가 수정되었습니다.`)
+      setSuccessMsg(t('employee.edit_success').replace('{name}', editName))
       setEditingEmployee(null)
       
       fetchEmployees()
@@ -152,7 +158,7 @@ export default function EmployeeManager({
       refreshUsers()
     } catch (err: any) {
       console.error(err)
-      setErrorMsg(err.message || '직원 정보 수정 도중 오류가 발생했습니다.')
+      setErrorMsg(err.message || (language === 'ko' ? '직원 정보 수정 도중 오류가 발생했습니다.' : 'An error occurred while updating the staff info.'))
     } finally {
       setLoading(false)
     }
@@ -160,7 +166,8 @@ export default function EmployeeManager({
 
   // 4. 비밀번호 초기화 핸들러
   const handleResetPassword = async (id: string, employeeName: string) => {
-    const newPassword = prompt(`'${employeeName}' 직원의 새 비밀번호를 입력해주세요.\n(미입력 시 'password123'으로 설정됩니다.)`)
+    const promptMsg = t('employee.reset_prompt').replace('{name}', employeeName)
+    const newPassword = prompt(promptMsg)
     if (newPassword === null) return // 취소됨
 
     const finalPassword = newPassword.trim() || 'password123'
@@ -170,17 +177,21 @@ export default function EmployeeManager({
     setSuccessMsg(null)
 
     try {
-      const { data, error } = await supabase.rpc('reset_user_password', {
+      const { error } = await supabase.rpc('reset_user_password', {
         user_uuid: id,
         new_password: finalPassword
       })
 
       if (error) throw error
 
-      setSuccessMsg(`성공: '${employeeName}' 직원의 비밀번호가 초기화되었습니다! (새 비밀번호: ${finalPassword})`)
+      setSuccessMsg(
+        t('employee.reset_success')
+          .replace('{name}', employeeName)
+          .replace('{password}', finalPassword)
+      )
     } catch (err: any) {
       console.error(err)
-      setErrorMsg(err.message || '비밀번호 초기화 도중 오류가 발생했습니다.')
+      setErrorMsg(err.message || (language === 'ko' ? '비밀번호 초기화 도중 오류가 발생했습니다.' : 'An error occurred while resetting the password.'))
     } finally {
       setLoading(false)
     }
@@ -189,11 +200,11 @@ export default function EmployeeManager({
   // 5. 직원 삭제 핸들러
   const handleDeleteEmployee = async (id: string, employeeName: string) => {
     if (id === currentUserId) {
-      alert('자기 자신(현재 세션 유저)의 계정은 삭제할 수 없습니다.')
+      alert(t('employee.self_delete_error'))
       return
     }
 
-    if (!confirm(`직원 '${employeeName}'을(를) 정말로 삭제하시겠습니까?\n(인증 레코드 및 모든 예약 연계 참조 정보가 함께 정리될 수 있습니다.)`)) return
+    if (!confirm(t('employee.delete_confirm').replace('{name}', employeeName))) return
 
     setLoading(true)
     try {
@@ -204,14 +215,14 @@ export default function EmployeeManager({
 
       if (error) throw error
 
-      setSuccessMsg(`성공: '${employeeName}' 권한 데이터가 정리되었습니다.`)
+      setSuccessMsg(t('employee.delete_success').replace('{name}', employeeName))
       
       fetchEmployees()
       onRefresh()
       refreshUsers()
     } catch (err: any) {
       console.error(err)
-      alert(err.message || '직원 삭제에 실패했습니다.')
+      alert(err.message || (language === 'ko' ? '직원 삭제에 실패했습니다.' : 'Failed to delete employee.'))
     } finally {
       setLoading(false)
     }
@@ -230,7 +241,7 @@ export default function EmployeeManager({
       {/* 프론트 직원 등록 폼 */}
       <div className="lg:col-span-1 rounded-2xl border border-slate-800 bg-slate-900/40 p-5 h-fit">
         <h3 className="text-sm font-bold tracking-tight text-slate-200 mb-4 flex items-center gap-1.5 uppercase">
-          <UserPlus className="w-4 h-4 text-indigo-500" /> 신규 직원 계정 추가
+          <UserPlus className="w-4 h-4 text-indigo-500" /> {t('employee.add_title')}
         </h3>
         
         <form onSubmit={handleAddEmployee} className="space-y-4">
@@ -247,42 +258,42 @@ export default function EmployeeManager({
           )}
 
           <div>
-            <label className="block text-xs font-semibold text-slate-400 mb-1.5">직원 성함</label>
+            <label className="block text-xs font-semibold text-slate-400 mb-1.5">{t('employee.name')}</label>
             <input
               type="text"
               required
               value={name}
               onChange={(e) => setName(e.target.value)}
-              placeholder="예: 홍길동"
+              placeholder={language === 'ko' ? '예: 홍길동' : 'e.g. John Doe'}
               className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-sm text-slate-100 placeholder-slate-650 focus:outline-none focus:border-indigo-500/80 transition-colors"
             />
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-slate-400 mb-1.5">이메일 계정 (ID)</label>
+            <label className="block text-xs font-semibold text-slate-400 mb-1.5">{t('employee.email')} (ID)</label>
             <input
               type="email"
               required
               value={email}
               onChange={(e) => setEmail(e.target.value)}
-              placeholder="예: staff1@jjimjil.com"
+              placeholder="e.g. staff1@jjimjil.com"
               className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-sm text-slate-100 placeholder-slate-650 focus:outline-none focus:border-indigo-500/80 transition-colors"
             />
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-slate-400 mb-1.5">연락처</label>
+            <label className="block text-xs font-semibold text-slate-400 mb-1.5">{t('employee.phone')}</label>
             <input
               type="text"
               value={phone}
               onChange={(e) => setPhone(e.target.value)}
-              placeholder="예: 010-1234-5678"
+              placeholder="e.g. 010-1234-5678"
               className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-sm text-slate-100 placeholder-slate-650 focus:outline-none focus:border-indigo-500/80 transition-colors"
             />
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-slate-400 mb-1.5">로그인 비밀번호</label>
+            <label className="block text-xs font-semibold text-slate-400 mb-1.5">{t('login.password')}</label>
             <div className="relative">
               <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-600">
                 <Key className="w-4 h-4" />
@@ -292,21 +303,21 @@ export default function EmployeeManager({
                 required
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
-                placeholder="비밀번호 설정"
+                placeholder={language === 'ko' ? '비밀번호 설정' : 'Set password'}
                 className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-9 pr-3.5 py-2.5 text-sm text-slate-100 placeholder-slate-650 focus:outline-none focus:border-indigo-500/80 transition-colors"
               />
             </div>
           </div>
 
           <div>
-            <label className="block text-xs font-semibold text-slate-400 mb-1.5">유저 권한</label>
+            <label className="block text-xs font-semibold text-slate-400 mb-1.5">{t('employee.role')}</label>
             <select
               value={role}
               onChange={(e) => setRole(e.target.value as 'manager' | 'staff')}
               className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 text-sm text-slate-100 focus:outline-none focus:border-indigo-500/80 transition-colors"
             >
-              <option value="staff">Staff (일반 프론트 직원)</option>
-              <option value="manager">Manager (대시보드 총괄 관리자)</option>
+              <option value="staff">{t('employee.role.staff_desc')}</option>
+              <option value="manager">{t('employee.role.manager_desc')}</option>
             </select>
           </div>
 
@@ -315,7 +326,7 @@ export default function EmployeeManager({
             disabled={loading}
             className="w-full rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white shadow-lg shadow-indigo-950/20 py-2.5 text-xs font-bold transition-all disabled:opacity-50"
           >
-            {loading ? '인증계정 발급 중...' : '직원 계정 생성'}
+            {loading ? t('employee.creating') : t('employee.add')}
           </button>
         </form>
       </div>
@@ -323,18 +334,18 @@ export default function EmployeeManager({
       {/* 직원 목록 관리 */}
       <div className="lg:col-span-2 rounded-2xl border border-slate-800 bg-slate-900/40 p-5">
         <h3 className="text-sm font-bold tracking-tight text-slate-200 mb-4 flex items-center gap-1.5">
-          <Users className="w-4 h-4 text-indigo-500" /> 프론트 근무 직원 명단 ({employees.length}명)
+          <Users className="w-4 h-4 text-indigo-500" /> {t('employee.list_title')} ({employees.length}{language === 'ko' ? '명' : ''})
         </h3>
 
         <div className="overflow-x-auto rounded-lg border border-slate-850 bg-slate-950/20">
           <table className="min-w-full divide-y divide-slate-850">
             <thead className="bg-slate-950/50 text-[10px] font-bold text-slate-400 uppercase tracking-wider text-left">
               <tr>
-                <th className="px-4 py-3">직원 정보</th>
-                <th className="px-4 py-3">이메일</th>
-                <th className="px-4 py-3">연락처</th>
-                <th className="px-4 py-3">역할 권한</th>
-                <th className="px-4 py-3 text-right">관리</th>
+                <th className="px-4 py-3">{t('employee.info_label')}</th>
+                <th className="px-4 py-3">{t('employee.email')}</th>
+                <th className="px-4 py-3">{t('employee.phone')}</th>
+                <th className="px-4 py-3">{t('employee.role')}</th>
+                <th className="px-4 py-3 text-right">{t('list.table.actions')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-850 text-xs text-slate-300">
@@ -344,7 +355,7 @@ export default function EmployeeManager({
                   <tr key={emp.id} className="hover:bg-slate-900/40 transition-colors">
                     <td className="px-4 py-3">
                       <div className="font-semibold text-slate-200 flex items-center gap-1.5">
-                        {emp.name} {isMe && <span className="text-[10px] text-indigo-400 font-bold">(나)</span>}
+                        {emp.name} {isMe && <span className="text-[10px] text-indigo-400 font-bold">({language === 'ko' ? '나' : 'Me'})</span>}
                       </div>
                       <div className="font-mono text-slate-500 text-[9px] mt-0.5">{emp.id}</div>
                     </td>
@@ -356,7 +367,7 @@ export default function EmployeeManager({
                           ? 'bg-amber-500/10 text-amber-400 border border-amber-500/10'
                           : 'bg-indigo-500/10 text-indigo-400 border border-indigo-500/10'
                       }`}>
-                        {emp.role}
+                        {emp.role === 'manager' ? t('user.role.manager') : t('user.role.staff')}
                       </span>
                     </td>
                     <td className="px-4 py-3 text-right">
@@ -365,7 +376,7 @@ export default function EmployeeManager({
                           type="button"
                           onClick={() => startEdit(emp)}
                           className="p-1 rounded-lg hover:bg-indigo-500/10 text-slate-500 hover:text-indigo-400 transition-colors"
-                          title="정보 수정"
+                          title={t('employee.edit_tooltip')}
                         >
                           <Edit className="w-4 h-4" />
                         </button>
@@ -373,12 +384,12 @@ export default function EmployeeManager({
                           type="button"
                           onClick={() => handleResetPassword(emp.id, emp.name)}
                           className="p-1 rounded-lg hover:bg-amber-500/10 text-slate-500 hover:text-amber-400 transition-colors"
-                          title="비밀번호 초기화"
+                          title={t('employee.reset_tooltip')}
                         >
                           <Key className="w-4 h-4" />
                         </button>
                         {isMe ? (
-                          <span className="p-1 text-slate-700 cursor-not-allowed" title="본인 삭제 불가">
+                          <span className="p-1 text-slate-700 cursor-not-allowed" title={t('employee.self_delete_tooltip')}>
                             <Ban className="w-4 h-4" />
                           </span>
                         ) : (
@@ -386,7 +397,7 @@ export default function EmployeeManager({
                             type="button"
                             onClick={() => handleDeleteEmployee(emp.id, emp.name)}
                             className="p-1 rounded-lg hover:bg-rose-500/10 text-slate-500 hover:text-rose-400 transition-colors"
-                            title="직원 삭제"
+                            title={t('employee.delete_tooltip')}
                           >
                             <Trash2 className="w-4 h-4" />
                           </button>
@@ -413,12 +424,12 @@ export default function EmployeeManager({
             </button>
 
             <h3 className="text-base font-bold text-slate-200 mb-6 flex items-center gap-1.5">
-              <Edit className="w-4 h-4 text-indigo-400" /> 직원 정보 수정
+              <Edit className="w-4 h-4 text-indigo-400" /> {t('employee.edit_title')}
             </h3>
 
             <form onSubmit={handleUpdateEmployee} className="space-y-4">
               <div>
-                <label className="block text-xs font-semibold text-slate-400 mb-1.5">직원 성함</label>
+                <label className="block text-xs font-semibold text-slate-400 mb-1.5">{t('employee.name')}</label>
                 <input
                   type="text"
                   required
@@ -429,36 +440,36 @@ export default function EmployeeManager({
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-400 mb-1.5">이메일 계정</label>
+                <label className="block text-xs font-semibold text-slate-400 mb-1.5">{t('employee.email')}</label>
                 <input
                   type="email"
                   value={editEmail}
                   onChange={(e) => setEditEmail(e.target.value)}
-                  placeholder="예: staff1@jjimjil.com"
+                  placeholder="e.g. staff1@jjimjil.com"
                   className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-sm text-slate-100 focus:outline-none focus:border-indigo-500/80 transition-colors"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-400 mb-1.5">연락처</label>
+                <label className="block text-xs font-semibold text-slate-400 mb-1.5">{t('employee.phone')}</label>
                 <input
                   type="text"
                   value={editPhone}
                   onChange={(e) => setEditPhone(e.target.value)}
-                  placeholder="예: 010-1234-5678"
+                  placeholder="e.g. 010-1234-5678"
                   className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-sm text-slate-100 focus:outline-none focus:border-indigo-500/80 transition-colors"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-400 mb-1.5">유저 권한</label>
+                <label className="block text-xs font-semibold text-slate-400 mb-1.5">{t('employee.role')}</label>
                 <select
                   value={editRole}
                   onChange={(e) => setEditRole(e.target.value as 'manager' | 'staff')}
                   className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 text-sm text-slate-100 focus:outline-none focus:border-indigo-500/80 transition-colors"
                 >
-                  <option value="staff">Staff (일반 프론트 직원)</option>
-                  <option value="manager">Manager (대시보드 총괄 관리자)</option>
+                  <option value="staff">{t('employee.role.staff_desc')}</option>
+                  <option value="manager">{t('employee.role.manager_desc')}</option>
                 </select>
               </div>
 
@@ -468,14 +479,14 @@ export default function EmployeeManager({
                   onClick={() => setEditingEmployee(null)}
                   className="flex-1 bg-slate-950 border border-slate-800 rounded-xl py-2.5 text-xs font-bold text-slate-400 hover:text-slate-200 transition-all"
                 >
-                  취소
+                  {language === 'ko' ? '취소' : 'Cancel'}
                 </button>
                 <button
                   type="submit"
                   disabled={loading}
                   className="flex-1 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white shadow-lg shadow-indigo-950/20 py-2.5 text-xs font-bold transition-all disabled:opacity-50"
                 >
-                  {loading ? '수정 중...' : '저장'}
+                  {loading ? t('employee.saving') : t('employee.save')}
                 </button>
               </div>
             </form>
@@ -485,4 +496,5 @@ export default function EmployeeManager({
     </div>
   )
 }
+
 

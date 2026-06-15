@@ -3,6 +3,7 @@
 import React, { useState, useEffect } from 'react'
 import { createClient } from '@/utils/supabase/client'
 import { useUserSim, UserSim } from '../providers'
+import { useLanguage } from '@/app/LanguageContext'
 import ListView from '@/components/dashboard/ListView'
 import BookingModal from '@/components/dashboard/BookingModal'
 import DashboardLayout from '@/components/layout/DashboardLayout'
@@ -12,6 +13,7 @@ import { Plus } from 'lucide-react'
 export default function ListPage() {
   const supabase = createClient()
   const { currentUser } = useUserSim()
+  const { t } = useLanguage()
 
   // 1. 상태 관리
   const getTodayStr = () => {
@@ -74,7 +76,13 @@ export default function ListPage() {
         .lte('start_time', end.toISOString())
 
       if (rError) throw rError
-      if (reservationData) setReservations(reservationData as Reservation[])
+      if (reservationData) {
+        const mapped = (reservationData as Reservation[]).map(r => ({
+          ...r,
+          is_premium: Number(r.price) >= 120
+        }))
+        setReservations(mapped)
+      }
 
     } catch (err) {
       console.error('Data fetching error in ListPage:', err)
@@ -105,7 +113,7 @@ export default function ListPage() {
         {/* 리스트 전용 서브 제어 바 */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-900/40 p-4 rounded-xl border border-slate-800">
           <div className="flex items-center gap-2">
-            <span className="text-xs font-bold text-slate-400">📋 예약 목록 (리스트)</span>
+            <span className="text-xs font-bold text-slate-400">📋 {t('list.title')}</span>
           </div>
 
           <div className="flex items-center gap-2 self-end sm:self-auto">
@@ -114,7 +122,7 @@ export default function ListPage() {
                 onClick={handleOpenNewReservation}
                 className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white shadow-lg shadow-indigo-950/20 px-4 py-2 text-xs font-bold transition-all hover:scale-[1.01] active:scale-[0.99]"
               >
-                <Plus className="w-4 h-4" /> 신규 예약 접수
+                <Plus className="w-4 h-4" /> {t('calendar.new_booking')}
               </button>
             )}
           </div>
@@ -123,7 +131,7 @@ export default function ListPage() {
         {/* 리스트 렌더링 */}
         {loading ? (
           <div className="h-96 flex items-center justify-center border border-slate-900 bg-slate-900/10 rounded-2xl">
-            <span className="text-xs text-slate-400 animate-pulse font-medium">데이터를 동기화하는 중...</span>
+            <span className="text-xs text-slate-400 animate-pulse font-medium">{t('user.syncing')}</span>
           </div>
         ) : (
           <ListView

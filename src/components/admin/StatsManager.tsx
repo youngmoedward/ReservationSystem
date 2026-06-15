@@ -4,7 +4,8 @@ import React, { useState, useEffect } from 'react'
 import { Calendar as CalendarIcon, ChevronLeft, ChevronRight, TrendingUp, DollarSign, Users, Percent, Trophy, Clock, Info, ShieldAlert, BarChart3, PieChart } from 'lucide-react'
 import { Reservation, Therapist } from '../dashboard/CalendarView'
 import { SupabaseClient } from '@supabase/supabase-js'
-import { toLocalDateString } from '@/utils/booking/dateUtils'
+import { toLocalDateString, toUIDateString } from '@/utils/booking/dateUtils'
+import { useLanguage } from '@/app/LanguageContext'
 
 interface StatsManagerProps {
   supabase: SupabaseClient
@@ -28,6 +29,7 @@ interface TimeSlotStats {
 }
 
 export default function StatsManager({ supabase, currentUserId }: StatsManagerProps) {
+  const { t, language } = useLanguage()
   const [periodType, setPeriodType] = useState<'daily' | 'weekly' | 'monthly'>('weekly')
   const [selectedDate, setSelectedDate] = useState<string>(toLocalDateString(new Date()))
   const [activeMetric, setActiveMetric] = useState<'count' | 'revenue'>('count')
@@ -83,7 +85,15 @@ export default function StatsManager({ supabase, currentUserId }: StatsManagerPr
         .lte('start_time', periodEnd.toISOString())
 
       if (rError) throw rError
-      setReservations((reservationData as Reservation[]) || [])
+      if (reservationData) {
+        const mapped = (reservationData as Reservation[]).map(r => ({
+          ...r,
+          is_premium: Number(r.price) >= 120
+        }))
+        setReservations(mapped)
+      } else {
+        setReservations([])
+      }
     } catch (error) {
       console.error('Error fetching statistics data:', error)
     } finally {
@@ -123,17 +133,17 @@ export default function StatsManager({ supabase, currentUserId }: StatsManagerPr
 
   // 4. 기간 텍스트 라벨 포맷
   const getPeriodLabel = () => {
-    const startStr = toLocalDateString(periodStart)
-    const endStr = toLocalDateString(periodEnd)
+    const startStr = toUIDateString(periodStart)
+    const endStr = toUIDateString(periodEnd)
     
     if (periodType === 'daily') {
-      return `${startStr} (일간)`
+      return `${startStr} (${t('stats.period.daily')})`
     } else if (periodType === 'weekly') {
-      return `${startStr} ~ ${endStr} (주간)`
+      return `${startStr} ~ ${endStr} (${t('stats.period.weekly')})`
     } else {
       const year = periodStart.getFullYear()
       const month = periodStart.getMonth() + 1
-      return `${year}년 ${month}월 (월간)`
+      return `${String(month).padStart(2, '0')}-${year} (${t('stats.period.monthly')})`
     }
   }
 
@@ -204,14 +214,16 @@ export default function StatsManager({ supabase, currentUserId }: StatsManagerPr
         })
         const rev = slotBookings.reduce((sum, r) => sum + Number(r.price), 0)
         return {
-          label: `${String(hour).padStart(2, '0')}시`,
+          label: language === 'ko' ? `${String(hour).padStart(2, '0')}시` : `${String(hour).padStart(2, '0')}:00`,
           count: slotBookings.length,
           revenue: rev
         }
       })
     } else if (periodType === 'weekly') {
       // 요일별 분포 (월 ~ 일)
-      const dayNames = ['월요일', '화요일', '수요일', '목요일', '금요일', '토요일', '일요일']
+      const dayNames = language === 'ko'
+        ? ['월요일', '화요일', '수요일', '목요일', '금요일', '토요일', '일요일']
+        : ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday']
       return dayNames.map((name, index) => {
         // Javascript Date getDay: 0=Sun, 1=Mon, ..., 6=Sat
         const targetDayVal = index === 6 ? 0 : index + 1 // 월요일=1, ..., 일요일=0
@@ -221,7 +233,7 @@ export default function StatsManager({ supabase, currentUserId }: StatsManagerPr
         })
         const rev = slotBookings.reduce((sum, r) => sum + Number(r.price), 0)
         return {
-          label: name.slice(0, 3), // '월요일' -> '월요일' 또는 '월'
+          label: name.slice(0, 3), // '월요일' -> '월요일' 또는 '월' / 'Mon'
           count: slotBookings.length,
           revenue: rev
         }
@@ -236,7 +248,7 @@ export default function StatsManager({ supabase, currentUserId }: StatsManagerPr
         })
         const rev = slotBookings.reduce((sum, r) => sum + Number(r.price), 0)
         return {
-          label: `${day}일`,
+          label: language === 'ko' ? `${day}일` : `${day}`,
           count: slotBookings.length,
           revenue: rev
         }
@@ -264,7 +276,7 @@ export default function StatsManager({ supabase, currentUserId }: StatsManagerPr
                   : 'bg-transparent text-slate-500 hover:text-slate-350'
               }`}
             >
-              {type === 'daily' ? '일간' : type === 'weekly' ? '주간' : '월간'}
+              {type === 'daily' ? t('stats.period.daily') : type === 'weekly' ? t('stats.period.weekly') : t('stats.period.monthly')}
             </button>
           ))}
         </div>
@@ -301,7 +313,7 @@ export default function StatsManager({ supabase, currentUserId }: StatsManagerPr
 
       {loading ? (
         <div className="h-96 flex items-center justify-center border border-slate-900 bg-slate-900/10 rounded-2xl">
-          <span className="text-xs text-slate-400 animate-pulse font-medium">통계 데이터를 로딩하는 중...</span>
+          <span className="text-xs text-slate-400 animate-pulse font-medium">{t('stats.loading')}</span>
         </div>
       ) : (
         <>
@@ -310,11 +322,17 @@ export default function StatsManager({ supabase, currentUserId }: StatsManagerPr
             {/* 총 확정 예약 건수 */}
             <div className="rounded-xl border border-slate-800 bg-slate-900/40 p-5 flex items-center justify-between shadow-lg shadow-slate-950/20">
               <div className="space-y-1">
-                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">총 예약 건수</span>
-                <span className="text-2xl font-black text-slate-100 font-mono tracking-tight">{totalBookings}건</span>
-                <span className="text-[9px] text-slate-500 block">취소건: {cancelledRes.length}건 (비율 {cancellationRate}%)</span>
+                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">{t('stats.kpi.total_bookings')}</span>
+                <span className="text-2xl font-black text-slate-100 font-mono tracking-tight">
+                  {totalBookings}{language === 'ko' ? '건' : ''}
+                </span>
+                <span className="text-[9px] text-slate-500 block">
+                  {t('stats.kpi.cancelled_label')
+                    .replace('{count}', cancelledRes.length.toString())
+                    .replace('{rate}', cancellationRate.toString())}
+                </span>
               </div>
-              <div className="w-10 h-10 rounded-lg bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-450 shadow-inner">
+              <div className="w-10 h-10 rounded-lg bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400 shadow-inner">
                 <BarChart3 className="w-5 h-5" />
               </div>
             </div>
@@ -322,11 +340,13 @@ export default function StatsManager({ supabase, currentUserId }: StatsManagerPr
             {/* 총 매출액 */}
             <div className="rounded-xl border border-slate-800 bg-slate-900/40 p-5 flex items-center justify-between shadow-lg shadow-slate-950/20">
               <div className="space-y-1">
-                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">총 매출액</span>
-                <span className="text-2xl font-black text-indigo-400 font-mono tracking-tight">{totalRevenue.toLocaleString()}원</span>
-                <span className="text-[9px] text-slate-500 block">확정된 예약 기준 정산 금액</span>
+                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">{t('stats.kpi.total_revenue')}</span>
+                <span className="text-2xl font-black text-indigo-400 font-mono tracking-tight">
+                  ${totalRevenue.toLocaleString()}
+                </span>
+                <span className="text-[9px] text-slate-500 block">{t('stats.kpi.revenue_label')}</span>
               </div>
-              <div className="w-10 h-10 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-450 shadow-inner">
+              <div className="w-10 h-10 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400 shadow-inner">
                 <DollarSign className="w-5 h-5" />
               </div>
             </div>
@@ -334,24 +354,30 @@ export default function StatsManager({ supabase, currentUserId }: StatsManagerPr
             {/* 고급 코스 점유율 */}
             <div className="rounded-xl border border-slate-800 bg-slate-900/40 p-5 flex items-center justify-between shadow-lg shadow-slate-950/20">
               <div className="space-y-1">
-                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">고급 마사지 비중</span>
+                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">{t('stats.kpi.premium_ratio')}</span>
                 <span className="text-2xl font-black text-amber-500 font-mono tracking-tight">{premiumRatio}%</span>
-                <span className="text-[9px] text-slate-500 block">10만원 이상 코스: {premiumBookings}건</span>
+                <span className="text-[9px] text-slate-500 block">
+                  {t('stats.kpi.premium_label').replace('{count}', premiumBookings.toString())}
+                </span>
               </div>
-              <div className="w-10 h-10 rounded-lg bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-550 shadow-inner">
-                <Percent className="w-5 h-5" />
+              <div className="w-10 h-10 rounded-lg bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-500 shadow-inner">
+                <PieChart className="w-5 h-5" />
               </div>
             </div>
 
             {/* 최다 예약 마사지사 */}
             <div className="rounded-xl border border-slate-800 bg-slate-900/40 p-5 flex items-center justify-between shadow-lg shadow-slate-950/20">
               <div className="space-y-1">
-                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">우수 마사지사 (최다건)</span>
+                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">{t('stats.kpi.top_therapist')}</span>
                 <span className="text-2xl font-black text-slate-100 tracking-tight">
-                  {topTherapist && topTherapist.count > 0 ? `${topTherapist.name}` : '없음'}
+                  {topTherapist && topTherapist.count > 0 ? `${topTherapist.name}` : t('stats.kpi.none')}
                 </span>
                 <span className="text-[9px] text-slate-500 block">
-                  {topTherapist && topTherapist.count > 0 ? `누적 배정: ${topTherapist.count}건 / ${topTherapist.revenue.toLocaleString()}원` : '데이터가 없습니다.'}
+                  {topTherapist && topTherapist.count > 0 
+                    ? t('stats.kpi.top_therapist_label')
+                        .replace('{count}', topTherapist.count.toString())
+                        .replace('{revenue}', topTherapist.revenue.toLocaleString())
+                    : t('stats.kpi.no_data')}
                 </span>
               </div>
               <div className="w-10 h-10 rounded-lg bg-yellow-500/10 border border-yellow-500/20 flex items-center justify-center text-yellow-400 shadow-inner">
@@ -368,7 +394,7 @@ export default function StatsManager({ supabase, currentUserId }: StatsManagerPr
               <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-800/80 pb-3">
                 <div className="flex items-center gap-2">
                   <PieChart className="w-4 h-4 text-indigo-400" />
-                  <h3 className="text-xs font-bold text-slate-300">마사지사별 실적 현황 랭킹</h3>
+                  <h3 className="text-xs font-bold text-slate-300">{t('stats.chart.ranking_title')}</h3>
                 </div>
                 
                 {/* 정렬 메트릭 토글 */}
@@ -381,7 +407,7 @@ export default function StatsManager({ supabase, currentUserId }: StatsManagerPr
                         : 'bg-transparent text-slate-500 hover:text-slate-400'
                     }`}
                   >
-                    예약 건수순
+                    {t('stats.chart.sort.count')}
                   </button>
                   <button
                     onClick={() => setActiveMetric('revenue')}
@@ -391,7 +417,7 @@ export default function StatsManager({ supabase, currentUserId }: StatsManagerPr
                         : 'bg-transparent text-slate-500 hover:text-slate-400'
                     }`}
                   >
-                    매출액순
+                    {t('stats.chart.sort.revenue')}
                   </button>
                 </div>
               </div>
@@ -431,19 +457,19 @@ export default function StatsManager({ supabase, currentUserId }: StatsManagerPr
                           </span>
                           <span className="font-bold text-slate-200">{item.name}</span>
                           {!item.isActive && (
-                            <span className="text-[9px] bg-slate-900 text-slate-600 px-1 py-0.2 rounded">휴무</span>
+                            <span className="text-[9px] bg-slate-900 text-slate-500 px-1 py-0.2 rounded">{t('stats.chart.off_duty')}</span>
                           )}
                           {item.isPremiumTarget && (
-                            <span className="text-[9px] bg-amber-500/10 text-amber-500 border border-amber-500/20 px-1 py-0.2 rounded font-semibold">고급담당</span>
+                            <span className="text-[9px] bg-amber-500/10 text-amber-500 border border-amber-500/20 px-1 py-0.2 rounded font-semibold">{t('stats.chart.premium_role')}</span>
                           )}
                         </div>
-                        <div className="text-right font-mono text-[11px] font-semibold text-slate-350">
-                          <span className={activeMetric === 'count' ? 'text-indigo-450 font-extrabold' : 'text-slate-400'}>
-                            {item.count}건
+                        <div className="text-right font-mono text-[11px] font-semibold text-slate-300">
+                          <span className={activeMetric === 'count' ? 'text-indigo-400 font-extrabold' : 'text-slate-400'}>
+                            {item.count}{language === 'ko' ? '건' : ''}
                           </span>
                           <span className="mx-1.5 text-slate-700">|</span>
-                          <span className={activeMetric === 'revenue' ? 'text-emerald-450 font-extrabold' : 'text-slate-400'}>
-                            {item.revenue.toLocaleString()}원
+                          <span className={activeMetric === 'revenue' ? 'text-emerald-400 font-extrabold' : 'text-slate-400'}>
+                            ${item.revenue.toLocaleString()}
                           </span>
                         </div>
                       </div>
@@ -471,12 +497,13 @@ export default function StatsManager({ supabase, currentUserId }: StatsManagerPr
                 <div className="flex items-center gap-2">
                   <TrendingUp className="w-4 h-4 text-indigo-400" />
                   <h3 className="text-xs font-bold text-slate-300">
-                    {periodType === 'daily' ? '시간대별' : periodType === 'weekly' ? '요일별' : '일별'} 예약 건수 추이
+                    {t('stats.chart.trend_title')
+                      .replace('{period}', periodType === 'daily' ? t('stats.chart.trend.hour') : periodType === 'weekly' ? t('stats.chart.trend.day') : t('stats.chart.trend.date'))}
                   </h3>
                 </div>
                 
                 <span className="text-[10px] text-slate-500 font-medium">
-                  단위: 예약 건수
+                  {t('stats.chart.trend.unit')}
                 </span>
               </div>
 
@@ -484,9 +511,9 @@ export default function StatsManager({ supabase, currentUserId }: StatsManagerPr
               <div className="flex-1 min-h-[260px] flex items-end justify-between gap-1.5 pt-6 pb-2 px-1 relative">
                 {/* 배경 가이드 라인 (3단) */}
                 <div className="absolute inset-x-0 top-6 bottom-8 flex flex-col justify-between pointer-events-none">
-                  <div className="border-t border-slate-850/50 w-full" />
-                  <div className="border-t border-slate-850/50 w-full" />
-                  <div className="border-t border-slate-850/50 w-full" />
+                  <div className="border-t border-slate-800/50 w-full" />
+                  <div className="border-t border-slate-800/50 w-full" />
+                  <div className="border-t border-slate-800/50 w-full" />
                 </div>
 
                 {trendStats.map((slot, index) => {
@@ -500,15 +527,15 @@ export default function StatsManager({ supabase, currentUserId }: StatsManagerPr
                       {/* Hover 시 툴팁 말풍선 */}
                       <div className="absolute bottom-full mb-2 bg-slate-950 border border-slate-800 text-[10px] text-slate-200 px-2 py-1 rounded shadow-lg opacity-0 pointer-events-none group-hover:opacity-100 transition-opacity z-10 whitespace-nowrap text-center">
                         <p className="font-bold text-indigo-400">{slot.label}</p>
-                        <p className="font-mono text-slate-300">확정: {slot.count}건</p>
-                        <p className="font-mono text-emerald-450">{slot.revenue.toLocaleString()}원</p>
+                        <p className="font-mono text-slate-300">{t('stats.chart.trend.confirmed').replace('{count}', slot.count.toString())}</p>
+                        <p className="font-mono text-emerald-400">${slot.revenue.toLocaleString()}</p>
                       </div>
 
                       {/* 세로 막대 기둥 */}
                       <div 
                         className={`w-full rounded-t transition-all duration-300 ${
                           slot.count > 0 
-                            ? 'bg-gradient-to-t from-indigo-650 via-indigo-500 to-indigo-400 group-hover:from-indigo-550 group-hover:to-indigo-300 shadow-[0_0_8px_rgba(99,102,241,0.2)]' 
+                            ? 'bg-gradient-to-t from-indigo-600 via-indigo-500 to-indigo-400 group-hover:from-indigo-500 group-hover:to-indigo-300 shadow-[0_0_8px_rgba(99,102,241,0.2)]' 
                             : 'bg-slate-950/20 border border-slate-900'
                         }`}
                         style={{ height: slot.count > 0 ? `${heightPercent + 5}%` : '4%' }}
@@ -530,10 +557,10 @@ export default function StatsManager({ supabase, currentUserId }: StatsManagerPr
                 <Info className="w-4 h-4 text-indigo-400 flex-shrink-0" />
                 <p className="leading-relaxed">
                   {periodType === 'daily' 
-                    ? '오늘 예약은 시간대별로 균등히 배정되는 경향을 보입니다. 정리가 필요한 시간대를 분석하여 직원을 추가 배치하십시오.' 
+                    ? t('stats.chart.trend.daily_desc') 
                     : periodType === 'weekly'
-                    ? '요일별 예약 분포를 통해 주말 및 특정 요일의 쏠림 현상을 분석하고 마사지사 휴무 일정을 조율할 수 있습니다.' 
-                    : '월별 누적 예약을 통해 매달 전체 예약의 활성화 주기 및 계절별 예약 추이를 한눈에 추적합니다.'}
+                    ? t('stats.chart.trend.weekly_desc') 
+                    : t('stats.chart.trend.monthly_desc')}
                 </p>
               </div>
 
@@ -545,9 +572,11 @@ export default function StatsManager({ supabase, currentUserId }: StatsManagerPr
             <div className="rounded-xl border border-rose-500/10 bg-rose-500/5 p-4 flex items-start gap-3">
               <ShieldAlert className="w-5 h-5 text-rose-400 flex-shrink-0 mt-0.5 animate-pulse" />
               <div className="space-y-1">
-                <h4 className="text-xs font-bold text-rose-400">⚠️ 예약 취소 알림 및 분석</h4>
+                <h4 className="text-xs font-bold text-rose-400">{t('stats.warning.cancellation_title')}</h4>
                 <p className="text-[11px] text-slate-400 leading-relaxed">
-                  이 기간 동안 총 <span className="font-bold text-rose-400 font-mono">{cancelledRes.length}건</span>의 예약이 취소되었습니다. 취소된 예약으로 인한 예상 기회비용 손실액은 약 <span className="font-bold text-rose-400 font-mono">{cancelledRes.reduce((sum, r) => sum + Number(r.price), 0).toLocaleString()}원</span>입니다. 잦은 취소 시간대 또는 취소 사유를 파악하여 예약 예치금(노쇼 방지) 등의 도입을 고려해 주십시오.
+                  {t('stats.warning.cancellation_desc')
+                    .replace('{count}', cancelledRes.length.toString())
+                    .replace('{loss}', cancelledRes.reduce((sum, r) => sum + Number(r.price), 0).toLocaleString())}
                 </p>
               </div>
             </div>
@@ -557,3 +586,4 @@ export default function StatsManager({ supabase, currentUserId }: StatsManagerPr
     </div>
   )
 }
+

@@ -1,9 +1,10 @@
 'use client'
 
 import React, { useState } from 'react'
-import { ChevronLeft, ChevronRight, Plus } from 'lucide-react'
-import { toLocalDateString, toLocalTimeString } from '@/utils/booking/dateUtils'
+import { ChevronLeft, ChevronRight, Plus, X } from 'lucide-react'
+import { toLocalDateString, toLocalTimeString, toUIDateString } from '@/utils/booking/dateUtils'
 import { useUserSim } from '@/app/providers'
+import { useLanguage } from '@/app/LanguageContext'
 
 export interface Therapist {
   id: number
@@ -49,6 +50,8 @@ export default function CalendarView({
   viewMode
 }: CalendarViewProps) {
   const { currentUser } = useUserSim()
+  const { language, t } = useLanguage()
+  const [popoverDate, setPopoverDate] = useState<string | null>(null)
   const hours = Array.from({ length: 16 }, (_, i) => i + 9) // 09:00 ~ 24:00
 
   // 1. 날짜 이동 핸들러
@@ -89,16 +92,20 @@ export default function CalendarView({
     const year = currentDate.getFullYear()
     const month = currentDate.getMonth() + 1
     if (viewMode === 'day') {
-      const day = currentDate.getDate()
-      const dayName = ['일', '월', '화', '수', '목', '금', '토'][currentDate.getDay()]
-      return `${year}년 ${month}월 ${day}일 (${dayName}요일)`
+      const dayNameKo = ['일', '월', '화', '수', '목', '금', '토'][currentDate.getDay()]
+      const dayNameEn = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'][currentDate.getDay()]
+      if (language === 'ko') {
+        return `${toUIDateString(currentDate)} (${dayNameKo}요일)`
+      } else {
+        return `${dayNameEn}, ${toUIDateString(currentDate)}`
+      }
     } else if (viewMode === 'week') {
       const start = getStartOfWeek(currentDate)
       const end = new Date(start)
       end.setDate(start.getDate() + 6)
-      return `${start.getFullYear()}년 ${start.getMonth() + 1}월 ${start.getDate()}일 ~ ${end.getMonth() + 1}월 ${end.getDate()}일`
+      return `${toUIDateString(start)} ~ ${toUIDateString(end)}`
     } else {
-      return `${year}년 ${month}월`
+      return `${String(month).padStart(2, '0')}-${year}`
     }
   }
 
@@ -106,10 +113,8 @@ export default function CalendarView({
   // [A] 일간 뷰: 마사지사별 타임라인 (수동 배정에 최적화)
   // ==========================================
   const renderDayView = () => {
-    // 오늘 날짜 문자열 필터링용 (YYYY-MM-DD)
     const todayStr = toLocalDateString(currentDate)
 
-    // 오늘 예약 중 확정된 것만 필터링
     const dayReservations = reservations.filter(res => {
       const resDateStr = toLocalDateString(new Date(res.start_time))
       return resDateStr === todayStr && res.status === 'confirmed'
@@ -118,24 +123,22 @@ export default function CalendarView({
     return (
       <div className="overflow-x-auto rounded-lg border border-slate-800 bg-slate-900/60 backdrop-blur-md">
         <div className="min-w-[900px]">
-          {/* 타임라인 헤더 (시간축) - 18열 고정 */}
           <div 
             className="grid border-b border-slate-800 bg-slate-950/60 p-3 text-xs font-semibold text-slate-400"
             style={{ gridTemplateColumns: 'repeat(18, minmax(0, 1fr))' }}
           >
-            <div className="col-span-2 text-left pl-2 text-slate-300">마사지사 (오늘)</div>
+            <div className="col-span-2 text-left pl-2 text-slate-300">
+              {language === 'ko' ? '마사지사 (오늘)' : 'Therapist (Today)'}
+            </div>
             {hours.map(hour => (
               <div key={hour} className="text-center">{hour}:00</div>
             ))}
           </div>
 
-          {/* 마사지사 행 렌더링 */}
           <div className="divide-y divide-slate-800/60">
             {therapists.map(therapist => {
-              // 해당 마사지사의 오늘 예약 필터링
               const therapistResList = dayReservations.filter(r => r.therapist_id === therapist.id)
 
-              // 동적 타임라인 세그먼트 생성 (colSpan 병합 연산)
               const segments: {
                 type: 'empty' | 'reservation'
                 hour: number
@@ -159,7 +162,6 @@ export default function CalendarView({
                 })
 
                 if (res) {
-                  // 이미 앞선 루프에서 처리한 예약 칩인 경우 스킵
                   const alreadyProcessed = segments.find(seg => seg.type === 'reservation' && seg.reservation?.id === res.id)
                   
                   if (!alreadyProcessed) {
@@ -182,7 +184,6 @@ export default function CalendarView({
                       reservation: res
                     })
                     
-                    // colSpan 만큼 루프 인덱스 스킵
                     i += colSpan - 1
                   }
                 } else {
@@ -200,27 +201,24 @@ export default function CalendarView({
                   className="grid min-h-[64px] items-center hover:bg-slate-800/30 transition-colors"
                   style={{ gridTemplateColumns: 'repeat(18, minmax(0, 1fr))' }}
                 >
-                  {/* 마사지사 이름 & 정보 */}
                   <div className="col-span-2 pl-4 py-2 border-r border-slate-800/80">
                     <div className="flex items-center gap-1.5">
                       <span className="font-semibold text-slate-200">{therapist.name}</span>
                       {therapist.is_premium_target && (
                         <span className="inline-flex items-center rounded-full bg-amber-500/10 px-2 py-0.5 text-[10px] font-medium text-amber-500 border border-amber-500/20">
-                          고급 우선
+                          {language === 'ko' ? '고급 우선' : 'Premium'}
                         </span>
                       )}
                     </div>
                     <span className="text-[11px] text-slate-500">
-                      {therapist.is_active ? '근무 중' : '휴무'}
+                      {therapist.is_active ? t('schedule.on_duty') : t('schedule.off_duty')}
                     </span>
                   </div>
 
-                  {/* 세그먼트별 렌더러 (예약은 colSpan 병합 칩으로, 빈 칸은 1칸 빈 공간으로) */}
                   {segments.map((seg, idx) => {
                     if (seg.type === 'reservation' && seg.reservation) {
                       const res = seg.reservation
                       
-                      // 10분 단위 공백(갭)을 백분율(%)로 변환하는 오프셋/너비 계산
                       const segmentStart = new Date(currentDate)
                       segmentStart.setHours(seg.hour, 0, 0, 0)
                       const segmentEnd = new Date(currentDate)
@@ -257,7 +255,9 @@ export default function CalendarView({
                             <span className="truncate">
                               {res.customer_name} ({toLocalTimeString(new Date(res.start_time))}~{toLocalTimeString(new Date(res.end_time))})
                             </span>
-                            <span className="text-[9px] opacity-80">{res.price.toLocaleString()}원</span>
+                            <span className="text-[9px] opacity-80">
+                              ${res.price.toLocaleString()}
+                            </span>
                           </div>
                         </div>
                       )
@@ -302,6 +302,10 @@ export default function CalendarView({
       return d
     })
 
+    const dayNames = language === 'ko' 
+      ? ['일', '월', '화', '수', '목', '금', '토'] 
+      : ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+
     return (
       <div className="grid grid-cols-7 gap-4">
         {days.map((day, idx) => {
@@ -312,7 +316,6 @@ export default function CalendarView({
           })
 
           const isToday = toLocalDateString(new Date()) === dayStr
-          const dayNames = ['일', '월', '화', '수', '목', '금', '토']
 
           return (
             <div
@@ -323,7 +326,6 @@ export default function CalendarView({
                   : 'border-slate-800 bg-slate-900/40'
               }`}
             >
-              {/* 요일 헤더 */}
               <div className="border-b border-slate-800/80 pb-2 mb-3">
                 <span className={`text-xs font-semibold uppercase ${isToday ? 'text-indigo-400' : 'text-slate-400'}`}>
                   {dayNames[day.getDay()]}
@@ -332,19 +334,17 @@ export default function CalendarView({
                   <span className={`text-2xl font-bold tracking-tight ${isToday ? 'text-indigo-200' : 'text-slate-200'}`}>
                     {day.getDate()}
                   </span>
-                  <span className="text-[11px] text-slate-500">일</span>
+                  <span className="text-[11px] text-slate-500">{language === 'ko' ? '일' : ''}</span>
                 </div>
               </div>
 
-              {/* 해당 날짜 예약 목록 */}
               <div className="flex-1 space-y-2 overflow-y-auto max-h-[220px] scrollbar-thin">
                 {dayResList.length === 0 ? (
                   <div className="h-full flex items-center justify-center py-8">
-                    <span className="text-xs text-slate-600">예약 없음</span>
+                    <span className="text-xs text-slate-600">{language === 'ko' ? '예약 없음' : 'No Bookings'}</span>
                   </div>
                 ) : (
                   dayResList.map(res => {
-                    const startH = new Date(res.start_time).getHours()
                     const therapist = therapists.find(t => t.id === res.therapist_id)
 
                     return (
@@ -362,7 +362,7 @@ export default function CalendarView({
                           <span className="text-[10px] opacity-75 font-mono">{toLocalTimeString(new Date(res.start_time))}</span>
                         </div>
                         <div className="text-[10px] text-slate-400 truncate">
-                          👨‍⚕️ {therapist?.name || '미배정'}
+                          👨‍⚕️ {therapist?.name || (language === 'ko' ? '미배정' : 'Unassigned')}
                         </div>
                       </div>
                     )
@@ -370,7 +370,6 @@ export default function CalendarView({
                 )}
               </div>
 
-              {/* 예약 신규 등록 단축 버튼 */}
               {currentUser.role !== 'therapist' && (
                 <button
                   onClick={() => {
@@ -380,7 +379,7 @@ export default function CalendarView({
                   }}
                   className="mt-3 w-full inline-flex items-center justify-center rounded-lg border border-dashed border-slate-800 py-1.5 text-slate-500 hover:border-indigo-500/40 hover:text-indigo-400 transition-colors text-[11px] font-medium"
                 >
-                  <Plus className="w-3.5 h-3.5 mr-1" /> 예약 추가
+                  <Plus className="w-3.5 h-3.5 mr-1" /> {language === 'ko' ? '예약 추가' : 'Add Booking'}
                 </button>
               )}
             </div>
@@ -403,33 +402,26 @@ export default function CalendarView({
     const prevDaysArray = Array.from({ length: startDay }, (_, i) => prevMonthDays - startDay + 1 + i)
     const currentDaysArray = Array.from({ length: totalDays }, (_, i) => i + 1)
     
-    // 그리드 총 칸수 맞추기 (7의 배수)
     const remainingSlots = 42 - (prevDaysArray.length + currentDaysArray.length)
     const nextDaysArray = Array.from({ length: remainingSlots }, (_, i) => i + 1)
 
+    const dayNames = language === 'ko' 
+      ? ['일', '월', '화', '수', '목', '금', '토'] 
+      : ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
+
     return (
       <div className="border border-slate-800 rounded-xl overflow-hidden bg-slate-900/40">
-        {/* 요일 타이틀 */}
         <div className="grid grid-cols-7 border-b border-slate-850 bg-slate-950/40 p-3 text-center text-xs font-semibold text-slate-400">
-          <div>일</div>
-          <div>월</div>
-          <div>화</div>
-          <div>수</div>
-          <div>목</div>
-          <div>금</div>
-          <div>토</div>
+          {dayNames.map((d, i) => <div key={i}>{d}</div>)}
         </div>
 
-        {/* 캘린더 일자 그리드 */}
         <div className="grid grid-cols-7 divide-x divide-y divide-slate-850">
-          {/* 이전 달 날짜 채우기 */}
           {prevDaysArray.map(day => (
             <div key={`prev-${day}`} className="p-3 min-h-[100px] bg-slate-950/20 text-slate-700 text-xs text-left">
               {day}
             </div>
           ))}
 
-          {/* 현재 달 날짜 채우기 */}
           {currentDaysArray.map(day => {
             const dateStr = `${year}-${String(month + 1).padStart(2, '0')}-${String(day).padStart(2, '0')}`
             const dayResList = reservations.filter(res => {
@@ -442,7 +434,13 @@ export default function CalendarView({
             return (
               <div
                 key={`curr-${day}`}
-                className={`p-2.5 min-h-[100px] text-xs text-left flex flex-col hover:bg-slate-800/10 transition-colors ${
+                onClick={() => {
+                  if (currentUser.role !== 'therapist') {
+                    const bookingTime = new Date(year, month, day, 9, 0, 0, 0)
+                    onAddReservationAt(bookingTime)
+                  }
+                }}
+                className={`p-2.5 min-h-[100px] text-xs text-left flex flex-col hover:bg-slate-800/10 transition-colors cursor-pointer ${
                   isToday ? 'bg-indigo-950/10' : ''
                 }`}
               >
@@ -450,7 +448,6 @@ export default function CalendarView({
                   {day}
                 </span>
 
-                {/* 예약 칩 렌더링 (최대 3개 노출) */}
                 <div className="mt-2 space-y-1.5 flex-1 overflow-y-auto scrollbar-thin">
                   {dayResList.slice(0, 3).map(res => (
                     <div
@@ -469,29 +466,21 @@ export default function CalendarView({
                     </div>
                   ))}
                   {dayResList.length > 3 && (
-                    <div className="text-[10px] text-slate-500 text-center font-medium">
-                      외 {dayResList.length - 3}건 더 있음
+                    <div 
+                      onClick={(e) => {
+                        e.stopPropagation()
+                        setPopoverDate(dateStr)
+                      }}
+                      className="text-[10px] text-slate-500 hover:text-indigo-400 text-center font-medium cursor-pointer transition-colors"
+                    >
+                      {language === 'ko' ? `외 ${dayResList.length - 3}건 더 있음` : `+${dayResList.length - 3} more`}
                     </div>
                   )}
                 </div>
-
-                {/* 셀 하단 여백 클릭 시 신규 예약 */}
-                {currentUser.role !== 'therapist' && (
-                  <div
-                    onClick={() => {
-                      const bookingTime = new Date(year, month, day, 9, 0, 0, 0)
-                      onAddReservationAt(bookingTime)
-                    }}
-                    className="h-4 cursor-pointer flex justify-end"
-                  >
-                    <Plus className="w-3.5 h-3.5 text-slate-700 hover:text-indigo-500 transition-colors" />
-                  </div>
-                )}
               </div>
             )
           })}
 
-          {/* 다음 달 날짜 채우기 */}
           {nextDaysArray.map(day => (
             <div key={`next-${day}`} className="p-3 min-h-[100px] bg-slate-950/20 text-slate-700 text-xs text-left">
               {day}
@@ -504,7 +493,6 @@ export default function CalendarView({
 
   return (
     <div className="space-y-4">
-      {/* 캘린더 네비게이션 컨트롤 */}
       <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 bg-slate-900/40 p-4 rounded-xl border border-slate-800">
         <div className="flex items-center gap-1.5">
           <button
@@ -523,14 +511,15 @@ export default function CalendarView({
             onClick={handleToday}
             className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-750 text-slate-300 hover:text-slate-100 transition-colors ml-1"
           >
-            오늘
+            {t('calendar.today')}
           </button>
           <h2 className="text-lg font-bold tracking-tight text-slate-200 ml-3">{getHeaderTitle()}</h2>
         </div>
 
-        {/* 캘린더 등록 가이드 문구 */}
         <span className="text-[11px] text-slate-500 self-end">
-          * 비어있는 슬롯을 클릭하면 해당 시간대에 바로 새 예약을 추가할 수 있습니다.
+          {language === 'ko' 
+            ? '* 비어있는 슬롯을 클릭하면 해당 시간대에 바로 새 예약을 추가할 수 있습니다.' 
+            : '* Click on an empty slot to instantly create a new booking for that time.'}
         </span>
       </div>
 
@@ -538,6 +527,87 @@ export default function CalendarView({
       {viewMode === 'day' && renderDayView()}
       {viewMode === 'week' && renderWeekView()}
       {viewMode === 'month' && renderMonthView()}
+
+      {/* 월간 뷰 추가 예약 보기 오버레이 팝오버 */}
+      {popoverDate && (() => {
+        const selectedDate = new Date(popoverDate)
+        const dateStrKo = `${selectedDate.getFullYear()}년 ${String(selectedDate.getMonth() + 1).padStart(2, '0')}월 ${String(selectedDate.getDate()).padStart(2, '0')}일`
+        const dateStrEn = toUIDateString(selectedDate)
+        const displayDate = language === 'ko' ? dateStrKo : dateStrEn
+        
+        const dayResList = reservations.filter(res => {
+          const resDateStr = toLocalDateString(new Date(res.start_time))
+          return resDateStr === popoverDate && res.status === 'confirmed'
+        })
+        
+        return (
+          <div 
+            className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 backdrop-blur-sm transition-opacity"
+            onClick={() => setPopoverDate(null)}
+          >
+            <div 
+              className="w-full max-w-sm rounded-xl border border-slate-800 bg-slate-900 p-5 shadow-2xl space-y-4"
+              onClick={(e) => e.stopPropagation()}
+            >
+              <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+                <div className="flex flex-col">
+                  <span className="text-xs font-bold text-indigo-400 font-sans">{displayDate}</span>
+                  <span className="text-[10px] text-slate-500 font-medium mt-0.5">
+                    {language === 'ko' ? `등록된 예약 총 ${dayResList.length}건` : `Total ${dayResList.length} booking(s)`}
+                  </span>
+                </div>
+                <button 
+                  onClick={() => setPopoverDate(null)}
+                  className="p-1 rounded-lg bg-slate-800 hover:bg-slate-750 text-slate-500 hover:text-slate-200 transition-colors"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+              
+              <div className="max-h-64 overflow-y-auto space-y-2 pr-1 scrollbar-thin">
+                {dayResList.map(res => (
+                  <div
+                    key={res.id}
+                    onClick={() => {
+                      setPopoverDate(null)
+                      onSelectReservation(res)
+                    }}
+                    className={`flex items-center justify-between rounded-lg p-3 text-xs font-medium cursor-pointer border transition-all ${
+                      res.is_premium
+                        ? 'bg-amber-950/30 border-amber-500/20 text-amber-300 hover:bg-amber-950/50 hover:border-amber-500/30 shadow-sm shadow-amber-950/20'
+                        : 'bg-indigo-950/30 border-indigo-500/20 text-indigo-300 hover:bg-indigo-950/50 hover:border-indigo-500/30 shadow-sm shadow-indigo-950/20'
+                    }`}
+                  >
+                    <div className="flex flex-col space-y-0.5">
+                      <span className="font-bold">{res.customer_name}</span>
+                      {res.is_premium && (
+                        <span className="text-[9px] text-amber-500 font-semibold uppercase tracking-wider">Premium</span>
+                      )}
+                    </div>
+                    <span className="font-mono text-[10px] text-slate-400 bg-slate-950/40 px-1.5 py-0.5 rounded border border-slate-850">
+                      {toLocalTimeString(new Date(res.start_time))}
+                    </span>
+                  </div>
+                ))}
+              </div>
+              
+              {currentUser.role !== 'therapist' && (
+                <button
+                  onClick={() => {
+                    const bookingTime = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), selectedDate.getDate(), 9, 0, 0, 0)
+                    setPopoverDate(null)
+                    onAddReservationAt(bookingTime)
+                  }}
+                  className="w-full inline-flex items-center justify-center gap-1.5 bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-500 hover:to-indigo-400 text-white font-bold text-xs py-3 rounded-xl transition-all shadow-md shadow-indigo-950/20 active:scale-[0.98]"
+                >
+                  <Plus className="w-3.5 h-3.5" />
+                  {language === 'ko' ? '새 예약 접수' : 'Add New Booking'}
+                </button>
+              )}
+            </div>
+          </div>
+        )
+      })()}
     </div>
   )
 }

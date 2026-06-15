@@ -5,7 +5,8 @@ import { X, Calendar, User, Phone, DollarSign, UserCheck, Trash2, Ban } from 'lu
 import { assignTherapist } from '@/utils/booking/assignTherapist'
 import { Reservation, Therapist } from './CalendarView'
 import { SupabaseClient } from '@supabase/supabase-js'
-import { toLocalDateString, toLocalTimeString } from '@/utils/booking/dateUtils'
+import { toLocalDateString, toLocalTimeString, toUIDateString } from '@/utils/booking/dateUtils'
+import { useLanguage } from '@/app/LanguageContext'
 
 interface BookingModalProps {
   isOpen: boolean
@@ -39,7 +40,7 @@ export default function BookingModal({
 }: BookingModalProps) {
   const [customerName, setCustomerName] = useState('')
   const [customerPhone, setCustomerPhone] = useState('')
-  const [price, setPrice] = useState(80000) // 기본 8만원
+  const [price, setPrice] = useState(80) // 기본 $80
   const [date, setDate] = useState('')
   const [startHour, setStartHour] = useState(9)
   const [startMinute, setStartMinute] = useState(0)
@@ -49,6 +50,7 @@ export default function BookingModal({
 
   const [loading, setLoading] = useState(false)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
+  const { language, t } = useLanguage()
   
   // 마사지사 날짜별 근무 일정 맵핑 상태
   const [daySchedules, setDaySchedules] = useState<Record<number, string | null>>({})
@@ -87,10 +89,10 @@ export default function BookingModal({
     
     // 기본은 미정(null), 미정일 때는 가용하지 않음
     if (!type) {
-      return { available: false, reason: '미정' }
+      return { available: false, reason: language === 'ko' ? '미정' : 'TBD' }
     }
     if (type === 'off') {
-      return { available: false, reason: '휴무' }
+      return { available: false, reason: t('schedule.off_duty') }
     }
     
     const startMinutes = startHour * 60 + startMinute
@@ -99,15 +101,25 @@ export default function BookingModal({
     
     if (type === 'am_half') {
       const ok = startMinutes >= boundary
-      return { available: ok, reason: ok ? '오전반차' : '오전반차 (반차휴무)' }
+      return { 
+        available: ok, 
+        reason: ok 
+          ? (language === 'ko' ? '오전반차' : 'AM Off') 
+          : (language === 'ko' ? '오전반차 (반차휴무)' : 'AM Off (Half-day)') 
+      }
     }
     
     if (type === 'pm_half') {
       const ok = endMinutes <= boundary
-      return { available: ok, reason: ok ? '오후반차' : '오후반차 (반차휴무)' }
+      return { 
+        available: ok, 
+        reason: ok 
+          ? (language === 'ko' ? '오후반차' : 'PM Off') 
+          : (language === 'ko' ? '오후반차 (반차휴무)' : 'PM Off (Half-day)') 
+      }
     }
     
-    return { available: true, reason: '근무' }
+    return { available: true, reason: t('schedule.on_duty') }
   }
   
   // 예약 성공 결과를 저장하는 상태 (결과 화면 전환용)
@@ -121,9 +133,9 @@ export default function BookingModal({
     endMinute: number
     isEdit: boolean
   } | null>(null)
- 
+  
   const isEditMode = !!selectedReservation
- 
+  
   const getDefaultEndTime = (h: number, m: number) => {
     let eh = h + 1
     let em = m + 30
@@ -164,7 +176,7 @@ export default function BookingModal({
         // 신규 등록 모드
         setCustomerName('')
         setCustomerPhone('')
-        setPrice(80000)
+        setPrice(80)
         setTherapistId(initialTherapistId?.toString() || 'auto')
         
         if (initialTime) {
@@ -247,11 +259,11 @@ export default function BookingModal({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
     if (!customerName.trim()) {
-      setErrorMsg('고객 이름을 입력해 주세요.')
+      setErrorMsg(language === 'ko' ? '고객 이름을 입력해 주세요.' : 'Please enter client name.')
       return
     }
     if (startHour >= endHour) {
-      setErrorMsg('종료 시간은 시작 시간보다 늦어야 합니다.')
+      setErrorMsg(language === 'ko' ? '종료 시간은 시작 시간보다 늦어야 합니다.' : 'End time must be later than start time.')
       return
     }
 
@@ -262,7 +274,7 @@ export default function BookingModal({
     const isTimeChanged = !selectedReservation || new Date(selectedReservation.start_time).getTime() !== bookingStart.getTime()
 
     if (isTimeChanged && bookingStart < now) {
-      const msg = '과거 시간으로 예약할 수 없습니다.'
+      const msg = language === 'ko' ? '과거 시간으로 예약할 수 없습니다.' : 'Cannot book for a past time.'
       setErrorMsg(msg)
       alert(msg)
       return
@@ -303,7 +315,7 @@ export default function BookingModal({
       })
 
       if (!assignResult.success || !assignResult.therapistId) {
-        setErrorMsg(assignResult.error || '마사지사 배정에 실패했습니다.')
+        setErrorMsg(assignResult.error || (language === 'ko' ? '마사지사 배정에 실패했습니다.' : 'Failed to assign therapist.'))
         setLoading(false)
         return
       }
@@ -315,29 +327,29 @@ export default function BookingModal({
         // [수정 모드 처리]
         const changes: string[] = []
         if (selectedReservation.customer_name !== customerName) {
-          changes.push(`고객명: ${selectedReservation.customer_name} -> ${customerName}`)
+          changes.push(`${language === 'ko' ? '고객명' : 'Client'}: ${selectedReservation.customer_name} -> ${customerName}`)
         }
         if ((selectedReservation.customer_phone || '') !== customerPhone) {
-          changes.push(`연락처: ${selectedReservation.customer_phone || '없음'} -> ${customerPhone || '없음'}`)
+          changes.push(`${language === 'ko' ? '연락처' : 'Phone'}: ${selectedReservation.customer_phone || (language === 'ko' ? '없음' : 'None')} -> ${customerPhone || (language === 'ko' ? '없음' : 'None')}`)
         }
         if (Number(selectedReservation.price) !== price) {
-          changes.push(`금액: ${Number(selectedReservation.price).toLocaleString()}원 -> ${price.toLocaleString()}원`)
+          changes.push(`${language === 'ko' ? '금액' : 'Price'}: $${Number(selectedReservation.price).toLocaleString()} -> $${price.toLocaleString()}`)
         }
         if (selectedReservation.start_time !== startTimeISO || selectedReservation.end_time !== endTimeISO) {
           const oldStart = toLocalTimeString(new Date(selectedReservation.start_time))
           const oldEnd = toLocalTimeString(new Date(selectedReservation.end_time))
           const newStart = toLocalTimeString(new Date(startTimeISO))
           const newEnd = toLocalTimeString(new Date(endTimeISO))
-          changes.push(`시간: ${oldStart}~${oldEnd} -> ${newStart}~${newEnd}`)
+          changes.push(`${language === 'ko' ? '시간' : 'Time'}: ${oldStart}~${oldEnd} -> ${newStart}~${newEnd}`)
         }
         if (selectedReservation.therapist_id !== assignedId) {
-          const oldTherapist = therapists.find(t => t.id === selectedReservation.therapist_id)?.name || '미배정'
-          changes.push(`마사지사: ${oldTherapist} -> ${assignedName}`)
+          const oldTherapist = therapists.find(t => t.id === selectedReservation.therapist_id)?.name || (language === 'ko' ? '미배정' : 'Unassigned')
+          changes.push(`${language === 'ko' ? '마사지사' : 'Therapist'}: ${oldTherapist} -> ${assignedName}`)
         }
 
         const detailsText = changes.length > 0 
-          ? `예약 정보 변경 - [${changes.join(', ')}]`
-          : '예약 정보 수정 (변경사항 없음)'
+          ? `${language === 'ko' ? '예약 정보 변경' : 'Booking Info Changed'} - [${changes.join(', ')}]`
+          : (language === 'ko' ? '예약 정보 수정 (변경사항 없음)' : 'Booking Info Saved (No changes)')
 
         const { error } = await supabase
           .from('reservations')
@@ -396,7 +408,7 @@ export default function BookingModal({
 
     } catch (err: any) {
       console.error(err)
-      setErrorMsg(err.message || '예약 처리 중 오류가 발생했습니다.')
+      setErrorMsg(err.message || (language === 'ko' ? '예약 처리 중 오류가 발생했습니다.' : 'An error occurred while saving booking.'))
     } finally {
       setLoading(false)
     }
@@ -405,7 +417,7 @@ export default function BookingModal({
   // 5. 예약 취소 처리 핸들러 (Soft Cancel)
   const handleCancelReservation = async () => {
     if (!selectedReservation) return
-    if (!confirm('정말로 이 예약을 취소하시겠습니까?')) return
+    if (!confirm(language === 'ko' ? '정말로 이 예약을 취소하시겠습니까?' : 'Are you sure you want to cancel this booking?')) return
 
     setLoading(true)
     setErrorMsg(null)
@@ -436,14 +448,14 @@ export default function BookingModal({
         reservation_id: selectedReservation.id,
         action: 'cancel',
         performed_by: validatedUserId,
-        details: `예약 취소 - 고객: ${selectedReservation.customer_name}`
+        details: `${language === 'ko' ? '예약 취소 - 고객:' : 'Booking Cancelled - Client:'} ${selectedReservation.customer_name}`
       })
 
       onSuccess()
       onClose()
     } catch (err: any) {
       console.error(err)
-      setErrorMsg(err.message || '예약 취소 중 오류가 발생했습니다.')
+      setErrorMsg(err.message || (language === 'ko' ? '예약 취소 중 오류가 발생했습니다.' : 'An error occurred while cancelling booking.'))
     } finally {
       setLoading(false)
     }
@@ -470,27 +482,43 @@ export default function BookingModal({
           
           <div className="space-y-1.5">
             <h2 className="text-lg font-bold text-slate-100">
-              {successResult.isEdit ? '예약 변경 완료' : '예약 접수 완료'}
+              {successResult.isEdit 
+                ? (language === 'ko' ? '예약 변경 완료' : 'Booking Updated') 
+                : (language === 'ko' ? '예약 접수 완료' : 'Booking Registered')}
             </h2>
             <p className="text-xs text-slate-500">
-              실시간 마사지사 배정 및 DB 저장이 정상 완료되었습니다.
+              {language === 'ko' ? '실시간 마사지사 배정 및 DB 저장이 정상 완료되었습니다.' : 'Real-time therapist assignment and database save completed successfully.'}
             </p>
           </div>
 
           {/* 성공 메시지 상세 디테일 (고객명, 시간, 배정 마사지사) */}
           <div className="w-full bg-slate-950/60 border border-slate-850 rounded-xl p-4.5 text-xs text-slate-350 leading-relaxed text-left space-y-2.5">
             <p className="font-semibold text-slate-400">
-              {successResult.isEdit ? '✏️ 변경 완료 정보:' : '📋 접수 완료 정보:'}
+              {successResult.isEdit 
+                ? (language === 'ko' ? '✏️ 변경 완료 정보:' : '✏️ Updated Info:') 
+                : (language === 'ko' ? '📋 접수 완료 정보:' : '📋 Registered Info:')}
             </p>
             <p className="text-slate-300 text-sm">
-              고객 <span className="font-bold text-indigo-400">{successResult.customerName}</span>님이{' '}
-              마사지사 <span className="font-bold text-amber-400">{successResult.therapistName}</span>님에게{' '}
-              <span className="font-bold text-slate-200">{String(successResult.startTime).padStart(2, '0')}:{String(successResult.startMinute).padStart(2, '0')}</span>부터{' '}
-              <span className="font-bold text-slate-200">{String(successResult.endTime).padStart(2, '0')}:{String(successResult.endMinute).padStart(2, '0')}</span>까지 예약이{' '}
-              {successResult.isEdit ? '변경' : '등록'}되었습니다.
+              {language === 'ko' ? (
+                <>
+                  고객 <span className="font-bold text-indigo-400">{successResult.customerName}</span>님이{' '}
+                  마사지사 <span className="font-bold text-amber-400">{successResult.therapistName}</span>님에게{' '}
+                  <span className="font-bold text-slate-200">{String(successResult.startTime).padStart(2, '0')}:{String(successResult.startMinute).padStart(2, '0')}</span>부터{' '}
+                  <span className="font-bold text-slate-200">{String(successResult.endTime).padStart(2, '0')}:{String(successResult.endMinute).padStart(2, '0')}</span>까지 예약이{' '}
+                  {successResult.isEdit ? '변경' : '등록'}되었습니다.
+                </>
+              ) : (
+                <>
+                  Booking for client <span className="font-bold text-indigo-400">{successResult.customerName}</span> with{' '}
+                  therapist <span className="font-bold text-amber-400">{successResult.therapistName}</span> has been{' '}
+                  {successResult.isEdit ? 'updated' : 'registered'} from{' '}
+                  <span className="font-bold text-slate-200">{String(successResult.startTime).padStart(2, '0')}:{String(successResult.startMinute).padStart(2, '0')}</span> to{' '}
+                  <span className="font-bold text-slate-200">{String(successResult.endTime).padStart(2, '0')}:{String(successResult.endMinute).padStart(2, '0')}</span>.
+                </>
+              )}
             </p>
             <div className="text-[10px] text-slate-500 pt-2 border-t border-slate-850/80">
-              예약 날짜: {successResult.date}
+              {language === 'ko' ? `예약 날짜: ${toUIDateString(successResult.date)}` : `Booking Date: ${toUIDateString(successResult.date)}`}
             </div>
           </div>
 
@@ -499,7 +527,7 @@ export default function BookingModal({
             onClick={handleConfirmClose}
             className="w-full rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white shadow-lg shadow-indigo-950/20 py-2.5 text-xs font-bold transition-all hover:scale-[1.01] active:scale-[0.99]"
           >
-            확인
+            {language === 'ko' ? '확인' : 'Confirm'}
           </button>
         </div>
       </div>
@@ -516,7 +544,7 @@ export default function BookingModal({
         <div className="flex items-center justify-between p-5 border-b border-slate-800/80 bg-slate-950/20">
           <h2 className="text-lg font-bold tracking-tight text-slate-200 flex items-center gap-2">
             <Calendar className="w-5 h-5 text-indigo-500" />
-            {isEditMode ? '예약 세부 정보 및 변경' : '새로운 마사지 예약 등록'}
+            {isEditMode ? t('booking.modal.edit') : t('booking.modal.new')}
           </h2>
           <button
             onClick={onClose}
@@ -538,13 +566,17 @@ export default function BookingModal({
           {isEditMode && !canModify && (
             <div className="p-3 text-xs rounded-lg bg-amber-500/10 text-amber-400 border border-amber-500/20 flex items-center gap-1.5 font-medium">
               <Ban className="w-4 h-4 flex-shrink-0" />
-              <span>본인 등록 예약이 아니므로 상세 수정이나 마사지사 재배치가 불가능합니다. (조회만 가능)</span>
+              <span>
+                {language === 'ko' 
+                  ? '본인 등록 예약이 아니므로 상세 수정이나 마사지사 재배치가 불가능합니다. (조회만 가능)' 
+                  : 'This booking was registered by another staff; editing or re-assigning therapist is restricted. (Read-only)'}
+              </span>
             </div>
           )}
 
           {/* 고객명 */}
           <div>
-            <label className="block text-xs font-bold text-slate-400 mb-1.5 uppercase tracking-wider">고객 이름</label>
+            <label className="block text-xs font-bold text-slate-400 mb-1.5 uppercase tracking-wider">{t('booking.modal.client_name')}</label>
             <div className="relative">
               <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-600">
                 <User className="w-4 h-4" />
@@ -554,15 +586,15 @@ export default function BookingModal({
                 disabled={!canModify}
                 value={customerName}
                 onChange={(e) => setCustomerName(e.target.value)}
-                placeholder="고객 성함을 기입해 주세요"
-                className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-9 pr-3.5 py-2.5 text-sm text-slate-100 placeholder-slate-600 focus:outline-none focus:border-indigo-500/80 transition-colors disabled:opacity-50"
+                placeholder={language === 'ko' ? '고객 성함을 기입해 주세요' : 'Enter client name'}
+                className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-9 pr-3.5 py-2.5 text-sm text-slate-100 placeholder-slate-660 focus:outline-none focus:border-indigo-500/80 transition-colors disabled:opacity-50"
               />
             </div>
           </div>
 
           {/* 연락처 */}
           <div>
-            <label className="block text-xs font-bold text-slate-400 mb-1.5 uppercase tracking-wider">연락처</label>
+            <label className="block text-xs font-bold text-slate-400 mb-1.5 uppercase tracking-wider">{t('list.table.phone')}</label>
             <div className="relative">
               <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-600">
                 <Phone className="w-4 h-4" />
@@ -572,34 +604,39 @@ export default function BookingModal({
                 disabled={!canModify}
                 value={customerPhone}
                 onChange={(e) => setCustomerPhone(e.target.value)}
-                placeholder="예: 010-1234-5678"
-                className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-9 pr-3.5 py-2.5 text-sm text-slate-100 placeholder-slate-600 focus:outline-none focus:border-indigo-500/80 transition-colors disabled:opacity-50"
+                placeholder={language === 'ko' ? '예: 010-1234-5678' : 'e.g. 010-1234-5678'}
+                className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-9 pr-3.5 py-2.5 text-sm text-slate-100 placeholder-slate-660 focus:outline-none focus:border-indigo-500/80 transition-colors disabled:opacity-50"
               />
             </div>
           </div>
 
           {/* 예약 일자 */}
           <div>
-            <label className="block text-xs font-bold text-slate-400 mb-1.5 uppercase tracking-wider">예약 날짜</label>
+            <label className="block text-xs font-bold text-slate-400 mb-1.5 uppercase tracking-wider">
+              {language === 'ko' ? '예약 날짜' : 'Booking Date'}
+            </label>
             <div className="relative">
-              <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-indigo-400">
-                <Calendar className="w-4 h-4" />
-              </span>
               <input
                 type="date"
                 disabled={!canModify}
                 value={date}
                 onChange={(e) => setDate(e.target.value)}
                 onClick={(e) => e.currentTarget.showPicker?.()}
-                className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-9 pr-3.5 py-2.5 text-sm text-slate-100 focus:outline-none focus:border-indigo-500/80 transition-colors disabled:opacity-50 cursor-pointer font-medium"
+                className="absolute inset-0 w-full h-full opacity-0 z-10 cursor-pointer disabled:cursor-not-allowed"
               />
+              <div className={`w-full bg-slate-950 border border-slate-800 rounded-xl pl-9 pr-3.5 py-2.5 text-sm text-slate-100 flex justify-between items-center pointer-events-none min-h-[42px] font-medium ${!canModify ? 'opacity-50' : ''}`}>
+                <span className="absolute left-3 text-indigo-400">
+                  <Calendar className="w-4 h-4" />
+                </span>
+                <span>{date ? toUIDateString(date) : (language === 'ko' ? '날짜 선택' : 'Select Date')}</span>
+              </div>
             </div>
           </div>
 
           {/* 예약 시간 */}
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-bold text-slate-400 mb-1.5 uppercase tracking-wider">시작 시간</label>
+              <label className="block text-xs font-bold text-slate-400 mb-1.5 uppercase tracking-wider">{t('booking.modal.start_time')}</label>
               <div className="flex gap-2">
                 <select
                   disabled={!canModify}
@@ -614,7 +651,9 @@ export default function BookingModal({
                   className="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 text-xs text-slate-100 focus:outline-none focus:border-indigo-500/80 transition-colors disabled:opacity-50"
                 >
                   {Array.from({ length: 16 }, (_, i) => i + 9).map(h => (
-                    <option key={h} value={h}>{String(h).padStart(2, '0')}시</option>
+                    <option key={h} value={h}>
+                      {language === 'ko' ? `${h}시` : `${String(h).padStart(2, '0')}:00`}
+                    </option>
                   ))}
                 </select>
                 <select
@@ -630,13 +669,17 @@ export default function BookingModal({
                   className="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 text-xs text-slate-100 focus:outline-none focus:border-indigo-500/80 transition-colors disabled:opacity-50"
                 >
                   {[0, 10, 20, 30, 40, 50].map(m => (
-                    <option key={m} value={m}>{String(m).padStart(2, '0')}분</option>
+                    <option key={m} value={m}>
+                      {language === 'ko' ? `${m}분` : `${String(m).padStart(2, '0')} min`}
+                    </option>
                   ))}
                 </select>
               </div>
             </div>
             <div>
-              <label className="block text-xs font-bold text-slate-400 mb-1.5 uppercase tracking-wider">종료 시간</label>
+              <label className="block text-xs font-bold text-slate-400 mb-1.5 uppercase tracking-wider">
+                {language === 'ko' ? '종료 시간' : 'End Time'}
+              </label>
               <div className="flex gap-2">
                 <select
                   disabled={!canModify}
@@ -645,7 +688,9 @@ export default function BookingModal({
                   className="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 text-xs text-slate-100 focus:outline-none focus:border-indigo-500/80 transition-colors disabled:opacity-50"
                 >
                   {Array.from({ length: 16 }, (_, i) => i + 9).map(h => (
-                    <option key={h} value={h} disabled={h < startHour}>{String(h).padStart(2, '0')}시</option>
+                    <option key={h} value={h} disabled={h < startHour}>
+                      {language === 'ko' ? `${h}시` : `${String(h).padStart(2, '0')}:00`}
+                    </option>
                   ))}
                 </select>
                 <select
@@ -658,7 +703,7 @@ export default function BookingModal({
                     const isDisabled = startHour === endHour && m <= startMinute
                     return (
                       <option key={m} value={m} disabled={isDisabled}>
-                        {String(m).padStart(2, '0')}분
+                        {language === 'ko' ? `${m}분` : `${String(m).padStart(2, '0')} min`}
                       </option>
                     )
                   })}
@@ -670,7 +715,7 @@ export default function BookingModal({
           {/* 마사지 금액 */}
           <div>
             <label className="block text-xs font-bold text-slate-400 mb-1.5 uppercase tracking-wider">
-              마사지 코스 금액 (원)
+              {t('booking.modal.price')}
             </label>
             <div className="relative">
               <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-600">
@@ -681,19 +726,21 @@ export default function BookingModal({
                 disabled={!canModify}
                 value={price}
                 onChange={(e) => setPrice(Number(e.target.value))}
-                step="10000"
-                min="10000"
-                className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-9 pr-3.5 py-2.5 text-sm text-slate-100 placeholder-slate-600 focus:outline-none focus:border-indigo-500/80 transition-colors disabled:opacity-50"
+                step="10"
+                min="10"
+                className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-9 pr-3.5 py-2.5 text-sm text-slate-100 placeholder-slate-660 focus:outline-none focus:border-indigo-500/80 transition-colors disabled:opacity-50"
               />
             </div>
             <p className="text-[10px] text-slate-500 mt-1.5">
-              * 100,000원 이상인 고급 코스는 당일 전담 마사지사(고급 우선)에게 최우선 배정됩니다.
+              {language === 'ko' 
+                ? '* $120 이상인 고급 코스는 당일 전담 마사지사(고급 우선)에게 최우선 배정됩니다.' 
+                : '* Premium courses of $120 or more are assigned to designated premium therapists first.'}
             </p>
           </div>
 
           {/* 마사지사 배정 (수동 지정 및 자동 배정 토글) */}
           <div>
-            <label className="block text-xs font-bold text-slate-400 mb-1.5 uppercase tracking-wider">마사지사 배정</label>
+            <label className="block text-xs font-bold text-slate-400 mb-1.5 uppercase tracking-wider">{t('booking.modal.therapist')}</label>
             <div className="relative">
               <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-650">
                 <UserCheck className="w-4 h-4" />
@@ -704,7 +751,9 @@ export default function BookingModal({
                 onChange={(e) => setTherapistId(e.target.value)}
                 className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-9 pr-3 py-2.5 text-sm text-slate-100 focus:outline-none focus:border-indigo-500/80 transition-colors disabled:opacity-50"
               >
-                <option value="auto">✨ 시스템 자동 지정 (가장 비어 있는 마사지사 매핑)</option>
+                <option value="auto">
+                  {language === 'ko' ? '✨ 시스템 자동 지정 (가장 비어 있는 마사지사 매핑)' : '✨ Auto-Assign (Map most available therapist)'}
+                </option>
                 {therapists.map(t => {
                   const avail = checkTherapistAvailability(t.id)
                   const isDbActive = t.is_active
@@ -712,14 +761,16 @@ export default function BookingModal({
 
                   let statusText = ''
                   if (!isDbActive) {
-                    statusText = '비활성'
+                    statusText = language === 'ko' ? '비활성' : 'Inactive'
                   } else {
                     statusText = avail.reason
                   }
 
+                  let statusSuffix = t.is_premium_target ? (language === 'ko' ? ' - 고급 담당' : ' - Premium') : ''
+
                   return (
                     <option key={t.id} value={t.id} disabled={!isSelectable}>
-                      {t.name} ({statusText}{t.is_premium_target ? ' - 고급 담당' : ''})
+                      {t.name} ({statusText}{statusSuffix})
                     </option>
                   )
                 })}
@@ -731,18 +782,20 @@ export default function BookingModal({
           {therapistId !== 'auto' && (
             <div className="rounded-xl border border-slate-800 bg-slate-950/40 p-4 space-y-2">
               <span className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                선택한 마사지사의 오늘 예약 선점 현황
+                {language === 'ko' ? '선택한 마사지사의 오늘 예약 선점 현황' : 'Current Bookings of Chosen Therapist Today'}
               </span>
               {scheduleList.length === 0 ? (
-                <p className="text-xs text-emerald-400 font-medium">✓ 오늘 비어있는 상태입니다. (자유롭게 예약 가능)</p>
+                <p className="text-xs text-emerald-400 font-medium">
+                  {language === 'ko' ? '✓ 오늘 비어있는 상태입니다. (자유롭게 예약 가능)' : '✓ Fully available today.'}
+                </p>
               ) : (
                 <div className="space-y-1.5 max-h-36 overflow-y-auto scrollbar-thin">
                   {scheduleList.map(item => (
                     <div
                       key={item.id}
-                      className="flex items-center justify-between text-xs rounded-lg bg-rose-500/5 border border-rose-500/10 text-rose-400 p-2 font-medium"
+                      className="flex items-center justify-between text-xs rounded-lg bg-rose-500/5 border border-rose-500/10 text-rose-450 p-2 font-medium"
                     >
-                      <span>👤 {item.customerName} 고객님</span>
+                      <span>{language === 'ko' ? `👤 ${item.customerName} 고객님` : `👤 Client ${item.customerName}`}</span>
                       <span className="font-mono text-[11px] font-semibold">{item.timeStr}</span>
                     </div>
                   ))}
@@ -760,9 +813,9 @@ export default function BookingModal({
               type="button"
               onClick={handleCancelReservation}
               disabled={loading}
-              className="inline-flex items-center justify-center rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-400 border border-rose-500/20 px-4 py-2.5 text-xs font-bold transition-all disabled:opacity-50"
+              className="inline-flex items-center justify-center rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-450 border border-rose-500/20 px-4 py-2.5 text-xs font-bold transition-all disabled:opacity-50"
             >
-              <Trash2 className="w-4 h-4 mr-1.5" /> 예약 취소하기
+              <Trash2 className="w-4 h-4 mr-1.5" /> {t('booking.modal.cancel_booking')}
             </button>
           ) : (
             <div />
@@ -774,7 +827,7 @@ export default function BookingModal({
               onClick={onClose}
               className="rounded-xl border border-slate-800 bg-slate-900 text-slate-300 hover:bg-slate-800 px-4 py-2.5 text-xs font-bold transition-all"
             >
-              닫기
+              {t('booking.modal.close')}
             </button>
             {canModify && (
               <button
@@ -782,7 +835,11 @@ export default function BookingModal({
                 disabled={loading}
                 className="rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white shadow-lg shadow-indigo-950/20 px-6 py-2.5 text-xs font-bold transition-all disabled:opacity-50 flex items-center justify-center"
               >
-                {loading ? '처리 중...' : isEditMode ? '변경사항 저장' : '예약 접수하기'}
+                {loading 
+                  ? (language === 'ko' ? '처리 중...' : 'Processing...') 
+                  : isEditMode 
+                    ? t('therapist.save') 
+                    : (language === 'ko' ? '예약 접수하기' : 'Book Now')}
               </button>
             )}
           </div>

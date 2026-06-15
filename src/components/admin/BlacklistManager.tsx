@@ -4,6 +4,7 @@ import React, { useState, useEffect } from 'react'
 import { ShieldAlert, Search, ChevronDown, ChevronUp, Phone, User, Calendar, DollarSign, Award, Ban, Info, RefreshCw, Clock } from 'lucide-react'
 import { Reservation, Therapist } from '../dashboard/CalendarView'
 import { SupabaseClient } from '@supabase/supabase-js'
+import { useLanguage } from '@/app/LanguageContext'
 
 interface BlacklistManagerProps {
   supabase: SupabaseClient
@@ -22,7 +23,9 @@ interface CustomerCancelGroup {
   avgDurationMs: number | null
 }
 
+
 export default function BlacklistManager({ supabase, currentUserId }: BlacklistManagerProps) {
+  const { t, language } = useLanguage()
   const [loading, setLoading] = useState(true)
   const [reservations, setReservations] = useState<Reservation[]>([])
   const [therapists, setTherapists] = useState<Therapist[]>([])
@@ -47,7 +50,13 @@ export default function BlacklistManager({ supabase, currentUserId }: BlacklistM
         .from('reservations')
         .select('*')
       if (rError) throw rError
-      setReservations(rData as Reservation[])
+      if (rData) {
+        const mapped = (rData as Reservation[]).map(r => ({
+          ...r,
+          is_premium: Number(r.price) >= 120
+        }))
+        setReservations(mapped)
+      }
 
       // 취소 로그 로드
       const { data: logData, error: logError } = await supabase
@@ -165,24 +174,24 @@ export default function BlacklistManager({ supabase, currentUserId }: BlacklistM
     const date = String(d.getDate()).padStart(2, '0')
     const hours = String(d.getHours()).padStart(2, '0')
     const minutes = String(d.getMinutes()).padStart(2, '0')
-    return `${year}-${month}-${date} ${hours}:${minutes}`
+    return `${month}-${date}-${year} ${hours}:${minutes}`
   }
 
   // 시간 간격 포맷터
   const formatDuration = (ms: number | null) => {
-    if (ms === null || ms === undefined || ms < 0) return '기록 없음'
+    if (ms === null || ms === undefined || ms < 0) return t('blacklist.no_log')
     const totalMinutes = Math.floor(ms / (1000 * 60))
     if (totalMinutes < 60) {
-      return `${totalMinutes}분`
+      return `${totalMinutes}${language === 'ko' ? '분' : 'm'}`
     }
     const totalHours = Math.floor(totalMinutes / 60)
     const minutes = totalMinutes % 60
     if (totalHours < 24) {
-      return `${totalHours}시간 ${minutes}분`
+      return language === 'ko' ? `${totalHours}시간 ${minutes}분` : `${totalHours}h ${minutes}m`
     }
     const days = Math.floor(totalHours / 24)
     const hours = totalHours % 24
-    return `${days}일 ${hours}시간 ${minutes}분`
+    return language === 'ko' ? `${days}일 ${hours}시간 ${minutes}분` : `${days}d ${hours}h ${minutes}m`
   }
 
   // 아코디언 토글
@@ -200,10 +209,9 @@ export default function BlacklistManager({ supabase, currentUserId }: BlacklistM
       <div className="rounded-xl border border-indigo-550/15 bg-indigo-500/5 p-4 flex items-start gap-3">
         <Info className="w-5 h-5 text-indigo-400 flex-shrink-0 mt-0.5" />
         <div className="space-y-1">
-          <h4 className="text-xs font-bold text-indigo-300">💡 블랙리스트 분석 가이드</h4>
+          <h4 className="text-xs font-bold text-indigo-300">{t('blacklist.guide.title')}</h4>
           <p className="text-[11px] text-slate-400 leading-relaxed">
-            이 화면은 예약 데이터 내의 취소 기록을 바탕으로 **잦은 부도(No-Show) 및 취소 고객**을 분석하는 용도입니다. 
-            취소 비율이 높고 건수가 잦은 고객은 예약 접수 시 확인 전화를 하거나 사전 예치금을 요청하여 기회비용 손실을 예방하십시오.
+            {t('blacklist.guide.desc')}
           </p>
         </div>
       </div>
@@ -213,12 +221,12 @@ export default function BlacklistManager({ supabase, currentUserId }: BlacklistM
         <div className="flex flex-col sm:flex-row items-center gap-3 w-full sm:w-auto">
           {/* 검색창 */}
           <div className="relative w-full sm:w-64">
-            <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-500">
+            <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-550">
               <Search className="w-4 h-4" />
             </span>
             <input
               type="text"
-              placeholder="고객 이름, 연락처 검색..."
+              placeholder={t('blacklist.filter.search_placeholder')}
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
               className="w-full bg-slate-950 border border-slate-850 rounded-xl pl-9 pr-3.5 py-2 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-indigo-500/80 transition-colors"
@@ -227,15 +235,15 @@ export default function BlacklistManager({ supabase, currentUserId }: BlacklistM
 
           {/* 최소 취소 횟수 필터 */}
           <div className="flex items-center gap-2 bg-slate-950 border border-slate-850 rounded-xl px-3 py-1.5 w-full sm:w-auto">
-            <span className="text-[10px] font-bold text-slate-500 uppercase whitespace-nowrap">필터 대상:</span>
+            <span className="text-[10px] font-bold text-slate-500 uppercase whitespace-nowrap">{t('blacklist.filter.label')}</span>
             <select
               value={minCancelCount}
               onChange={(e) => setMinCancelCount(Number(e.target.value))}
               className="bg-transparent border-none text-xs text-slate-200 focus:outline-none cursor-pointer"
             >
-              <option value={1} className="bg-slate-950">전체 취소 이력 (1회 이상)</option>
-              <option value={3} className="bg-slate-950">⚠️ 주의 대상 (3회 이상)</option>
-              <option value={5} className="bg-slate-950">🚨 블랙리스트 위험 (5회 이상)</option>
+              <option value={1} className="bg-slate-950">{t('blacklist.filter.all')}</option>
+              <option value={3} className="bg-slate-950">{t('blacklist.filter.warning')}</option>
+              <option value={5} className="bg-slate-950">{t('blacklist.filter.danger')}</option>
             </select>
           </div>
         </div>
@@ -245,36 +253,36 @@ export default function BlacklistManager({ supabase, currentUserId }: BlacklistM
           onClick={fetchData}
           className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-slate-800 bg-slate-950 hover:bg-slate-900 text-slate-400 hover:text-slate-200 px-3 py-2 text-xs font-bold transition-all"
         >
-          <RefreshCw className="w-3.5 h-3.5" /> 분석 동기화
+          <RefreshCw className="w-3.5 h-3.5" /> {t('blacklist.sync')}
         </button>
       </div>
 
       {/* 데이터 테이블 */}
       {loading ? (
         <div className="h-80 flex items-center justify-center border border-slate-900 bg-slate-900/10 rounded-2xl">
-          <span className="text-xs text-slate-400 animate-pulse font-medium">취소자 데이터를 종합 집계하는 중...</span>
+          <span className="text-xs text-slate-400 animate-pulse font-medium">{t('blacklist.loading')}</span>
         </div>
       ) : customerGroups.length === 0 ? (
         <div className="rounded-xl border border-slate-850 bg-slate-900/10 py-16 text-center">
           <Award className="w-10 h-10 text-slate-700 mx-auto mb-3" />
-          <p className="text-sm text-slate-400">조건에 부합하는 취소 이력 고객이 존재하지 않습니다.</p>
+          <p className="text-sm text-slate-400">{t('blacklist.no_records')}</p>
         </div>
       ) : (
         <div className="overflow-hidden rounded-xl border border-slate-800 bg-slate-900/40 backdrop-blur-md">
           <table className="w-full text-left text-xs border-collapse">
             <thead>
               <tr className="border-b border-slate-800 bg-slate-950/60 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                <th className="p-4 text-center w-12">No</th>
-                <th className="p-4">등급</th>
-                <th className="p-4">고객명</th>
-                <th className="p-4">연락처</th>
-                <th className="p-4 text-center">취소 횟수</th>
-                <th className="p-4 text-center">정상 이용</th>
-                <th className="p-4 text-center">취소율(%)</th>
-                <th className="p-4 text-right">누적 기회손실</th>
-                <th className="p-4 text-center">평균 취소 소요 시간</th>
-                <th className="p-4">최근 취소 일시</th>
-                <th className="p-4 text-center w-24">세부 기록</th>
+                <th className="p-4 text-center w-12">{t('blacklist.table.no')}</th>
+                <th className="p-4">{t('blacklist.table.level')}</th>
+                <th className="p-4">{t('list.table.client')}</th>
+                <th className="p-4">{t('list.table.phone')}</th>
+                <th className="p-4 text-center">{t('blacklist.table.cancel_count')}</th>
+                <th className="p-4 text-center">{t('blacklist.table.normal_count')}</th>
+                <th className="p-4 text-center">{t('blacklist.table.cancel_rate')}</th>
+                <th className="p-4 text-right">{t('blacklist.table.loss')}</th>
+                <th className="p-4 text-center">{t('blacklist.table.avg_time')}</th>
+                <th className="p-4">{t('blacklist.table.last_cancel')}</th>
+                <th className="p-4 text-center w-24">{t('blacklist.table.details')}</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-850/60">
@@ -288,21 +296,21 @@ export default function BlacklistManager({ supabase, currentUserId }: BlacklistM
                 // 블랙리스트 경고 등급 판단
                 let statusBadge = (
                   <span className="inline-flex items-center rounded-full bg-slate-800 text-slate-450 border border-slate-750 px-2.5 py-0.5 text-[10px] font-semibold">
-                    일반
+                    {t('blacklist.badge.normal')}
                   </span>
                 )
                 let rowBgClass = ''
                 if (group.cancelledCount >= 5) {
                   statusBadge = (
                     <span className="inline-flex items-center rounded-full bg-rose-500/10 text-rose-400 border border-rose-500/20 px-2.5 py-0.5 text-[10px] font-bold animate-pulse">
-                      🚨 블랙리스트 위험
+                      {t('blacklist.badge.danger')}
                     </span>
                   )
                   rowBgClass = 'bg-rose-500/5'
                 } else if (group.cancelledCount >= 3) {
                   statusBadge = (
                     <span className="inline-flex items-center rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/20 px-2.5 py-0.5 text-[10px] font-semibold">
-                      ⚠️ 주의 대상
+                      {t('blacklist.badge.warning')}
                     </span>
                   )
                   rowBgClass = 'bg-amber-500/5'
@@ -329,11 +337,11 @@ export default function BlacklistManager({ supabase, currentUserId }: BlacklistM
                       </td>
                       {/* 취소 횟수 */}
                       <td className="p-4 text-center font-bold text-rose-400 font-mono text-sm">
-                        {group.cancelledCount}회
+                        {group.cancelledCount}{t('blacklist.times')}
                       </td>
                       {/* 정상 이용 */}
                       <td className="p-4 text-center font-mono text-slate-450">
-                        {group.confirmedCount}회
+                        {group.confirmedCount}{t('blacklist.times')}
                       </td>
                       {/* 취소율 */}
                       <td className="p-4 text-center">
@@ -343,7 +351,7 @@ export default function BlacklistManager({ supabase, currentUserId }: BlacklistM
                       </td>
                       {/* 기회 손실액 */}
                       <td className="p-4 text-right font-mono font-bold text-slate-300">
-                        {group.totalLoss.toLocaleString()}원
+                        ${group.totalLoss.toLocaleString()}
                       </td>
                       {/* 평균 취소 소요 시간 */}
                       <td className="p-4 text-center font-mono text-indigo-400 font-semibold">
@@ -370,11 +378,15 @@ export default function BlacklistManager({ supabase, currentUserId }: BlacklistM
                     {/* 아코디언 확장 취소 예약 로그 목록 */}
                     {isExpanded && (
                       <tr>
-                        <td colSpan={10} className="p-0 bg-slate-950/40 border-t border-b border-slate-850">
+                        <td colSpan={11} className="p-0 bg-slate-950/40 border-t border-b border-slate-850">
                           <div className="p-5 space-y-3">
                             <div className="flex items-center gap-1.5 text-slate-400 text-xs font-bold pl-1 border-l-2 border-l-rose-500">
                               <Ban className="w-3.5 h-3.5 text-rose-400" />
-                              <span>{group.name} 고객님의 예약 취소 상세 기록 ({group.cancelledCount}건)</span>
+                              <span>
+                                {t('blacklist.detail.title')
+                                  .replace('{name}', group.name)
+                                  .replace('{count}', group.cancelledCount.toString())}
+                              </span>
                             </div>
                             
                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
@@ -387,7 +399,7 @@ export default function BlacklistManager({ supabase, currentUserId }: BlacklistM
                                   >
                                     <div className="flex justify-between items-center pb-1.5 border-b border-slate-850/50">
                                       <span className="text-[10px] font-bold bg-rose-500/10 text-rose-400 border border-rose-500/20 px-1.5 py-0.5 rounded">
-                                        취소됨
+                                        {t('blacklist.detail.status.cancelled')}
                                       </span>
                                       <span className="text-slate-500 font-mono text-[10px]">ID: #{res.id}</span>
                                     </div>
@@ -395,39 +407,39 @@ export default function BlacklistManager({ supabase, currentUserId }: BlacklistM
                                     <div className="space-y-1.5 text-[11px] text-slate-350">
                                       <p className="flex items-center gap-1.5">
                                         <Calendar className="w-3.5 h-3.5 text-slate-550" />
-                                        <span>예약 이용: </span>
+                                        <span>{t('blacklist.detail.booked_use')}</span>
                                         <span className="font-semibold text-slate-200">{formatDateTime(res.start_time)}</span>
                                       </p>
                                       <p className="flex items-center gap-1.5">
                                         <Calendar className="w-3.5 h-3.5 text-slate-600" />
-                                        <span>접수 일시: </span>
+                                        <span>{t('blacklist.detail.created_at')}</span>
                                         <span className="font-mono text-slate-400">{formatDateTime(res.created_at)}</span>
                                       </p>
                                       <p className="flex items-center gap-1.5">
                                         <Calendar className="w-3.5 h-3.5 text-rose-500/50" />
-                                        <span>취소 일시: </span>
+                                        <span>{t('blacklist.detail.cancelled_at')}</span>
                                         <span className="font-mono text-rose-450/95 font-bold">
-                                          {cancelTimeMap[res.id] ? formatDateTime(cancelTimeMap[res.id]) : '기록 없음'}
+                                          {cancelTimeMap[res.id] ? formatDateTime(cancelTimeMap[res.id]) : t('blacklist.no_log')}
                                         </span>
                                       </p>
                                       <p className="flex items-center gap-1.5">
                                         <Clock className="w-3.5 h-3.5 text-indigo-400/50" />
-                                        <span>등록 후 취소까지: </span>
+                                        <span>{t('blacklist.detail.duration')}</span>
                                         <span className="font-bold text-indigo-400 font-mono">
                                           {cancelTimeMap[res.id] 
                                             ? formatDuration(new Date(cancelTimeMap[res.id]).getTime() - new Date(res.created_at).getTime()) 
-                                            : '기록 없음'}
+                                            : t('blacklist.no_log')}
                                         </span>
                                       </p>
                                       <p className="flex items-center gap-1.5">
                                         <User className="w-3.5 h-3.5 text-slate-550" />
-                                        <span>담당 마사지사: </span>
-                                        <span className="font-semibold text-slate-200">{therapist ? therapist.name : '미배정 (삭제됨)'}</span>
+                                        <span>{t('blacklist.detail.therapist')}</span>
+                                        <span className="font-semibold text-slate-200">{therapist ? therapist.name : t('blacklist.detail.no_assign')}</span>
                                       </p>
                                       <p className="flex items-center gap-1.5">
                                         <DollarSign className="w-3.5 h-3.5 text-slate-550" />
-                                        <span>금액: </span>
-                                        <span className="font-bold text-slate-200">{Number(res.price).toLocaleString()}원</span>
+                                        <span>{t('blacklist.detail.price')}</span>
+                                        <span className="font-bold text-slate-200">${Number(res.price).toLocaleString()}</span>
                                       </p>
                                     </div>
                                   </div>
@@ -448,3 +460,4 @@ export default function BlacklistManager({ supabase, currentUserId }: BlacklistM
     </div>
   )
 }
+
