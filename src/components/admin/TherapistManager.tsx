@@ -18,12 +18,13 @@ export default function TherapistManager({
   therapists,
   onRefresh
 }: TherapistManagerProps) {
-  const { refreshUsers } = useUserSim()
+  const { currentUser, refreshUsers } = useUserSim()
   const { language, t } = useLanguage()
   
   // 마사지사 등록 상태
   const [newTherapistName, setNewTherapistName] = useState('')
   const [isPremiumTarget, setIsPremiumTarget] = useState(false)
+  const [isAddingTherapist, setIsAddingTherapist] = useState(false)
   
   // 로그인 연동 상태
   const [email, setEmail] = useState('')
@@ -39,6 +40,20 @@ export default function TherapistManager({
   const [loading, setLoading] = useState(false)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
   const [successMsg, setSuccessMsg] = useState<string | null>(null)
+
+  // 변경 이력 로그 작성 공통 헬퍼
+  const writeLog = async (action: 'create' | 'update' | 'delete', details: string) => {
+    try {
+      await supabase.from('reservation_logs').insert({
+        log_type: 'therapist',
+        action,
+        performed_by: currentUser?.id || null,
+        details
+      })
+    } catch (logErr) {
+      console.error('Failed to write audit log:', logErr)
+    }
+  }
 
   // 1. 새로운 마사지사 추가 핸들러 (직원과 동일하게 항상 로그인 계정 생성)
   const handleAddTherapist = async (e: React.FormEvent) => {
@@ -82,6 +97,19 @@ export default function TherapistManager({
 
       if (dbError) throw dbError
 
+      // 변경 이력 추가
+      await writeLog(
+        'create',
+        JSON.stringify({
+          key: 'log.therapist.add',
+          params: {
+            name: newTherapistName,
+            email: email.trim(),
+            premium: isPremiumTarget ? 'trans:log.therapist.val.premium_yes' : 'trans:log.therapist.val.premium_no'
+          }
+        })
+      )
+
       setSuccessMsg(
         language === 'ko' 
           ? `성공: '${newTherapistName}' 마사지사가 등록되고 로그인 계정이 발급되었습니다! (초기 비번: ${password})` 
@@ -93,6 +121,7 @@ export default function TherapistManager({
       setEmail('')
       setPhone('')
       setPassword('password123')
+      setIsAddingTherapist(false) // 모달 닫기
 
       onRefresh()
       refreshUsers()
@@ -114,6 +143,20 @@ export default function TherapistManager({
         .eq('id', id)
 
       if (error) throw error
+
+      const targetTherapist = therapists.find(t => t.id === id)
+      const tName = targetTherapist ? targetTherapist.name : `ID ${id}`
+      await writeLog(
+        'update',
+        JSON.stringify({
+          key: 'log.therapist.active_toggle',
+          params: {
+            name: tName,
+            status: !currentActive ? 'trans:log.therapist.val.status_on' : 'trans:log.therapist.val.status_off'
+          }
+        })
+      )
+
       onRefresh()
       refreshUsers()
     } catch (err: any) {
@@ -134,6 +177,20 @@ export default function TherapistManager({
         .eq('id', id)
 
       if (error) throw error
+
+      const targetTherapist = therapists.find(t => t.id === id)
+      const tName = targetTherapist ? targetTherapist.name : `ID ${id}`
+      await writeLog(
+        'update',
+        JSON.stringify({
+          key: 'log.therapist.premium_toggle',
+          params: {
+            name: tName,
+            status: !currentTarget ? 'trans:log.therapist.val.premium_assign' : 'trans:log.therapist.val.premium_unassign'
+          }
+        })
+      )
+
       onRefresh()
     } catch (err: any) {
       console.error(err)
@@ -175,6 +232,14 @@ export default function TherapistManager({
         })
 
         if (error) throw error
+
+        await writeLog(
+          'update',
+          JSON.stringify({
+            key: 'log.therapist.reset_password',
+            params: { name: therapist.name }
+          })
+        )
 
         setSuccessMsg(
           language === 'ko' 
@@ -222,6 +287,14 @@ export default function TherapistManager({
 
         if (dbError) throw dbError
 
+        await writeLog(
+          'update',
+          JSON.stringify({
+            key: 'log.therapist.link_account',
+            params: { name: therapist.name, email: therapist.email }
+          })
+        )
+
         setSuccessMsg(
           language === 'ko' 
             ? `성공: '${therapist.name}' 마사지사의 로그인 계정(이메일: ${therapist.email})이 생성되었습니다! (초기 비번: ${finalPassword})` 
@@ -258,6 +331,36 @@ export default function TherapistManager({
         .eq('id', editingTherapist.id)
 
       if (error) throw error
+
+      const changesList: any[] = []
+      if (editingTherapist.name !== editName.trim()) {
+        changesList.push({
+          key: 'log.therapist.val.change_name',
+          params: { old: editingTherapist.name, new: editName.trim() }
+        })
+      }
+      if ((editingTherapist.email || '') !== editEmail.trim()) {
+        changesList.push({
+          key: 'log.therapist.val.change_email',
+          params: { old: editingTherapist.email || '', new: editEmail.trim() }
+        })
+      }
+      if ((editingTherapist.phone || '') !== editPhone.trim()) {
+        changesList.push({
+          key: 'log.therapist.val.change_phone',
+          params: { old: editingTherapist.phone || '', new: editPhone.trim() }
+        })
+      }
+      
+      const details = JSON.stringify({
+        key: 'log.therapist.update',
+        params: {
+          name: editingTherapist.name,
+          changes: changesList
+        }
+      })
+
+      await writeLog('update', details)
 
       setSuccessMsg(
         language === 'ko' 
@@ -298,6 +401,15 @@ export default function TherapistManager({
         .eq('id', id)
 
       if (error) throw error
+
+      await writeLog(
+        'delete',
+        JSON.stringify({
+          key: 'log.therapist.delete',
+          params: { name: name }
+        })
+      )
+
       onRefresh()
       refreshUsers()
     } catch (err: any) {
@@ -309,107 +421,26 @@ export default function TherapistManager({
   }
 
   return (
-    <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-      {/* 마사지사 추가 폼 */}
-      <div className="lg:col-span-1 rounded-2xl border border-slate-800 bg-slate-900/40 p-5 h-fit">
-        <h3 className="text-sm font-bold tracking-tight text-slate-200 mb-4 flex items-center gap-1.5 uppercase">
-          <UserPlus className="w-4 h-4 text-indigo-500" /> {t('therapist.add')}
-        </h3>
-        <form onSubmit={handleAddTherapist} className="space-y-4">
-          {errorMsg && (
-            <div className="p-3 text-xs rounded-lg bg-rose-500/10 text-rose-450 border border-rose-500/20">
-              ⚠️ {errorMsg}
-            </div>
-          )}
-
-          {successMsg && (
-            <div className="p-3 text-xs rounded-lg bg-emerald-500/10 text-emerald-450 border border-emerald-500/20">
-              {successMsg}
-            </div>
-          )}
-
-          <div>
-            <label className="block text-xs font-semibold text-slate-400 mb-1.5">{t('employee.name')}</label>
-            <input
-              type="text"
-              required
-              value={newTherapistName}
-              onChange={(e) => setNewTherapistName(e.target.value)}
-              placeholder={language === 'ko' ? '예: 박안마' : 'e.g. John Doe'}
-              className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-sm text-slate-100 placeholder-slate-660 focus:outline-none focus:border-indigo-500/80 transition-colors"
-            />
-          </div>
-
-          <div>
-            <label className="block text-xs font-semibold text-slate-400 mb-1.5">{t('therapist.phone')}</label>
-            <input
-              type="text"
-              value={phone}
-              onChange={(e) => setPhone(e.target.value)}
-              placeholder={language === 'ko' ? '예: 010-9876-5432' : 'e.g. 010-9876-5432'}
-              className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-sm text-slate-100 placeholder-slate-660 focus:outline-none focus:border-indigo-500/80 transition-colors"
-            />
-          </div>
-
-          <div className="flex items-center gap-2 py-1">
-            <input
-              type="checkbox"
-              id="is_premium_target_chk"
-              checked={isPremiumTarget}
-              onChange={(e) => setIsPremiumTarget(e.target.checked)}
-              className="w-4 h-4 rounded border-slate-800 bg-slate-950 text-indigo-600 focus:ring-indigo-500/30"
-            />
-            <label htmlFor="is_premium_target_chk" className="text-xs text-slate-300 font-medium cursor-pointer">
-              {language === 'ko' ? '오늘의 고급 마사지 전담 우선 지정' : 'Premium Course Assignment Priority'}
-            </label>
-          </div>
-
-          <div>
-            <label className="block text-xs font-semibold text-slate-400 mb-1.5">
-              {language === 'ko' ? '이메일 계정 (ID)' : 'Email Account (ID)'}
-            </label>
-            <input
-              type="email"
-              required
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              placeholder={language === 'ko' ? '예: therapist1@jjimjil.com' : 'e.g. therapist1@spa.com'}
-              className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-sm text-slate-100 placeholder-slate-660 focus:outline-none focus:border-indigo-500/80 transition-colors"
-            />
-          </div>
-
-          <div>
-            <label className="block text-xs font-semibold text-slate-400 mb-1.5">{t('login.password')}</label>
-            <div className="relative">
-              <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-650">
-                <Key className="w-4 h-4" />
-              </span>
-              <input
-                type="text"
-                required
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                placeholder={language === 'ko' ? '비밀번호 설정' : 'Configure password'}
-                className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-9 pr-3.5 py-2.5 text-sm text-slate-100 placeholder-slate-660 focus:outline-none focus:border-indigo-500/80 transition-colors"
-              />
-            </div>
-          </div>
-
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white shadow-lg shadow-indigo-950/20 py-2.5 text-xs font-bold transition-all disabled:opacity-50"
-          >
-            {loading ? (language === 'ko' ? '등록 중...' : 'Registering...') : t('therapist.add')}
-          </button>
-        </form>
-      </div>
-
+    <div className="space-y-6">
       {/* 마사지사 목록 관리 */}
-      <div className="lg:col-span-2 rounded-2xl border border-slate-800 bg-slate-900/40 p-5">
-        <h3 className="text-sm font-bold tracking-tight text-slate-200 mb-4">
-          {language === 'ko' ? `근무 마사지사 관리 (${therapists.length}명)` : `Manage Active Therapists (${therapists.length})`}
-        </h3>
+      <div className="rounded-2xl border border-slate-800 bg-slate-900/40 p-5">
+        <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
+          <h3 className="text-sm font-bold tracking-tight text-slate-200 flex items-center gap-2">
+            {language === 'ko' ? `근무 마사지사 관리 (${therapists.length}명)` : `Manage Active Therapists (${therapists.length})`}
+          </h3>
+          <button
+            type="button"
+            onClick={() => {
+              setErrorMsg(null)
+              setSuccessMsg(null)
+              setIsAddingTherapist(true)
+            }}
+            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold transition-all shadow-lg shadow-indigo-950/20"
+          >
+            <UserPlus className="w-3.5 h-3.5" />
+            {t('therapist.add')}
+          </button>
+        </div>
 
         <div className="overflow-x-auto rounded-lg border border-slate-850 bg-slate-950/20">
           <table className="min-w-full divide-y divide-slate-850">
@@ -526,9 +557,133 @@ export default function TherapistManager({
         </div>
       </div>
 
+      {/* 신규 마사지사 추가 모달 */}
+      {isAddingTherapist && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+          <div className="w-full max-w-md bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl p-6 relative">
+            <button
+              onClick={() => {
+                setIsAddingTherapist(false)
+                setErrorMsg(null)
+                setSuccessMsg(null)
+              }}
+              className="absolute top-4 right-4 text-slate-500 hover:text-slate-350 transition-colors"
+            >
+              <X className="w-5 h-5" />
+            </button>
+
+            <h3 className="text-base font-bold text-slate-200 mb-6 flex items-center gap-1.5 uppercase">
+              <UserPlus className="w-4 h-4 text-indigo-500" /> {t('therapist.add')}
+            </h3>
+
+            <form onSubmit={handleAddTherapist} className="space-y-4">
+              {errorMsg && (
+                <div className="p-3 text-xs rounded-lg bg-rose-500/10 text-rose-400 border border-rose-500/20">
+                  ⚠️ {errorMsg}
+                </div>
+              )}
+
+              {successMsg && (
+                <div className="p-3 text-xs rounded-lg bg-emerald-500/10 text-emerald-450 border border-emerald-500/20">
+                  {successMsg}
+                </div>
+              )}
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-400 mb-1.5">{t('employee.name')}</label>
+                <input
+                  type="text"
+                  required
+                  value={newTherapistName}
+                  onChange={(e) => setNewTherapistName(e.target.value)}
+                  placeholder={language === 'ko' ? '예: 박안마' : 'e.g. John Doe'}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-sm text-slate-100 placeholder-slate-660 focus:outline-none focus:border-indigo-500/80 transition-colors"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-400 mb-1.5">{t('therapist.phone')}</label>
+                <input
+                  type="text"
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  placeholder={language === 'ko' ? '예: 010-9876-5432' : 'e.g. 010-9876-5432'}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-sm text-slate-100 placeholder-slate-660 focus:outline-none focus:border-indigo-500/80 transition-colors"
+                />
+              </div>
+
+              <div className="flex items-center gap-2 py-1">
+                <input
+                  type="checkbox"
+                  id="is_premium_target_chk"
+                  checked={isPremiumTarget}
+                  onChange={(e) => setIsPremiumTarget(e.target.checked)}
+                  className="w-4 h-4 rounded border-slate-800 bg-slate-950 text-indigo-600 focus:ring-indigo-500/30"
+                />
+                <label htmlFor="is_premium_target_chk" className="text-xs text-slate-300 font-medium cursor-pointer">
+                  {language === 'ko' ? '오늘의 고급 마사지 전담 우선 지정' : 'Premium Course Assignment Priority'}
+                </label>
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-400 mb-1.5">
+                  {language === 'ko' ? '이메일 계정 (ID)' : 'Email Account (ID)'}
+                </label>
+                <input
+                  type="email"
+                  required
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
+                  placeholder={language === 'ko' ? '예: therapist1@jjimjil.com' : 'e.g. therapist1@spa.com'}
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-sm text-slate-100 placeholder-slate-660 focus:outline-none focus:border-indigo-500/80 transition-colors"
+                />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-slate-400 mb-1.5">{t('login.password')}</label>
+                <div className="relative">
+                  <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-650">
+                    <Key className="w-4 h-4" />
+                  </span>
+                  <input
+                    type="text"
+                    required
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    placeholder={language === 'ko' ? '비밀번호 설정' : 'Configure password'}
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-9 pr-3.5 py-2.5 text-sm text-slate-100 placeholder-slate-660 focus:outline-none focus:border-indigo-500/80 transition-colors"
+                  />
+                </div>
+              </div>
+
+              <div className="flex gap-3 pt-2">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsAddingTherapist(false)
+                    setErrorMsg(null)
+                    setSuccessMsg(null)
+                  }}
+                  className="flex-1 bg-slate-950 border border-slate-800 rounded-xl py-2.5 text-xs font-bold text-slate-400 hover:text-slate-200 transition-all"
+                >
+                  {language === 'ko' ? '취소' : 'Cancel'}
+                </button>
+                <button
+                  type="submit"
+                  disabled={loading}
+                  className="flex-1 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white shadow-lg shadow-indigo-950/20 py-2.5 text-xs font-bold transition-all disabled:opacity-50"
+                >
+                  {loading ? (language === 'ko' ? '등록 중...' : 'Registering...') : t('therapist.add')}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
       {/* 마사지사 정보 수정 모달 */}
       {editingTherapist && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-sm p-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-sm p-4 animate-in fade-in duration-200">
           <div className="w-full max-w-md bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl p-6 relative">
             <button
               onClick={() => setEditingTherapist(null)}

@@ -325,31 +325,62 @@ export default function BookingModal({
 
       if (isEditMode && selectedReservation) {
         // [수정 모드 처리]
-        const changes: string[] = []
+        const changesList: any[] = []
         if (selectedReservation.customer_name !== customerName) {
-          changes.push(`${language === 'ko' ? '고객명' : 'Client'}: ${selectedReservation.customer_name} -> ${customerName}`)
+          changesList.push({
+            key: 'log.reservation.val.change_client',
+            params: { old: selectedReservation.customer_name, new: customerName }
+          })
         }
         if ((selectedReservation.customer_phone || '') !== customerPhone) {
-          changes.push(`${language === 'ko' ? '연락처' : 'Phone'}: ${selectedReservation.customer_phone || (language === 'ko' ? '없음' : 'None')} -> ${customerPhone || (language === 'ko' ? '없음' : 'None')}`)
+          changesList.push({
+            key: 'log.reservation.val.change_phone',
+            params: { old: selectedReservation.customer_phone || 'None', new: customerPhone || 'None' }
+          })
         }
         if (Number(selectedReservation.price) !== price) {
-          changes.push(`${language === 'ko' ? '금액' : 'Price'}: $${Number(selectedReservation.price).toLocaleString()} -> $${price.toLocaleString()}`)
+          changesList.push({
+            key: 'log.reservation.val.change_price',
+            params: { old: Number(selectedReservation.price), new: price }
+          })
         }
         if (selectedReservation.start_time !== startTimeISO || selectedReservation.end_time !== endTimeISO) {
           const oldStart = toLocalTimeString(new Date(selectedReservation.start_time))
           const oldEnd = toLocalTimeString(new Date(selectedReservation.end_time))
           const newStart = toLocalTimeString(new Date(startTimeISO))
           const newEnd = toLocalTimeString(new Date(endTimeISO))
-          changes.push(`${language === 'ko' ? '시간' : 'Time'}: ${oldStart}~${oldEnd} -> ${newStart}~${newEnd}`)
+          
+          const oldDateStr = toLocalDateString(new Date(selectedReservation.start_time))
+          const newDateStr = toLocalDateString(new Date(startTimeISO))
+          
+          if (oldDateStr === newDateStr) {
+            changesList.push({
+              key: 'log.reservation.val.change_time',
+              params: { old: `${oldStart}~${oldEnd}`, new: `${newStart}~${newEnd}` }
+            })
+          } else {
+            const oldUIDate = toUIDateString(new Date(selectedReservation.start_time))
+            const newUIDate = toUIDateString(new Date(startTimeISO))
+            changesList.push({
+              key: 'log.reservation.val.change_date_time',
+              params: { old: `${oldUIDate} ${oldStart}~${oldEnd}`, new: `${newUIDate} ${newStart}~${newEnd}` }
+            })
+          }
         }
         if (selectedReservation.therapist_id !== assignedId) {
-          const oldTherapist = therapists.find(t => t.id === selectedReservation.therapist_id)?.name || (language === 'ko' ? '미배정' : 'Unassigned')
-          changes.push(`${language === 'ko' ? '마사지사' : 'Therapist'}: ${oldTherapist} -> ${assignedName}`)
+          const oldTherapist = therapists.find(t => t.id === selectedReservation.therapist_id)?.name || 'Unassigned'
+          changesList.push({
+            key: 'log.reservation.val.change_therapist',
+            params: { old: oldTherapist, new: assignedName }
+          })
         }
 
-        const detailsText = changes.length > 0 
-          ? `${language === 'ko' ? '예약 정보 변경' : 'Booking Info Changed'} - [${changes.join(', ')}]`
-          : (language === 'ko' ? '예약 정보 수정 (변경사항 없음)' : 'Booking Info Saved (No changes)')
+        const detailsText = JSON.stringify({
+          key: changesList.length > 0 ? 'log.reservation.update' : 'log.reservation.update_no_changes',
+          params: {
+            changes: changesList
+          }
+        })
 
         const { error } = await supabase
           .from('reservations')
@@ -448,7 +479,10 @@ export default function BookingModal({
         reservation_id: selectedReservation.id,
         action: 'cancel',
         performed_by: validatedUserId,
-        details: `${language === 'ko' ? '예약 취소 - 고객:' : 'Booking Cancelled - Client:'} ${selectedReservation.customer_name}`
+        details: JSON.stringify({
+          key: 'log.reservation.cancel',
+          params: { name: selectedReservation.customer_name }
+        })
       })
 
       onSuccess()

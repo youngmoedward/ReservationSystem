@@ -16,9 +16,9 @@ interface LogItem {
   action: string
   performed_at: string
   details: string
-  log_type: 'reservation' | 'schedule'
+  log_type: 'reservation' | 'schedule' | 'therapist' | 'employee'
   employee?: { name: string } | null
-  reservations?: { customer_name: string } | null
+  reservations?: { customer_name: string; start_time: string } | null
 }
 
 export default function HistoryManager({ supabase }: HistoryManagerProps) {
@@ -54,6 +54,11 @@ export default function HistoryManager({ supabase }: HistoryManagerProps) {
   const [fromDateFilter, setFromDateFilter] = useState<string>(initialDates.from)
   const [toDateFilter, setToDateFilter] = useState<string>(initialDates.to)
 
+  // 페이징 상태
+  const [currentPage, setCurrentPage] = useState(1)
+  const [totalCount, setTotalCount] = useState(0)
+  const itemsPerPage = 15
+
   const fetchLogs = async () => {
     setLoading(true)
     setErrorMsg(null)
@@ -71,22 +76,27 @@ export default function HistoryManager({ supabase }: HistoryManagerProps) {
             name
           ),
           reservations:reservation_id (
-            customer_name
+            customer_name,
+            start_time
           )
-        `)
+        `, { count: 'exact' })
         .gte('performed_at', `${fromDateFilter}T00:00:00.000Z`)
         .lte('performed_at', `${toDateFilter}T23:59:59.999Z`)
         .order('performed_at', { ascending: false })
+        .range((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage - 1)
 
       if (logTypeFilter !== 'all') {
         query = query.eq('log_type', logTypeFilter)
       }
 
-      const { data, error } = await query
+      const { data, error, count } = await query
 
       if (error) throw error
       if (data) {
         setLogs(data as unknown as LogItem[])
+      }
+      if (count !== null) {
+        setTotalCount(count)
       }
     } catch (err: any) {
       console.error('Fetch logs error:', err)
@@ -96,10 +106,16 @@ export default function HistoryManager({ supabase }: HistoryManagerProps) {
     }
   }
 
+  // 필터 변경 시 1페이지로 리셋
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [logTypeFilter, fromDateFilter, toDateFilter])
+
+  // 페이지 및 필터 감지하여 로그 갱신
   useEffect(() => {
     fetchLogs()
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [logTypeFilter, fromDateFilter, toDateFilter])
+  }, [currentPage, logTypeFilter, fromDateFilter, toDateFilter])
 
   const formatDateTime = (isoStr: string) => {
     const d = new Date(isoStr)
@@ -110,6 +126,84 @@ export default function HistoryManager({ supabase }: HistoryManagerProps) {
     const minutes = String(d.getMinutes()).padStart(2, '0')
     const seconds = String(d.getSeconds()).padStart(2, '0')
     return `${month}-${date}-${year} ${hours}:${minutes}:${seconds}`
+  }
+
+  const translateDutyStatus = (statusKr: string) => {
+    switch (statusKr) {
+      case '근무': return language === 'ko' ? '근무' : 'On Duty'
+      case '휴무': return language === 'ko' ? '휴무' : 'Off Duty'
+      case '오전반차': return language === 'ko' ? '오전반차' : 'AM Half Duty'
+      case '오후반차': return language === 'ko' ? '오후반차' : 'PM Half Duty'
+      case '미정': return language === 'ko' ? '미정' : 'Undecided'
+      default: return statusKr
+    }
+  }
+
+  const renderDetailsText = (details: string | null): string => {
+    if (!details) return '-'
+
+    // 1. JSON 형식인 경우 처리 (신규 마사지사, 직원, 예약 변경 등)
+    try {
+      const data = JSON.parse(details)
+      if (data && data.key) {
+        let template = t(data.key)
+        
+        let params = { ...data.params }
+        if (params.changes && Array.isArray(params.changes)) {
+          // 각 변경 항목 번역
+          const translatedChanges = params.changes.map((change: any) => {
+            if (change && typeof change === 'object' && change.key) {
+              let changeTemplate = t(change.key)
+              Object.entries(change.params || {}).forEach(([k, v]) => {
+                changeTemplate = changeTemplate.replace(`{${k}}`, String(v))
+              })
+              return changeTemplate
+            }
+            return String(change)
+          })
+          params.changes = translatedChanges.join(', ')
+        }
+
+        // 템플릿 치환
+        Object.entries(params).forEach(([k, v]) => {
+          let valStr = String(v)
+          if (valStr.startsWith('trans:')) {
+            valStr = t(valStr.substring(6))
+          }
+          template = template.replace(`{${k}}`, valStr)
+        })
+        return template
+      }
+    } catch (e) {
+      // JSON 파싱 실패시 -> 레거시 텍스트이거나 스케줄 변경 로그
+    }
+
+    // 2. 스케줄 변경 이력 정규식 기반 다국어 처리
+    if (language === 'en') {
+      let matched = details.match(/^(.+)의 (.+) 근무 일정을 \[(.+)\]로 변경함\. \(이전: (.+)\)$/)
+      if (matched) {
+        const [, name, date, status, prev] = matched
+        const statusEn = translateDutyStatus(status)
+        const prevEn = translateDutyStatus(prev)
+        return `${name}'s duty schedule for ${date} changed to [${statusEn}]. (Previous: ${prevEn})`
+      }
+
+      matched = details.match(/^(.+)의 (.+) 근무 일정을 \[(.+)\]로 설정함\.$/)
+      if (matched) {
+        const [, name, date, status] = matched
+        const statusEn = translateDutyStatus(status)
+        return `${name}'s duty schedule for ${date} set to [${statusEn}].`
+      }
+
+      matched = details.match(/^(.+)의 (.+) 근무 일정을 \[(.+)\]으로 초기화함\.$/)
+      if (matched) {
+        const [, name, date, status] = matched
+        const statusEn = translateDutyStatus(status)
+        return `${name}'s duty schedule for ${date} reset to [${statusEn}].`
+      }
+    }
+
+    return details
   }
 
   return (
@@ -145,6 +239,8 @@ export default function HistoryManager({ supabase }: HistoryManagerProps) {
             <option value="all">{t('history.filter.all')}</option>
             <option value="reservation">{t('history.filter.reservation')}</option>
             <option value="schedule">{t('history.filter.schedule')}</option>
+            <option value="therapist">{t('history.filter.therapist')}</option>
+            <option value="employee">{t('history.filter.employee')}</option>
           </select>
         </div>
 
@@ -200,81 +296,115 @@ export default function HistoryManager({ supabase }: HistoryManagerProps) {
           <p className="text-xs text-slate-400">{t('history.no_records')}</p>
         </div>
       ) : (
-        <div className="overflow-x-auto rounded-xl border border-slate-800/80 bg-slate-950/30 shadow-inner">
-          <table className="w-full text-left text-xs border-collapse">
-            <thead>
-              <tr className="border-b border-slate-800 bg-slate-950/60 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
-                <th className="p-4 w-40">{t('history.table.time')}</th>
-                <th className="p-4 w-28 text-center">{t('history.table.type')}</th>
-                <th className="p-4 w-28 text-center">{t('history.table.action')}</th>
-                <th className="p-4 w-32">{t('history.table.user')}</th>
-                <th className="p-4 w-44">{t('history.table.target')}</th>
-                <th className="p-4">{t('history.table.details')}</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-slate-850/60 text-slate-300">
-              {logs.map((log) => {
-                // 이력 종류별 뱃지
-                const logTypeLabels = {
-                  reservation: { text: t('history.type.reservation'), class: 'bg-indigo-500/10 text-indigo-400 border-indigo-500/15' },
-                  schedule: { text: t('history.type.schedule'), class: 'bg-amber-500/10 text-amber-400 border-amber-500/15' }
-                }
+        <div className="space-y-4">
+          <div className="overflow-x-auto rounded-xl border border-slate-800/80 bg-slate-950/30 shadow-inner">
+            <table className="w-full text-left text-xs border-collapse">
+              <thead>
+                <tr className="border-b border-slate-800 bg-slate-950/60 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                  <th className="p-4 w-40">{t('history.table.time')}</th>
+                  <th className="p-4 w-28 text-center">{t('history.table.type')}</th>
+                  <th className="p-4 w-28 text-center">{t('history.table.action')}</th>
+                  <th className="p-4 w-32">{t('history.table.user')}</th>
+                  <th className="p-4 w-44">{t('history.table.target')}</th>
+                  <th className="p-4">{t('history.table.details')}</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-slate-850/60 text-slate-300">
+                {logs.map((log) => {
+                  // 이력 종류별 뱃지
+                  const logTypeLabels = {
+                    reservation: { text: t('history.type.reservation'), class: 'bg-indigo-500/10 text-indigo-400 border-indigo-500/15' },
+                    schedule: { text: t('history.type.schedule'), class: 'bg-amber-500/10 text-amber-400 border-amber-500/15' },
+                    therapist: { text: t('history.type.therapist'), class: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/15' },
+                    employee: { text: t('history.type.employee'), class: 'bg-teal-500/10 text-teal-400 border-teal-500/15' }
+                  }
 
-                // 액션 뱃지
-                const actionLabels: Record<string, { text: string; class: string }> = {
-                  create: { text: t('history.action.create'), class: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' },
-                  update: { text: t('history.action.update'), class: 'bg-blue-500/10 text-blue-450 border-blue-500/20' },
-                  delete: { text: t('history.action.delete'), class: 'bg-slate-800 text-slate-400 border-slate-750' },
-                  cancel: { text: t('history.action.cancel'), class: 'bg-rose-500/10 text-rose-450 border-rose-500/20' }
-                }
+                  // 액션 뱃지
+                  const actionLabels: Record<string, { text: string; class: string }> = {
+                    create: { text: t('history.action.create'), class: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' },
+                    update: { text: t('history.action.update'), class: 'bg-blue-500/10 text-blue-450 border-blue-500/20' },
+                    delete: { text: t('history.action.delete'), class: 'bg-slate-800 text-slate-400 border-slate-750' },
+                    cancel: { text: t('history.action.cancel'), class: 'bg-rose-500/10 text-rose-450 border-rose-500/20' }
+                  }
 
-                const logTypeData = logTypeLabels[log.log_type] || { text: t('history.type.other'), class: 'bg-slate-800 text-slate-450 border-slate-750' }
-                const actionData = actionLabels[log.action] || { text: log.action, class: 'bg-slate-800 text-slate-300 border-slate-750' }
+                  const logTypeData = logTypeLabels[log.log_type] || { text: t('history.type.other'), class: 'bg-slate-800 text-slate-450 border-slate-750' }
+                  const actionData = actionLabels[log.action] || { text: log.action, class: 'bg-slate-800 text-slate-300 border-slate-750' }
 
-                const performerName = log.employee?.name || t('history.system')
-                const customerName = log.reservations?.customer_name || null
+                  const performerName = log.employee?.name || t('history.system')
 
-                return (
-                  <tr key={log.id} className="hover:bg-slate-900/10 transition-colors">
-                    <td className="p-3.5 font-mono text-slate-400 text-[11px]">
-                      {formatDateTime(log.performed_at)}
-                    </td>
-                    <td className="p-3.5 text-center">
-                      <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[9px] font-bold border ${logTypeData.class}`}>
-                        {logTypeData.text}
-                      </span>
-                    </td>
-                    <td className="p-3.5 text-center">
-                      <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[9px] font-bold border ${actionData.class}`}>
-                        {actionData.text}
-                      </span>
-                    </td>
-                    <td className="p-3.5 font-semibold text-slate-200">
-                      {performerName}
-                    </td>
-                    <td className="p-3.5 text-slate-400">
-                      {log.log_type === 'reservation' ? (
-                        <>
-                          <span className="text-[10px] bg-slate-900 px-1.5 py-0.5 rounded border border-slate-800 mr-1.5 text-slate-500 font-mono">
-                            ID: {log.reservation_id}
-                          </span>
-                          <span className="font-semibold text-slate-300">{customerName || t('history.no_info')}</span>
-                        </>
-                      ) : (
-                        <span className="text-slate-500 font-medium">{t('history.target.schedule')}</span>
-                      )}
-                    </td>
-                    <td className="p-3.5 text-slate-300 leading-relaxed font-medium">
-                      {log.details || '-'}
-                    </td>
-                  </tr>
-                )
-              })}
-            </tbody>
-          </table>
+                  return (
+                    <tr key={log.id} className="hover:bg-slate-900/10 transition-colors">
+                      <td className="p-3.5 font-mono text-slate-400 text-[11px]">
+                        {formatDateTime(log.performed_at)}
+                      </td>
+                      <td className="p-3.5 text-center">
+                        <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[9px] font-bold border ${logTypeData.class}`}>
+                          {logTypeData.text}
+                        </span>
+                      </td>
+                      <td className="p-3.5 text-center">
+                        <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-[9px] font-bold border ${actionData.class}`}>
+                          {actionData.text}
+                        </span>
+                      </td>
+                      <td className="p-3.5 font-semibold text-slate-200">
+                        {performerName}
+                      </td>
+                      <td className="p-3.5 text-slate-400">
+                        {log.log_type === 'reservation' ? (
+                          log.reservations ? (
+                            <span className="font-semibold text-slate-350">
+                              {log.reservations.customer_name} ({toUIDateString(new Date(log.reservations.start_time))})
+                            </span>
+                          ) : (
+                            <span className="text-slate-500 font-medium">{t('history.no_info')}</span>
+                          )
+                        ) : log.log_type === 'schedule' ? (
+                          <span className="text-slate-500 font-medium">{t('history.target.schedule')}</span>
+                        ) : log.log_type === 'therapist' ? (
+                          <span className="text-slate-400 font-medium">{t('history.type.therapist')}</span>
+                        ) : log.log_type === 'employee' ? (
+                          <span className="text-slate-400 font-medium">{t('history.type.employee')}</span>
+                        ) : (
+                          <span className="text-slate-500 font-medium">{t('history.type.other')}</span>
+                        )}
+                      </td>
+                      <td className="p-3.5 text-slate-300 leading-relaxed font-medium">
+                        {renderDetailsText(log.details)}
+                      </td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+
+          {/* 페이징 네비게이션 UI */}
+          <div className="flex items-center justify-between border-t border-slate-800/60 pt-4 px-1 text-xs">
+            <span className="text-slate-400">
+              {t('history.pagination.page')
+                .replace('{current}', String(currentPage))
+                .replace('{total}', String(Math.ceil(totalCount / itemsPerPage) || 1))}
+            </span>
+            <div className="flex items-center gap-2">
+              <button
+                disabled={currentPage === 1 || loading}
+                onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+                className="px-3 py-1.5 rounded-xl border border-slate-800 bg-slate-950 hover:bg-slate-900/60 disabled:opacity-40 disabled:cursor-not-allowed font-medium text-slate-300 transition-colors"
+              >
+                {t('history.pagination.prev')}
+              </button>
+              <button
+                disabled={currentPage * itemsPerPage >= totalCount || loading}
+                onClick={() => setCurrentPage(prev => prev + 1)}
+                className="px-3 py-1.5 rounded-xl border border-slate-800 bg-slate-950 hover:bg-slate-900/60 disabled:opacity-40 disabled:cursor-not-allowed font-medium text-slate-300 transition-colors"
+              >
+                {t('history.pagination.next')}
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>
   )
 }
-
