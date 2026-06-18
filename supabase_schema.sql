@@ -285,11 +285,33 @@ ALTER TABLE public.reservation_logs ENABLE ROW LEVEL SECURITY;
 CREATE POLICY select_employee ON public.employee
   FOR SELECT TO authenticated USING (true);
 
--- INSERT/UPDATE/DELETE: 관리자(manager)만 직원을 추가/수정/삭제할 수 있음
-CREATE POLICY modify_employee ON public.employee
-  FOR ALL TO authenticated 
-  USING (public.is_manager(auth.uid()))
-  WITH CHECK (public.is_manager(auth.uid()));
+-- INSERT: 관리자가 직원을 추가할 수 있으며, 최초 관리자 등록(부트스트래핑) 또는 본인의 staff 등록도 허용함
+CREATE POLICY insert_employee ON public.employee
+  FOR INSERT TO authenticated 
+  WITH CHECK (
+    public.is_manager(auth.uid()) OR
+    (id = auth.uid() AND (role = 'staff' OR (role = 'manager' AND NOT EXISTS (SELECT 1 FROM public.employee WHERE role = 'manager'))))
+  );
+
+-- UPDATE: 관리자 또는 본인만 수정 가능 (단, 본인이 수정할 경우 역할 변경은 제한)
+CREATE POLICY update_employee ON public.employee
+  FOR UPDATE TO authenticated
+  USING (
+    public.is_manager(auth.uid()) OR
+    id = auth.uid()
+  )
+  WITH CHECK (
+    public.is_manager(auth.uid()) OR
+    (id = auth.uid() AND role = (SELECT role FROM public.employee WHERE id = auth.uid()))
+  );
+
+-- DELETE: 관리자 또는 본인만 삭제 가능
+CREATE POLICY delete_employee ON public.employee
+  FOR DELETE TO authenticated
+  USING (
+    public.is_manager(auth.uid()) OR
+    id = auth.uid()
+  );
 
 
 -- ==========================================
@@ -299,11 +321,19 @@ CREATE POLICY modify_employee ON public.employee
 CREATE POLICY select_therapists ON public.therapists
   FOR SELECT TO authenticated USING (true);
 
--- INSERT/UPDATE/DELETE: 관리자(manager)만 마사지사를 추가/수정/삭제할 수 있음
+-- INSERT/UPDATE/DELETE: 관리자가 추가/수정/삭제하거나, 마사지사가 본인의 계정을 연동/수정하는 것을 허용함
 CREATE POLICY modify_therapists ON public.therapists
   FOR ALL TO authenticated 
-  USING (public.is_manager(auth.uid()))
-  WITH CHECK (public.is_manager(auth.uid()));
+  USING (
+    public.is_manager(auth.uid()) OR
+    user_id = auth.uid() OR
+    (user_id IS NULL AND name = (auth.jwt() -> 'user_metadata' ->> 'name'))
+  )
+  WITH CHECK (
+    public.is_manager(auth.uid()) OR
+    user_id = auth.uid() OR
+    (user_id IS NULL AND name = (auth.jwt() -> 'user_metadata' ->> 'name'))
+  );
 
 
 -- ==========================================
