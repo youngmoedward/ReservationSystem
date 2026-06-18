@@ -4,7 +4,7 @@ import React, { useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { createClient } from '@/utils/supabase/client'
 import { useLanguage } from '@/app/LanguageContext'
-import { Sparkles, LogIn, Lock, Mail, Loader2 } from 'lucide-react'
+import { LogIn, Lock, Mail, Loader2 } from 'lucide-react'
 
 export default function LoginPage() {
   const router = useRouter()
@@ -47,21 +47,19 @@ export default function LoginPage() {
         <div className="flex bg-slate-900 border border-slate-800 rounded-xl p-0.5 shadow-inner">
           <button
             onClick={() => setLanguage('ko')}
-            className={`text-[10px] font-bold px-2.5 py-1 rounded-lg transition-all ${
-              language === 'ko'
+            className={`text-[10px] font-bold px-2.5 py-1 rounded-lg transition-all ${language === 'ko'
                 ? 'bg-slate-950 text-slate-100 border border-slate-850 shadow'
                 : 'text-slate-500 hover:text-slate-350'
-            }`}
+              }`}
           >
             KO
           </button>
           <button
             onClick={() => setLanguage('en')}
-            className={`text-[10px] font-bold px-2.5 py-1 rounded-lg transition-all ${
-              language === 'en'
+            className={`text-[10px] font-bold px-2.5 py-1 rounded-lg transition-all ${language === 'en'
                 ? 'bg-slate-950 text-slate-100 border border-slate-850 shadow'
                 : 'text-slate-500 hover:text-slate-350'
-            }`}
+              }`}
           >
             EN
           </button>
@@ -75,9 +73,7 @@ export default function LoginPage() {
       <div className="w-full max-w-md relative z-10">
         {/* 상단 로고/브랜드 영역 */}
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-12 h-12 rounded-2xl bg-gradient-to-tr from-indigo-500 to-amber-500 shadow-lg shadow-indigo-950/40 mb-3 animate-pulse">
-            <Sparkles className="w-6 h-6 text-white" />
-          </div>
+          <img src="/logo.png" alt="Spa Logo" className="w-16 h-16 object-contain mx-auto mb-3 shadow-lg rounded-2xl animate-pulse" />
           <h1 className="text-xl font-bold tracking-tight bg-gradient-to-r from-slate-100 to-slate-300 bg-clip-text text-transparent">
             {t('app.title')}
           </h1>
@@ -155,7 +151,7 @@ export default function LoginPage() {
 
         {/* 로그인 도움 안내 문구 */}
         <div className="text-center mt-6 text-[10px] text-slate-600 leading-relaxed font-medium">
-          <p>{t('login.info')}</p>
+          {/* <p>{t('login.info')}</p> */}
           <p className="mt-1">© 2026 {t('app.title')}</p>
         </div>
       </div>

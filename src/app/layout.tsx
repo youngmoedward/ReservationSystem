@@ -7,8 +7,8 @@ import { LanguageProvider } from './LanguageContext'
 const inter = Inter({ subsets: ['latin'] })
 
 export const metadata: Metadata = {
-  title: '찜질방 마사지 예약 관리 시스템',
-  description: 'Supabase와 Next.js 기반의 프리미엄 찜질방 마사지 예약 관리 대시보드',
+  title: 'Riviera Health Spa 예약 관리 시스템',
+  description: 'Supabase와 Next.js 기반의 프리미엄 Riviera Health Spa 예약 관리 대시보드',
 }
 
 export default function RootLayout({

@@ -7,8 +7,8 @@ export type Language = 'ko' | 'en'
 const translations: Record<Language, Record<string, string>> = {
   ko: {
     // App & Layout
-    'app.title': '찜질방 마사지 예약 관리',
-    'app.subtitle': 'Spa Massage Booking System',
+    'app.title': 'Riviera Health Spa 예약 관리',
+    'app.subtitle': 'Riviera Health Spa Booking System',
     'nav.calendar': '예약 현황판 (달력)',
     'nav.list': '예약 목록 (리스트)',
     'nav.blacklist': '취소자 블랙리스트',
@@ -329,8 +329,8 @@ const translations: Record<Language, Record<string, string>> = {
   },
   en: {
     // App & Layout
-    'app.title': 'Spa Massage Booking',
-    'app.subtitle': 'Spa Massage Booking System',
+    'app.title': 'Riviera Health Spa Booking',
+    'app.subtitle': 'Riviera Health Spa Booking System',
     'nav.calendar': 'Booking Board (Calendar)',
     'nav.list': 'Booking List',
     'nav.blacklist': 'Cancellation Blacklist',

@@ -1,5 +1,5 @@
 -- =========================================================================
--- 찜질방 마사지 예약 관리 시스템 - Supabase SQL 스키마 및 더미 데이터 스크립트
+-- 찜질방 마사지 예약 관리 시스템 - Supabase SQL 스키마 및 더미 데이터 스크립트 (Riviera Health Spa)
 -- =========================================================================
 
 -- 1. 기존 테이블 및 트리거 정리 (순서 보장)
@@ -13,7 +13,10 @@ CREATE TABLE therapists (
   name TEXT NOT NULL,
   is_active BOOLEAN DEFAULT TRUE,
   is_premium_target BOOLEAN DEFAULT FALSE, -- 오늘 고급 마사지를 몰아받을 직원 여부
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  user_id UUID REFERENCES auth.users ON DELETE SET NULL,
+  email TEXT,
+  phone TEXT
 );
 
 -- 3. employee (권한 포함 프론트 직원) 테이블 생성
@@ -22,7 +25,9 @@ CREATE TABLE employee (
   id UUID REFERENCES auth.users ON DELETE CASCADE PRIMARY KEY,
   name TEXT NOT NULL,
   role TEXT NOT NULL CHECK (role IN ('manager', 'staff')), -- 관리자, 일반 직원
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  email TEXT,
+  phone TEXT
 );
 
 -- 4. reservations (예약 정보) 테이블 생성
@@ -211,3 +216,156 @@ $$ LANGUAGE plpgsql;
 CREATE OR REPLACE TRIGGER trg_log_therapist_schedule
 AFTER INSERT OR UPDATE OR DELETE ON therapist_schedule
 FOR EACH ROW EXECUTE FUNCTION log_therapist_schedule_changes();
+
+
+-- =========================================================================
+-- [RLS & 보안 정책 적용]
+-- =========================================================================
+
+-- 1. 순환 참조(Recursion) 방지용 SECURITY DEFINER 헬퍼 함수 생성
+-- 이 함수들은 RLS 정책 검사 시 RLS를 우회하여 테이블을 안전하게 조회합니다.
+
+-- 사용자가 관리자(manager)인지 확인하는 함수
+CREATE OR REPLACE FUNCTION public.is_manager(user_uuid UUID)
+RETURNS BOOLEAN
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+  RETURN EXISTS (
+    SELECT 1 FROM public.employee
+    WHERE id = user_uuid AND role = 'manager'
+  );
+END;
+$$ LANGUAGE plpgsql;
+
+-- 사용자가 직원(manager 또는 staff)인지 확인하는 함수
+CREATE OR REPLACE FUNCTION public.is_employee(user_uuid UUID)
+RETURNS BOOLEAN
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+  RETURN EXISTS (
+    SELECT 1 FROM public.employee
+    WHERE id = user_uuid
+  );
+END;
+$$ LANGUAGE plpgsql;
+
+-- 주어진 마사지사 ID가 현재 로그인한 사용자의 ID와 매칭되는지 확인하는 함수
+CREATE OR REPLACE FUNCTION public.is_therapist_self(user_uuid UUID, therapist_id_param INT)
+RETURNS BOOLEAN
+SECURITY DEFINER
+SET search_path = public
+AS $$
+BEGIN
+  RETURN EXISTS (
+    SELECT 1 FROM public.therapists
+    WHERE user_id = user_uuid AND id = therapist_id_param
+  );
+END;
+$$ LANGUAGE plpgsql;
+
+
+-- 2. 모든 테이블 RLS 활성화
+ALTER TABLE public.employee ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.therapists ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.reservations ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.therapist_schedule ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.reservation_logs ENABLE ROW LEVEL SECURITY;
+
+
+-- 3. 테이블별 정책(Policy) 정의
+
+-- ==========================================
+-- A. employee (프론트 직원 정보) 테이블 정책
+-- ==========================================
+-- SELECT: 인증된 사용자(직원 및 마사지사)는 모든 직원의 정보를 조회할 수 있음 (UI 및 배정 로직용)
+CREATE POLICY select_employee ON public.employee
+  FOR SELECT TO authenticated USING (true);
+
+-- INSERT/UPDATE/DELETE: 관리자(manager)만 직원을 추가/수정/삭제할 수 있음
+CREATE POLICY modify_employee ON public.employee
+  FOR ALL TO authenticated 
+  USING (public.is_manager(auth.uid()))
+  WITH CHECK (public.is_manager(auth.uid()));
+
+
+-- ==========================================
+-- B. therapists (마사지사 정보) 테이블 정책
+-- ==========================================
+-- SELECT: 인증된 사용자는 모든 마사지사의 정보를 조회할 수 있음
+CREATE POLICY select_therapists ON public.therapists
+  FOR SELECT TO authenticated USING (true);
+
+-- INSERT/UPDATE/DELETE: 관리자(manager)만 마사지사를 추가/수정/삭제할 수 있음
+CREATE POLICY modify_therapists ON public.therapists
+  FOR ALL TO authenticated 
+  USING (public.is_manager(auth.uid()))
+  WITH CHECK (public.is_manager(auth.uid()));
+
+
+-- ==========================================
+-- C. reservations (예약 내역) 테이블 정책
+-- ==========================================
+-- SELECT: 직원은 모든 예약을 조회할 수 있으며, 마사지사는 본인에게 배정된 예약만 조회 가능
+CREATE POLICY select_reservations ON public.reservations
+  FOR SELECT TO authenticated
+  USING (
+    public.is_employee(auth.uid()) OR 
+    public.is_therapist_self(auth.uid(), therapist_id)
+  );
+
+-- INSERT: 직원(manager, staff)만 예약 등록이 가능함
+CREATE POLICY insert_reservations ON public.reservations
+  FOR INSERT TO authenticated
+  WITH CHECK (public.is_employee(auth.uid()));
+
+-- UPDATE: 직원(manager, staff)만 예약 정보 수정이 가능함
+CREATE POLICY update_reservations ON public.reservations
+  FOR UPDATE TO authenticated
+  USING (public.is_employee(auth.uid()))
+  WITH CHECK (public.is_employee(auth.uid()));
+
+-- DELETE: 직원(manager, staff)만 예약 정보 물리 삭제 가능 (취소는 UPDATE 처리되지만 보안을 위해 추가)
+CREATE POLICY delete_reservations ON public.reservations
+  FOR DELETE TO authenticated
+  USING (public.is_employee(auth.uid()));
+
+
+-- ==========================================
+-- D. therapist_schedule (근무 일정) 테이블 정책
+-- ==========================================
+-- SELECT: 인증된 사용자는 모든 근무 일정을 조회할 수 있음 (일정 캘린더 표시용)
+CREATE POLICY select_schedule ON public.therapist_schedule
+  FOR SELECT TO authenticated USING (true);
+
+-- INSERT/UPDATE/DELETE (ALL): 직원은 누구나 변경 가능하며, 마사지사는 본인의 일정만 변경 가능
+CREATE POLICY modify_schedule ON public.therapist_schedule
+  FOR ALL TO authenticated
+  USING (
+    public.is_employee(auth.uid()) OR 
+    public.is_therapist_self(auth.uid(), therapist_id)
+  )
+  WITH CHECK (
+    public.is_employee(auth.uid()) OR 
+    public.is_therapist_self(auth.uid(), therapist_id)
+  );
+
+
+-- ==========================================
+-- E. reservation_logs (이력 로그) 테이블 정책
+-- ==========================================
+-- SELECT: 관리자(manager)만 모든 로그를 조회할 수 있음 (변경 이력 화면용)
+CREATE POLICY select_logs ON public.reservation_logs
+  FOR SELECT TO authenticated
+  USING (public.is_manager(auth.uid()));
+
+-- INSERT: 직원(manager, staff)은 예약/수정 시 로그를 쌓아야 하므로 쓰기 허용
+CREATE POLICY insert_logs ON public.reservation_logs
+  FOR INSERT TO authenticated
+  WITH CHECK (public.is_employee(auth.uid()));
+
+-- UPDATE/DELETE: 로그의 변조나 삭제는 원천 차단 (정책 미지정으로 기본 Deny)
+
