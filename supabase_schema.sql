@@ -46,7 +46,17 @@ CREATE TABLE reservations (
   therapist_id INT REFERENCES therapists(id) ON DELETE SET NULL, -- 배정된 마사지사
   created_by UUID REFERENCES employee(id) ON DELETE SET NULL,     -- 등록한 프론트 직원 (profiles가 아닌 employee 참조로 수정)
   status TEXT DEFAULT 'confirmed' CHECK (status IN ('confirmed', 'cancelled')),
-  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+  cancellation_type TEXT CHECK (cancellation_type IN ('request', 'noshow')),
+  penalty_points INT DEFAULT 0,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
+  
+  CONSTRAINT reservations_cancellation_check CHECK (
+    (status = 'confirmed' AND cancellation_type IS NULL AND penalty_points = 0)
+    OR
+    (status = 'cancelled' AND cancellation_type = 'request' AND penalty_points = 1)
+    OR
+    (status = 'cancelled' AND cancellation_type = 'noshow' AND penalty_points = 3)
+  )
 );
 
 -- 5. [더미 데이터 삽입 1] therapists (마사지 직원 10명)

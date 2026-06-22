@@ -27,6 +27,8 @@ export interface Reservation {
   therapist_id: number | null
   created_by: string | null
   status: 'confirmed' | 'cancelled'
+  cancellation_type?: 'request' | 'noshow' | null
+  penalty_points?: number
   created_at: string
 }
 

@@ -6,6 +6,7 @@ import { Therapist } from '../dashboard/CalendarView'
 import { useUserSim } from '@/app/providers'
 import { useLanguage } from '@/app/LanguageContext'
 import { UserPlus, Trash2, CheckCircle2, XCircle, Star, Key, Edit, X } from 'lucide-react'
+import { formatUSPhone, stripPhone } from '@/utils/phoneFormatter'
 
 interface TherapistManagerProps {
   supabase: SupabaseClient
@@ -92,7 +93,7 @@ export default function TherapistManager({
           is_premium_target: isPremiumTarget,
           user_id: newUserId,
           email: email.trim(),
-          phone: phone.trim() || null
+          phone: stripPhone(phone) || null
         })
 
       if (dbError) throw dbError
@@ -325,7 +326,7 @@ export default function TherapistManager({
         .from('therapists')
         .update({
           name: editName.trim(),
-          phone: editPhone.trim() || null,
+          phone: stripPhone(editPhone) || null,
           email: editEmail.trim() || null
         })
         .eq('id', editingTherapist.id)
@@ -345,10 +346,10 @@ export default function TherapistManager({
           params: { old: editingTherapist.email || '', new: editEmail.trim() }
         })
       }
-      if ((editingTherapist.phone || '') !== editPhone.trim()) {
+      if (stripPhone(editingTherapist.phone || '') !== stripPhone(editPhone)) {
         changesList.push({
           key: 'log.therapist.val.change_phone',
-          params: { old: editingTherapist.phone || '', new: editPhone.trim() }
+          params: { old: formatUSPhone(editingTherapist.phone || ''), new: formatUSPhone(editPhone) }
         })
       }
       
@@ -382,7 +383,7 @@ export default function TherapistManager({
   const startEdit = (therapist: Therapist) => {
     setEditingTherapist(therapist)
     setEditName(therapist.name || '')
-    setEditPhone(therapist.phone || '')
+    setEditPhone(formatUSPhone(therapist.phone || ''))
     setEditEmail(therapist.email || '')
   }
 
@@ -480,7 +481,7 @@ export default function TherapistManager({
                       <div className="font-mono text-slate-500 text-[9px] mt-0.5">ID: {therapist.id}</div>
                     </td>
                     <td className="px-4 py-3 text-slate-300 font-medium">{therapist.email || '-'}</td>
-                    <td className="px-4 py-3 text-slate-300">{therapist.phone || '-'}</td>
+                    <td className="px-4 py-3 text-slate-300 font-medium">{therapist.phone ? formatUSPhone(therapist.phone) : '-'}</td>
                     <td className="px-4 py-3">
                       <button
                         type="button"
@@ -606,8 +607,9 @@ export default function TherapistManager({
                 <input
                   type="text"
                   value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
-                  placeholder={language === 'ko' ? '예: 010-9876-5432' : 'e.g. 010-9876-5432'}
+                  onChange={(e) => setPhone(formatUSPhone(e.target.value))}
+                  placeholder={language === 'ko' ? '예: 123-456-7890' : 'e.g. 123-456-7890'}
+                  maxLength={12}
                   className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-sm text-slate-100 placeholder-slate-660 focus:outline-none focus:border-indigo-500/80 transition-colors"
                 />
               </div>
@@ -724,8 +726,9 @@ export default function TherapistManager({
                 <input
                   type="text"
                   value={editPhone}
-                  onChange={(e) => setEditPhone(e.target.value)}
-                  placeholder={language === 'ko' ? '예: 010-9876-5432' : 'e.g. 010-9876-5432'}
+                  onChange={(e) => setEditPhone(formatUSPhone(e.target.value))}
+                  placeholder={language === 'ko' ? '예: 123-456-7890' : 'e.g. 123-456-7890'}
+                  maxLength={12}
                   className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-sm text-slate-100 focus:outline-none focus:border-indigo-500/80 transition-colors"
                 />
               </div>

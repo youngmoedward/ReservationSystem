@@ -6,6 +6,7 @@ import { Reservation, Therapist } from './CalendarView'
 import { UserSim } from '@/app/providers'
 import { useLanguage } from '@/app/LanguageContext'
 import { toUIDateString } from '@/utils/booking/dateUtils'
+import { formatUSPhone } from '@/utils/phoneFormatter'
 
 interface ListViewProps {
   reservations: Reservation[]
@@ -51,9 +52,12 @@ export default function ListView({
       const therapistName = therapist ? therapist.name : ''
 
       // 검색어 (고객명, 연락처, 마사지사 이름)
+      const cleanSearch = searchTerm.replace(/\D/g, '')
       const matchesSearch =
         res.customer_name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        (res.customer_phone && res.customer_phone.includes(searchTerm)) ||
+        (res.customer_phone && (
+          res.customer_phone.replace(/\D/g, '').includes(cleanSearch || searchTerm)
+        )) ||
         therapistName.toLowerCase().includes(searchTerm.toLowerCase())
       
       // 예약 상태 필터
@@ -147,7 +151,7 @@ export default function ListView({
                   
                   {/* 연락처 */}
                   <td className="p-3 text-slate-400 font-mono">
-                    {res.customer_phone || '-'}
+                    {res.customer_phone ? formatUSPhone(res.customer_phone) : '-'}
                   </td>
                   
                   {/* 예약 일시 */}
@@ -257,7 +261,7 @@ export default function ListView({
 
                 {res.customer_phone && (
                   <p className="text-xs text-slate-400 flex items-center gap-1.5">
-                    <Phone className="w-3.5 h-3.5 text-slate-500" /> {res.customer_phone}
+                    <Phone className="w-3.5 h-3.5 text-slate-500" /> {formatUSPhone(res.customer_phone)}
                   </p>
                 )}
 

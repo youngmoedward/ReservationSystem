@@ -7,6 +7,7 @@ import { Reservation, Therapist } from './CalendarView'
 import { SupabaseClient } from '@supabase/supabase-js'
 import { toLocalDateString, toLocalTimeString, toUIDateString } from '@/utils/booking/dateUtils'
 import { useLanguage } from '@/app/LanguageContext'
+import { formatUSPhone, stripPhone } from '@/utils/phoneFormatter'
 
 interface BookingModalProps {
   isOpen: boolean
@@ -51,6 +52,10 @@ export default function BookingModal({
   const [loading, setLoading] = useState(false)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
   const { language, t } = useLanguage()
+  
+  // 취소 조작 관련 상태
+  const [isCancelling, setIsCancelling] = useState(false)
+  const [selectedCancelType, setSelectedCancelType] = useState<'request' | 'noshow'>('request')
   
   // 마사지사 날짜별 근무 일정 맵핑 상태
   const [daySchedules, setDaySchedules] = useState<Record<number, string | null>>({})
@@ -156,11 +161,13 @@ export default function BookingModal({
     if (isOpen) {
       setErrorMsg(null)
       setSuccessResult(null) // 매번 모달이 새로 열릴 때 성공 팝업 초기화
+      setIsCancelling(false)
+      setSelectedCancelType('request')
  
       if (isEditMode && selectedReservation) {
         // 수정 모드
         setCustomerName(selectedReservation.customer_name)
-        setCustomerPhone(selectedReservation.customer_phone || '')
+        setCustomerPhone(formatUSPhone(selectedReservation.customer_phone || ''))
         setPrice(Number(selectedReservation.price))
         
         const start = new Date(selectedReservation.start_time)
@@ -303,25 +310,47 @@ export default function BookingModal({
       let assignedId: number | null = null
       let assignedName = ''
 
-      // [자동 배정 / 수동 검증 단계]
-      const reqTherapistId = therapistId === 'auto' ? undefined : Number(therapistId)
+      // 변경 여부 확인 (수정 모드일 때만 작동, 신규 등록 시에는 무조건 변경된 것으로 간주하여 validation 진행)
+      let isValidationRequired = true
+      if (isEditMode && selectedReservation) {
+        const isTimeChanged =
+          selectedReservation.start_time !== startTimeISO ||
+          selectedReservation.end_time !== endTimeISO
 
-      const assignResult = await assignTherapist({
-        supabase,
-        startTime: startTimeISO,
-        endTime: endTimeISO,
-        price,
-        therapistId: reqTherapistId
-      })
+        const isTherapistChanged =
+          therapistId === 'auto'
+            ? selectedReservation.therapist_id !== null
+            : Number(therapistId) !== selectedReservation.therapist_id
 
-      if (!assignResult.success || !assignResult.therapistId) {
-        setErrorMsg(assignResult.error || (language === 'ko' ? '마사지사 배정에 실패했습니다.' : 'Failed to assign therapist.'))
-        setLoading(false)
-        return
+        isValidationRequired = isTimeChanged || isTherapistChanged
       }
 
-      assignedId = assignResult.therapistId
-      assignedName = assignResult.therapistName || ''
+      if (isValidationRequired) {
+        // [자동 배정 / 수동 검증 단계]
+        const reqTherapistId = therapistId === 'auto' ? undefined : Number(therapistId)
+
+        const assignResult = await assignTherapist({
+          supabase,
+          startTime: startTimeISO,
+          endTime: endTimeISO,
+          price,
+          therapistId: reqTherapistId,
+          excludeReservationId: selectedReservation?.id
+        })
+
+        if (!assignResult.success || !assignResult.therapistId) {
+          setErrorMsg(assignResult.error || (language === 'ko' ? '마사지사 배정에 실패했습니다.' : 'Failed to assign therapist.'))
+          setLoading(false)
+          return
+        }
+
+        assignedId = assignResult.therapistId
+        assignedName = assignResult.therapistName || ''
+      } else {
+        // therapist, date, time이 모두 변경되지 않은 경우 (단순 이름, 연락처, 금액 등의 변경)
+        assignedId = selectedReservation!.therapist_id
+        assignedName = therapists.find(t => t.id === assignedId)?.name || ''
+      }
 
       if (isEditMode && selectedReservation) {
         // [수정 모드 처리]
@@ -332,10 +361,13 @@ export default function BookingModal({
             params: { old: selectedReservation.customer_name, new: customerName }
           })
         }
-        if ((selectedReservation.customer_phone || '') !== customerPhone) {
+        if (stripPhone(selectedReservation.customer_phone || '') !== stripPhone(customerPhone)) {
           changesList.push({
             key: 'log.reservation.val.change_phone',
-            params: { old: selectedReservation.customer_phone || 'None', new: customerPhone || 'None' }
+            params: { 
+              old: formatUSPhone(selectedReservation.customer_phone || ''), 
+              new: formatUSPhone(customerPhone) 
+            }
           })
         }
         if (Number(selectedReservation.price) !== price) {
@@ -386,7 +418,7 @@ export default function BookingModal({
           .from('reservations')
           .update({
             customer_name: customerName,
-            customer_phone: customerPhone,
+            customer_phone: stripPhone(customerPhone),
             start_time: startTimeISO,
             end_time: endTimeISO,
             price,
@@ -410,7 +442,7 @@ export default function BookingModal({
           .from('reservations')
           .insert({
             customer_name: customerName,
-            customer_phone: customerPhone,
+            customer_phone: stripPhone(customerPhone),
             start_time: startTimeISO,
             end_time: endTimeISO,
             price,
@@ -448,7 +480,10 @@ export default function BookingModal({
   // 5. 예약 취소 처리 핸들러 (Soft Cancel)
   const handleCancelReservation = async () => {
     if (!selectedReservation) return
-    if (!confirm(language === 'ko' ? '정말로 이 예약을 취소하시겠습니까?' : 'Are you sure you want to cancel this booking?')) return
+    if (!isCancelling) {
+      setIsCancelling(true)
+      return
+    }
 
     setLoading(true)
     setErrorMsg(null)
@@ -467,21 +502,31 @@ export default function BookingModal({
         }
       }
 
+      const penaltyPoints = selectedCancelType === 'request' ? 1 : 3
+
       const { error } = await supabase
         .from('reservations')
-        .update({ status: 'cancelled' })
+        .update({ 
+          status: 'cancelled',
+          cancellation_type: selectedCancelType,
+          penalty_points: penaltyPoints
+        })
         .eq('id', selectedReservation.id)
 
       if (error) throw error
 
       // 이력 로그 기록
+      const cancelTypeTransKey = selectedCancelType === 'request'
+        ? 'booking.modal.cancel.type_request'
+        : 'booking.modal.cancel.type_noshow'
+
       await supabase.from('reservation_logs').insert({
         reservation_id: selectedReservation.id,
         action: 'cancel',
         performed_by: validatedUserId,
         details: JSON.stringify({
           key: 'log.reservation.cancel',
-          params: { name: selectedReservation.customer_name }
+          params: { name: `${selectedReservation.customer_name} (${t(cancelTypeTransKey)})` }
         })
       })
 
@@ -637,8 +682,9 @@ export default function BookingModal({
                 type="text"
                 disabled={!canModify}
                 value={customerPhone}
-                onChange={(e) => setCustomerPhone(e.target.value)}
-                placeholder={language === 'ko' ? '예: 010-1234-5678' : 'e.g. 010-1234-5678'}
+                onChange={(e) => setCustomerPhone(formatUSPhone(e.target.value))}
+                placeholder={language === 'ko' ? '예: 123-456-7890' : 'e.g. 123-456-7890'}
+                maxLength={12} // US 포맷 123-456-7890 총 12자 제한
                 className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-9 pr-3.5 py-2.5 text-sm text-slate-100 placeholder-slate-660 focus:outline-none focus:border-indigo-500/80 transition-colors disabled:opacity-50"
               />
             </div>
@@ -840,44 +886,94 @@ export default function BookingModal({
         </form>
 
         {/* 푸터 액션 */}
-        <div className="p-5 border-t border-slate-800 bg-slate-950/20 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-          {/* 예약 취소 버튼 (수정 모드이면서 권한 권한 소지 시 노출) */}
-          {isEditMode && canModify && selectedReservation.status === 'confirmed' ? (
-            <button
-              type="button"
-              onClick={handleCancelReservation}
-              disabled={loading}
-              className="inline-flex items-center justify-center rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-450 border border-rose-500/20 px-4 py-2.5 text-xs font-bold transition-all disabled:opacity-50"
-            >
-              <Trash2 className="w-4 h-4 mr-1.5" /> {t('booking.modal.cancel_booking')}
-            </button>
-          ) : (
-            <div />
-          )}
+        {isCancelling ? (
+          <div className="p-5 border-t border-slate-800 bg-slate-950/20 flex flex-col gap-3 w-full animate-in slide-in-from-bottom duration-250">
+            <div className="flex flex-col gap-1.5 text-xs">
+              <span className="font-bold text-rose-400">⚠️ {t('booking.modal.cancel.type_label')}</span>
+              <div className="grid grid-cols-2 gap-3 mt-1.5">
+                <button
+                  type="button"
+                  onClick={() => setSelectedCancelType('request')}
+                  className={`flex flex-col items-center justify-center rounded-xl p-3 border text-xs font-bold transition-all ${
+                    selectedCancelType === 'request'
+                      ? 'border-indigo-500 bg-indigo-500/10 text-indigo-350 border-indigo-550/40'
+                      : 'border-slate-800 bg-slate-950 hover:bg-slate-900 text-slate-400'
+                  }`}
+                >
+                  <span>{t('booking.modal.cancel.type_request')}</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setSelectedCancelType('noshow')}
+                  className={`flex flex-col items-center justify-center rounded-xl p-3 border text-xs font-bold transition-all ${
+                    selectedCancelType === 'noshow'
+                      ? 'border-rose-500 bg-rose-500/10 text-rose-350 border-rose-550/40'
+                      : 'border-slate-800 bg-slate-950 hover:bg-slate-900 text-slate-400'
+                  }`}
+                >
+                  <span>{t('booking.modal.cancel.type_noshow')}</span>
+                </button>
+              </div>
+            </div>
 
-          <div className="flex gap-2">
-            <button
-              type="button"
-              onClick={onClose}
-              className="rounded-xl border border-slate-800 bg-slate-900 text-slate-300 hover:bg-slate-800 px-4 py-2.5 text-xs font-bold transition-all"
-            >
-              {t('booking.modal.close')}
-            </button>
-            {canModify && (
+            <div className="flex gap-2 justify-end mt-2">
               <button
-                onClick={handleSubmit}
-                disabled={loading}
-                className="rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white shadow-lg shadow-indigo-950/20 px-6 py-2.5 text-xs font-bold transition-all disabled:opacity-50 flex items-center justify-center"
+                type="button"
+                onClick={() => setIsCancelling(false)}
+                className="rounded-xl border border-slate-800 bg-slate-900 text-slate-300 hover:bg-slate-800 px-4 py-2.5 text-xs font-bold transition-all"
               >
-                {loading 
-                  ? (language === 'ko' ? '처리 중...' : 'Processing...') 
-                  : isEditMode 
-                    ? t('therapist.save') 
-                    : (language === 'ko' ? '예약 접수하기' : 'Book Now')}
+                {t('booking.modal.cancel.back_btn')}
               </button>
-            )}
+              <button
+                type="button"
+                onClick={handleCancelReservation}
+                disabled={loading}
+                className="rounded-xl bg-rose-600 hover:bg-rose-500 text-white shadow-lg shadow-rose-950/20 px-5 py-2.5 text-xs font-bold transition-all disabled:opacity-50"
+              >
+                {loading ? (language === 'ko' ? '처리 중...' : 'Processing...') : t('booking.modal.cancel.confirm_btn')}
+              </button>
+            </div>
           </div>
-        </div>
+        ) : (
+          <div className="p-5 border-t border-slate-800 bg-slate-950/20 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+            {/* 예약 취소 버튼 (수정 모드이면서 권한 권한 소지 시 노출) */}
+            {isEditMode && canModify && selectedReservation.status === 'confirmed' ? (
+              <button
+                type="button"
+                onClick={handleCancelReservation}
+                disabled={loading}
+                className="inline-flex items-center justify-center rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-450 border border-rose-500/20 px-4 py-2.5 text-xs font-bold transition-all disabled:opacity-50"
+              >
+                <Trash2 className="w-4 h-4 mr-1.5" /> {t('booking.modal.cancel_booking')}
+              </button>
+            ) : (
+              <div />
+            )}
+
+            <div className="flex gap-2">
+              <button
+                type="button"
+                onClick={onClose}
+                className="rounded-xl border border-slate-800 bg-slate-900 text-slate-300 hover:bg-slate-800 px-4 py-2.5 text-xs font-bold transition-all"
+              >
+                {t('booking.modal.close')}
+              </button>
+              {canModify && (
+                <button
+                  onClick={handleSubmit}
+                  disabled={loading}
+                  className="rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white shadow-lg shadow-indigo-950/20 px-6 py-2.5 text-xs font-bold transition-all disabled:opacity-50 flex items-center justify-center"
+                >
+                  {loading 
+                    ? (language === 'ko' ? '처리 중...' : 'Processing...') 
+                    : isEditMode 
+                      ? t('therapist.save') 
+                      : (language === 'ko' ? '예약 접수하기' : 'Book Now')}
+                </button>
+              )}
+            </div>
+          </div>
+        )}
       </div>
     </div>
   )

@@ -5,6 +5,7 @@ import { ShieldAlert, Search, ChevronDown, ChevronUp, Phone, User, Calendar, Dol
 import { Reservation, Therapist } from '../dashboard/CalendarView'
 import { SupabaseClient } from '@supabase/supabase-js'
 import { useLanguage } from '@/app/LanguageContext'
+import { formatUSPhone } from '@/utils/phoneFormatter'
 
 interface BlacklistManagerProps {
   supabase: SupabaseClient
@@ -18,6 +19,7 @@ interface CustomerCancelGroup {
   confirmedCount: number
   totalCount: number
   totalLoss: number
+  penaltyPoints: number
   lastCancelledDate: string | null
   cancellations: Reservation[]
   avgDurationMs: number | null
@@ -93,7 +95,9 @@ export default function BlacklistManager({ supabase, currentUserId }: BlacklistM
     reservations.forEach(res => {
       const name = res.customer_name.trim()
       const phone = (res.customer_phone || '').trim()
-      const key = `${name}_${phone}`
+      // 이름과 숫자 포맷 연락처 조합으로 정밀 동일인 분류
+      const cleanPhone = phone.replace(/\D/g, '')
+      const key = `${name}_${cleanPhone}`
 
       if (!groups[key]) {
         groups[key] = {
@@ -103,6 +107,7 @@ export default function BlacklistManager({ supabase, currentUserId }: BlacklistM
           confirmedCount: 0,
           totalCount: 0,
           totalLoss: 0,
+          penaltyPoints: 0,
           lastCancelledDate: null,
           cancellations: [],
           avgDurationMs: null
@@ -114,6 +119,7 @@ export default function BlacklistManager({ supabase, currentUserId }: BlacklistM
         groups[key].cancelledCount += 1
         groups[key].totalLoss += Number(res.price)
         groups[key].cancellations.push(res)
+        groups[key].penaltyPoints += Number(res.penalty_points || 0)
         
         // 최근 취소 일시 갱신
         if (!groups[key].lastCancelledDate || new Date(res.start_time) > new Date(groups[key].lastCancelledDate!)) {
@@ -145,21 +151,21 @@ export default function BlacklistManager({ supabase, currentUserId }: BlacklistM
         g.avgDurationMs = countWithLogs > 0 ? totalDuration / countWithLogs : null
         return g
       })
-      // 취소 건수가 1회 이상 존재하는 고객들만 1차 대상
-      .filter(g => g.cancelledCount >= minCancelCount)
+      // 취소 페널티가 minCancelCount 이상 존재하는 고객들만 1차 대상
+      .filter(g => g.penaltyPoints >= minCancelCount)
       // 검색어 필터링 (이름 또는 연락처)
       .filter(g => 
         g.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
-        g.phone.includes(searchTerm)
+        g.phone.includes(searchTerm.replace(/\D/g, ''))
       )
       // 각 그룹의 cancellations 리스트를 최신 시간순 정렬
       .map(g => {
         g.cancellations.sort((a, b) => new Date(b.start_time).getTime() - new Date(a.start_time).getTime())
         return g
       })
-      // 취소 건수가 많은 순 -> 취소 피해 금액이 많은 순 정렬
+      // 페널티 점수가 높은 순 -> 취소 피해 금액이 많은 순 정렬
       .sort((a, b) => {
-        if (b.cancelledCount !== a.cancelledCount) return b.cancelledCount - a.cancelledCount
+        if (b.penaltyPoints !== a.penaltyPoints) return b.penaltyPoints - a.penaltyPoints
         return b.totalLoss - a.totalLoss
       })
   }
@@ -241,9 +247,9 @@ export default function BlacklistManager({ supabase, currentUserId }: BlacklistM
               onChange={(e) => setMinCancelCount(Number(e.target.value))}
               className="bg-transparent border-none text-xs text-slate-200 focus:outline-none cursor-pointer"
             >
-              <option value={1} className="bg-slate-950">{t('blacklist.filter.all')}</option>
-              <option value={3} className="bg-slate-950">{t('blacklist.filter.warning')}</option>
-              <option value={5} className="bg-slate-950">{t('blacklist.filter.danger')}</option>
+              <option value={1} className="bg-slate-950">{t('blacklist.filter.penalty_all')}</option>
+              <option value={3} className="bg-slate-950">{t('blacklist.filter.penalty_warning')}</option>
+              <option value={5} className="bg-slate-950">{t('blacklist.filter.penalty_danger')}</option>
             </select>
           </div>
         </div>
@@ -276,6 +282,7 @@ export default function BlacklistManager({ supabase, currentUserId }: BlacklistM
                 <th className="p-4">{t('blacklist.table.level')}</th>
                 <th className="p-4">{t('list.table.client')}</th>
                 <th className="p-4">{t('list.table.phone')}</th>
+                <th className="p-4 text-center">{t('blacklist.table.penalty_points')}</th>
                 <th className="p-4 text-center">{t('blacklist.table.cancel_count')}</th>
                 <th className="p-4 text-center">{t('blacklist.table.normal_count')}</th>
                 <th className="p-4 text-center">{t('blacklist.table.cancel_rate')}</th>
@@ -300,14 +307,14 @@ export default function BlacklistManager({ supabase, currentUserId }: BlacklistM
                   </span>
                 )
                 let rowBgClass = ''
-                if (group.cancelledCount >= 5) {
+                if (group.penaltyPoints >= 5) {
                   statusBadge = (
                     <span className="inline-flex items-center rounded-full bg-rose-500/10 text-rose-400 border border-rose-500/20 px-2.5 py-0.5 text-[10px] font-bold animate-pulse">
                       {t('blacklist.badge.danger')}
                     </span>
                   )
                   rowBgClass = 'bg-rose-500/5'
-                } else if (group.cancelledCount >= 3) {
+                } else if (group.penaltyPoints >= 3) {
                   statusBadge = (
                     <span className="inline-flex items-center rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/20 px-2.5 py-0.5 text-[10px] font-semibold">
                       {t('blacklist.badge.warning')}
@@ -333,10 +340,14 @@ export default function BlacklistManager({ supabase, currentUserId }: BlacklistM
                       </td>
                       {/* 연락처 */}
                       <td className="p-4 text-slate-400 font-mono">
-                        {group.phone || '-'}
+                        {group.phone ? formatUSPhone(group.phone) : '-'}
+                      </td>
+                      {/* 누적 페널티 */}
+                      <td className="p-4 text-center font-extrabold text-indigo-400 font-mono text-sm">
+                        {group.penaltyPoints}{t('blacklist.badge.penalty')}
                       </td>
                       {/* 취소 횟수 */}
-                      <td className="p-4 text-center font-bold text-rose-400 font-mono text-sm">
+                      <td className="p-4 text-center font-bold text-rose-400 font-mono">
                         {group.cancelledCount}{t('blacklist.times')}
                       </td>
                       {/* 정상 이용 */}
@@ -378,7 +389,7 @@ export default function BlacklistManager({ supabase, currentUserId }: BlacklistM
                     {/* 아코디언 확장 취소 예약 로그 목록 */}
                     {isExpanded && (
                       <tr>
-                        <td colSpan={11} className="p-0 bg-slate-950/40 border-t border-b border-slate-850">
+                        <td colSpan={12} className="p-0 bg-slate-950/40 border-t border-b border-slate-850">
                           <div className="p-5 space-y-3">
                             <div className="flex items-center gap-1.5 text-slate-400 text-xs font-bold pl-1 border-l-2 border-l-rose-500">
                               <Ban className="w-3.5 h-3.5 text-rose-400" />
@@ -441,6 +452,24 @@ export default function BlacklistManager({ supabase, currentUserId }: BlacklistM
                                         <span>{t('blacklist.detail.price')}</span>
                                         <span className="font-bold text-slate-200">${Number(res.price).toLocaleString()}</span>
                                       </p>
+                                      {res.cancellation_type && (
+                                        <>
+                                          <p className="flex items-center gap-1.5 border-t border-slate-850/30 pt-1.5 mt-1.5">
+                                            <Award className="w-3.5 h-3.5 text-indigo-400/60" />
+                                            <span>{t('blacklist.detail.cancel_type')}</span>
+                                            <span className="font-semibold text-slate-200">
+                                              {res.cancellation_type === 'request' ? t('booking.modal.cancel.type_request') : t('booking.modal.cancel.type_noshow')}
+                                            </span>
+                                          </p>
+                                          <p className="flex items-center gap-1.5">
+                                            <Award className="w-3.5 h-3.5 text-indigo-400/60" />
+                                            <span>{t('blacklist.detail.penalty')}</span>
+                                            <span className="font-bold text-indigo-400">
+                                              {res.penalty_points}{t('blacklist.badge.penalty')}
+                                            </span>
+                                          </p>
+                                        </>
+                                      )}
                                     </div>
                                   </div>
                                 )

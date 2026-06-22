@@ -7,6 +7,7 @@ export interface AssignTherapistParams {
   endTime: string   // ISO 8601 포맷 날짜 스트링 (예: 2026-06-07T13:00:00Z)
   price: number
   therapistId?: number // 수동 지정 시 전달
+  excludeReservationId?: number // 수정 시 본인 예약 제외용
 }
 
 export interface AssignTherapistResult {
@@ -24,7 +25,8 @@ export async function assignTherapist({
   startTime,
   endTime,
   price,
-  therapistId
+  therapistId,
+  excludeReservationId
 }: AssignTherapistParams): Promise<AssignTherapistResult> {
   try {
     // 1. 활성화 상태인 모든 마사지사 목록 조회
@@ -94,13 +96,19 @@ export async function assignTherapist({
     })
 
     // 5. 예약하려는 시간대(startTime ~ endTime)와 겹치며 확정(confirmed)된 기존 예약 목록 조회
-    const { data: overlappingReservations, error: reservationsError } = await supabase
+    let overlappingQuery = supabase
       .from('reservations')
       .select('therapist_id')
       .eq('status', 'confirmed')
       .lt('start_time', endTime)
       .gt('end_time', startTime)
       .not('therapist_id', 'is', null)
+
+    if (excludeReservationId !== undefined && excludeReservationId !== null) {
+      overlappingQuery = overlappingQuery.neq('id', excludeReservationId)
+    }
+
+    const { data: overlappingReservations, error: reservationsError } = await overlappingQuery
 
     if (reservationsError || !overlappingReservations) {
       console.error('Reservations fetch error:', reservationsError)

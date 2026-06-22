@@ -5,6 +5,7 @@ import { SupabaseClient } from '@supabase/supabase-js'
 import { UserSim, useUserSim } from '@/app/providers'
 import { UserPlus, Trash2, Key, Users, Ban, Edit, X } from 'lucide-react'
 import { useLanguage } from '@/app/LanguageContext'
+import { formatUSPhone, stripPhone } from '@/utils/phoneFormatter'
 
 interface EmployeeManagerProps {
   supabase: SupabaseClient
@@ -112,7 +113,7 @@ export default function EmployeeManager({
           id: newUserId,
           name,
           role,
-          phone: phone.trim() || null,
+          phone: stripPhone(phone) || null,
           email: email.trim() || null
         })
 
@@ -172,7 +173,7 @@ export default function EmployeeManager({
         .update({
           name: editName,
           role: editRole,
-          phone: editPhone.trim() || null,
+          phone: stripPhone(editPhone) || null,
           email: editEmail.trim() || null
         })
         .eq('id', editingEmployee.id)
@@ -200,10 +201,10 @@ export default function EmployeeManager({
           params: { old: editingEmployee.email || '', new: editEmail.trim() }
         })
       }
-      if ((editingEmployee.phone || '') !== editPhone.trim()) {
+      if (stripPhone(editingEmployee.phone || '') !== stripPhone(editPhone)) {
         changesList.push({
           key: 'log.employee.val.change_phone',
-          params: { old: editingEmployee.phone || '', new: editPhone.trim() }
+          params: { old: formatUSPhone(editingEmployee.phone || ''), new: formatUSPhone(editPhone) }
         })
       }
 
@@ -315,7 +316,7 @@ export default function EmployeeManager({
     setEditingEmployee(emp)
     setEditName(emp.name || '')
     setEditRole(emp.role === 'manager' ? 'manager' : 'staff')
-    setEditPhone(emp.phone || '')
+    setEditPhone(formatUSPhone(emp.phone || ''))
     setEditEmail(emp.email || '')
   }
 
@@ -364,7 +365,7 @@ export default function EmployeeManager({
                       <div className="font-mono text-slate-500 text-[9px] mt-0.5">{emp.id}</div>
                     </td>
                     <td className="px-4 py-3 text-slate-300 font-medium">{emp.email || '-'}</td>
-                    <td className="px-4 py-3 text-slate-300 font-medium">{emp.phone || '-'}</td>
+                    <td className="px-4 py-3 text-slate-300 font-medium">{emp.phone ? formatUSPhone(emp.phone) : '-'}</td>
                     <td className="px-4 py-3">
                       <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase ${
                         emp.role === 'manager'
@@ -477,8 +478,9 @@ export default function EmployeeManager({
                 <input
                   type="text"
                   value={phone}
-                  onChange={(e) => setPhone(e.target.value)}
-                  placeholder="e.g. 010-1234-5678"
+                  onChange={(e) => setPhone(formatUSPhone(e.target.value))}
+                  placeholder="e.g. 123-456-7890"
+                  maxLength={12}
                   className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-sm text-slate-100 placeholder-slate-650 focus:outline-none focus:border-indigo-500/80 transition-colors"
                 />
               </div>
@@ -580,8 +582,9 @@ export default function EmployeeManager({
                 <input
                   type="text"
                   value={editPhone}
-                  onChange={(e) => setEditPhone(e.target.value)}
-                  placeholder="e.g. 010-1234-5678"
+                  onChange={(e) => setEditPhone(formatUSPhone(e.target.value))}
+                  placeholder="e.g. 123-456-7890"
+                  maxLength={12}
                   className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-sm text-slate-100 focus:outline-none focus:border-indigo-500/80 transition-colors"
                 />
               </div>
