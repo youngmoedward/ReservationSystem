@@ -98,7 +98,7 @@ export default function Home() {
             <span className="text-xs font-bold text-slate-400">📅 {t('calendar.title')}</span>
           </div>
 
-          <div className="flex items-center gap-2 self-end sm:self-auto">
+          <div className="flex items-center gap-2 flex-wrap self-stretch sm:self-auto justify-between sm:justify-end w-full sm:w-auto">
             <div className="flex bg-slate-950 border border-slate-800 rounded-xl p-0.5 shadow-inner">
               {(['day', 'week', 'month'] as const).map(mode => (
                 <button

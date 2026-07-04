@@ -627,7 +627,8 @@ export default function BookingModal({
           </h2>
           <button
             onClick={onClose}
-            className="p-1 rounded-lg hover:bg-slate-850 text-slate-400 hover:text-slate-200 transition-colors"
+            className="p-2.5 rounded-xl hover:bg-slate-850 text-slate-400 hover:text-slate-200 transition-colors"
+            aria-label="Close"
           >
             <X className="w-5 h-5" />
           </button>
@@ -666,7 +667,7 @@ export default function BookingModal({
                 value={customerName}
                 onChange={(e) => setCustomerName(e.target.value)}
                 placeholder={language === 'ko' ? '고객 성함을 기입해 주세요' : 'Enter client name'}
-                className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-9 pr-3.5 py-2.5 text-sm text-slate-100 placeholder-slate-660 focus:outline-none focus:border-indigo-500/80 transition-colors disabled:opacity-50"
+                className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-9 pr-3.5 py-3 text-sm text-slate-100 placeholder-slate-660 focus:outline-none focus:border-indigo-500/80 transition-colors disabled:opacity-50"
               />
             </div>
           </div>
@@ -685,7 +686,7 @@ export default function BookingModal({
                 onChange={(e) => setCustomerPhone(formatUSPhone(e.target.value))}
                 placeholder={language === 'ko' ? '예: 123-456-7890' : 'e.g. 123-456-7890'}
                 maxLength={12} // US 포맷 123-456-7890 총 12자 제한
-                className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-9 pr-3.5 py-2.5 text-sm text-slate-100 placeholder-slate-660 focus:outline-none focus:border-indigo-500/80 transition-colors disabled:opacity-50"
+                className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-9 pr-3.5 py-3 text-sm text-slate-100 placeholder-slate-660 focus:outline-none focus:border-indigo-500/80 transition-colors disabled:opacity-50"
               />
             </div>
           </div>
@@ -728,7 +729,7 @@ export default function BookingModal({
                     setEndHour(eh)
                     setEndMinute(em)
                   }}
-                  className="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 text-xs text-slate-100 focus:outline-none focus:border-indigo-500/80 transition-colors disabled:opacity-50"
+                  className="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-3 py-3 text-xs text-slate-100 focus:outline-none focus:border-indigo-500/80 transition-colors disabled:opacity-50"
                 >
                   {Array.from({ length: 16 }, (_, i) => i + 9).map(h => (
                     <option key={h} value={h}>
@@ -746,7 +747,7 @@ export default function BookingModal({
                     setEndHour(eh)
                     setEndMinute(em)
                   }}
-                  className="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 text-xs text-slate-100 focus:outline-none focus:border-indigo-500/80 transition-colors disabled:opacity-50"
+                  className="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-3 py-3 text-xs text-slate-100 focus:outline-none focus:border-indigo-500/80 transition-colors disabled:opacity-50"
                 >
                   {[0, 10, 20, 30, 40, 50].map(m => (
                     <option key={m} value={m}>
@@ -765,7 +766,7 @@ export default function BookingModal({
                   disabled={!canModify}
                   value={endHour}
                   onChange={(e) => setEndHour(Number(e.target.value))}
-                  className="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 text-xs text-slate-100 focus:outline-none focus:border-indigo-500/80 transition-colors disabled:opacity-50"
+                  className="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-3 py-3 text-xs text-slate-100 focus:outline-none focus:border-indigo-500/80 transition-colors disabled:opacity-50"
                 >
                   {Array.from({ length: 16 }, (_, i) => i + 9).map(h => (
                     <option key={h} value={h} disabled={h < startHour}>
@@ -777,7 +778,7 @@ export default function BookingModal({
                   disabled={!canModify}
                   value={endMinute}
                   onChange={(e) => setEndMinute(Number(e.target.value))}
-                  className="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 text-xs text-slate-100 focus:outline-none focus:border-indigo-500/80 transition-colors disabled:opacity-50"
+                  className="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-3 py-3 text-xs text-slate-100 focus:outline-none focus:border-indigo-500/80 transition-colors disabled:opacity-50"
                 >
                   {[0, 10, 20, 30, 40, 50].map(m => {
                     const isDisabled = startHour === endHour && m <= startMinute
@@ -808,7 +809,7 @@ export default function BookingModal({
                 onChange={(e) => setPrice(Number(e.target.value))}
                 step="10"
                 min="10"
-                className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-9 pr-3.5 py-2.5 text-sm text-slate-100 placeholder-slate-660 focus:outline-none focus:border-indigo-500/80 transition-colors disabled:opacity-50"
+                className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-9 pr-3.5 py-3 text-sm text-slate-100 placeholder-slate-660 focus:outline-none focus:border-indigo-500/80 transition-colors disabled:opacity-50"
               />
             </div>
             <p className="text-[10px] text-slate-500 mt-1.5">
@@ -829,7 +830,7 @@ export default function BookingModal({
                 disabled={!canModify}
                 value={therapistId}
                 onChange={(e) => setTherapistId(e.target.value)}
-                className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-9 pr-3 py-2.5 text-sm text-slate-100 focus:outline-none focus:border-indigo-500/80 transition-colors disabled:opacity-50"
+                className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-9 pr-3 py-3 text-sm text-slate-100 focus:outline-none focus:border-indigo-500/80 transition-colors disabled:opacity-50"
               >
                 <option value="auto">
                   {language === 'ko' ? '✨ 시스템 자동 지정 (가장 비어 있는 마사지사 매핑)' : '✨ Auto-Assign (Map most available therapist)'}
@@ -920,7 +921,7 @@ export default function BookingModal({
               <button
                 type="button"
                 onClick={() => setIsCancelling(false)}
-                className="rounded-xl border border-slate-800 bg-slate-900 text-slate-300 hover:bg-slate-800 px-4 py-2.5 text-xs font-bold transition-all"
+                className="rounded-xl border border-slate-800 bg-slate-900 text-slate-300 hover:bg-slate-800 px-4 py-3 text-xs font-bold transition-all animate-none"
               >
                 {t('booking.modal.cancel.back_btn')}
               </button>
@@ -928,7 +929,7 @@ export default function BookingModal({
                 type="button"
                 onClick={handleCancelReservation}
                 disabled={loading}
-                className="rounded-xl bg-rose-600 hover:bg-rose-500 text-white shadow-lg shadow-rose-950/20 px-5 py-2.5 text-xs font-bold transition-all disabled:opacity-50"
+                className="rounded-xl bg-rose-600 hover:bg-rose-500 text-white shadow-lg shadow-rose-950/20 px-5 py-3 text-xs font-bold transition-all disabled:opacity-50"
               >
                 {loading ? (language === 'ko' ? '처리 중...' : 'Processing...') : t('booking.modal.cancel.confirm_btn')}
               </button>
@@ -942,7 +943,7 @@ export default function BookingModal({
                 type="button"
                 onClick={handleCancelReservation}
                 disabled={loading}
-                className="inline-flex items-center justify-center rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-450 border border-rose-500/20 px-4 py-2.5 text-xs font-bold transition-all disabled:opacity-50"
+                className="inline-flex items-center justify-center rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-450 border border-rose-500/20 px-4 py-3 text-xs font-bold transition-all disabled:opacity-50"
               >
                 <Trash2 className="w-4 h-4 mr-1.5" /> {t('booking.modal.cancel_booking')}
               </button>
@@ -954,7 +955,7 @@ export default function BookingModal({
               <button
                 type="button"
                 onClick={onClose}
-                className="rounded-xl border border-slate-800 bg-slate-900 text-slate-300 hover:bg-slate-800 px-4 py-2.5 text-xs font-bold transition-all"
+                className="rounded-xl border border-slate-800 bg-slate-900 text-slate-300 hover:bg-slate-800 px-4 py-3 text-xs font-bold transition-all"
               >
                 {t('booking.modal.close')}
               </button>
@@ -962,7 +963,7 @@ export default function BookingModal({
                 <button
                   onClick={handleSubmit}
                   disabled={loading}
-                  className="rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white shadow-lg shadow-indigo-950/20 px-6 py-2.5 text-xs font-bold transition-all disabled:opacity-50 flex items-center justify-center"
+                  className="rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white shadow-lg shadow-indigo-950/20 px-6 py-3 text-xs font-bold transition-all disabled:opacity-50 flex items-center justify-center"
                 >
                   {loading 
                     ? (language === 'ko' ? '처리 중...' : 'Processing...') 

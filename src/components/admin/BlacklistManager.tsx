@@ -274,8 +274,8 @@ export default function BlacklistManager({ supabase, currentUserId }: BlacklistM
           <p className="text-sm text-slate-400">{t('blacklist.no_records')}</p>
         </div>
       ) : (
-        <div className="overflow-hidden rounded-xl border border-slate-800 bg-slate-900/40 backdrop-blur-md">
-          <table className="w-full text-left text-xs border-collapse">
+        <div className="overflow-x-auto rounded-xl border border-slate-800 bg-slate-900/40 backdrop-blur-md touch-pan-x" style={{ WebkitOverflowScrolling: 'touch' }}>
+          <table className="w-full min-w-[1000px] text-left text-xs border-collapse">
             <thead>
               <tr className="border-b border-slate-800 bg-slate-950/60 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
                 <th className="p-4 text-center w-12">{t('blacklist.table.no')}</th>

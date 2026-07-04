@@ -123,7 +123,7 @@ export default function CalendarView({
     })
 
     return (
-      <div className="overflow-x-auto rounded-lg border border-slate-800 bg-slate-900/60 backdrop-blur-md">
+      <div className="overflow-x-auto rounded-lg border border-slate-800 bg-slate-900/60 backdrop-blur-md touch-pan-x" style={{ WebkitOverflowScrolling: 'touch' }}>
         <div className="min-w-[900px]">
           <div 
             className="grid border-b border-slate-800 bg-slate-950/60 p-3 text-xs font-semibold text-slate-400"

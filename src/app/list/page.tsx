@@ -116,7 +116,7 @@ export default function ListPage() {
             <span className="text-xs font-bold text-slate-400">📋 {t('list.title')}</span>
           </div>
 
-          <div className="flex items-center gap-2 self-end sm:self-auto">
+          <div className="flex items-center gap-2 flex-wrap self-stretch sm:self-auto justify-between sm:justify-end w-full sm:w-auto">
             {currentUser.role !== 'therapist' && (
               <button
                 onClick={handleOpenNewReservation}

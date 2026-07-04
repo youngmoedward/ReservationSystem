@@ -342,8 +342,8 @@ export default function EmployeeManager({
           </button>
         </div>
 
-        <div className="overflow-x-auto rounded-lg border border-slate-850 bg-slate-950/20">
-          <table className="min-w-full divide-y divide-slate-850">
+        <div className="overflow-x-auto rounded-lg border border-slate-850 bg-slate-950/20 touch-pan-x" style={{ WebkitOverflowScrolling: 'touch' }}>
+          <table className="min-w-[700px] w-full divide-y divide-slate-850">
             <thead className="bg-slate-950/50 text-[10px] font-bold text-slate-400 uppercase tracking-wider text-left">
               <tr>
                 <th className="px-4 py-3">{t('employee.info_label')}</th>
@@ -376,7 +376,7 @@ export default function EmployeeManager({
                       </span>
                     </td>
                     <td className="px-4 py-3 text-right">
-                      <div className="flex justify-end gap-1.5">
+                      <div className="flex justify-end gap-3.5">
                         <button
                           type="button"
                           onClick={() => startEdit(emp)}
@@ -427,7 +427,8 @@ export default function EmployeeManager({
                 setErrorMsg(null)
                 setSuccessMsg(null)
               }}
-              className="absolute top-4 right-4 text-slate-500 hover:text-slate-350 transition-colors"
+              className="absolute top-4 right-4 p-2.5 rounded-xl text-slate-500 hover:text-slate-350 transition-colors"
+              aria-label="Close"
             >
               <X className="w-5 h-5" />
             </button>
@@ -457,7 +458,7 @@ export default function EmployeeManager({
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   placeholder={language === 'ko' ? '예: 홍길동' : 'e.g. John Doe'}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-sm text-slate-100 placeholder-slate-650 focus:outline-none focus:border-indigo-500/80 transition-colors"
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-3 text-sm text-slate-100 placeholder-slate-650 focus:outline-none focus:border-indigo-500/80 transition-colors"
                 />
               </div>
 
@@ -469,7 +470,7 @@ export default function EmployeeManager({
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="e.g. staff1@jjimjil.com"
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-sm text-slate-100 placeholder-slate-650 focus:outline-none focus:border-indigo-500/80 transition-colors"
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-3 text-sm text-slate-100 placeholder-slate-650 focus:outline-none focus:border-indigo-500/80 transition-colors"
                 />
               </div>
 
@@ -481,7 +482,7 @@ export default function EmployeeManager({
                   onChange={(e) => setPhone(formatUSPhone(e.target.value))}
                   placeholder="e.g. 123-456-7890"
                   maxLength={12}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-sm text-slate-100 placeholder-slate-650 focus:outline-none focus:border-indigo-500/80 transition-colors"
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-3 text-sm text-slate-100 placeholder-slate-650 focus:outline-none focus:border-indigo-500/80 transition-colors"
                 />
               </div>
 
@@ -497,7 +498,7 @@ export default function EmployeeManager({
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder={language === 'ko' ? '비밀번호 설정' : 'Set password'}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-9 pr-3.5 py-2.5 text-sm text-slate-100 placeholder-slate-650 focus:outline-none focus:border-indigo-500/80 transition-colors"
+                    className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-9 pr-3.5 py-3 text-sm text-slate-100 placeholder-slate-650 focus:outline-none focus:border-indigo-500/80 transition-colors"
                   />
                 </div>
               </div>
@@ -507,7 +508,7 @@ export default function EmployeeManager({
                 <select
                   value={role}
                   onChange={(e) => setRole(e.target.value as 'manager' | 'staff')}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 text-sm text-slate-100 focus:outline-none focus:border-indigo-500/80 transition-colors"
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-3 text-sm text-slate-100 focus:outline-none focus:border-indigo-500/80 transition-colors"
                 >
                   <option value="staff">{t('employee.role.staff_desc')}</option>
                   <option value="manager">{t('employee.role.manager_desc')}</option>
@@ -522,14 +523,14 @@ export default function EmployeeManager({
                     setErrorMsg(null)
                     setSuccessMsg(null)
                   }}
-                  className="flex-1 bg-slate-950 border border-slate-800 rounded-xl py-2.5 text-xs font-bold text-slate-400 hover:text-slate-200 transition-all"
+                  className="flex-1 bg-slate-950 border border-slate-800 rounded-xl py-3 text-xs font-bold text-slate-400 hover:text-slate-200 transition-all"
                 >
                   {language === 'ko' ? '취소' : 'Cancel'}
                 </button>
                 <button
                   type="submit"
                   disabled={loading}
-                  className="flex-1 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white shadow-lg shadow-indigo-950/20 py-2.5 text-xs font-bold transition-all disabled:opacity-50"
+                  className="flex-1 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white shadow-lg shadow-indigo-950/20 py-3 text-xs font-bold transition-all disabled:opacity-50"
                 >
                   {loading ? t('employee.creating') : t('employee.add')}
                 </button>
@@ -545,7 +546,8 @@ export default function EmployeeManager({
           <div className="w-full max-w-md bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl p-6 relative">
             <button
               onClick={() => setEditingEmployee(null)}
-              className="absolute top-4 right-4 text-slate-500 hover:text-slate-350 transition-colors"
+              className="absolute top-4 right-4 p-2.5 rounded-xl text-slate-500 hover:text-slate-350 transition-colors"
+              aria-label="Close"
             >
               <X className="w-5 h-5" />
             </button>
@@ -562,7 +564,7 @@ export default function EmployeeManager({
                   required
                   value={editName}
                   onChange={(e) => setEditName(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-sm text-slate-100 focus:outline-none focus:border-indigo-500/80 transition-colors"
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-3 text-sm text-slate-100 focus:outline-none focus:border-indigo-500/80 transition-colors"
                 />
               </div>
 
@@ -573,7 +575,7 @@ export default function EmployeeManager({
                   value={editEmail}
                   onChange={(e) => setEditEmail(e.target.value)}
                   placeholder="e.g. staff1@jjimjil.com"
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-sm text-slate-100 focus:outline-none focus:border-indigo-500/80 transition-colors"
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-3 text-sm text-slate-100 focus:outline-none focus:border-indigo-500/80 transition-colors"
                 />
               </div>
 
@@ -585,7 +587,7 @@ export default function EmployeeManager({
                   onChange={(e) => setEditPhone(formatUSPhone(e.target.value))}
                   placeholder="e.g. 123-456-7890"
                   maxLength={12}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-sm text-slate-100 focus:outline-none focus:border-indigo-500/80 transition-colors"
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-3 text-sm text-slate-100 focus:outline-none focus:border-indigo-500/80 transition-colors"
                 />
               </div>
 
@@ -594,7 +596,7 @@ export default function EmployeeManager({
                 <select
                   value={editRole}
                   onChange={(e) => setEditRole(e.target.value as 'manager' | 'staff')}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2.5 text-sm text-slate-100 focus:outline-none focus:border-indigo-500/80 transition-colors"
+                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-3 text-sm text-slate-100 focus:outline-none focus:border-indigo-500/80 transition-colors"
                 >
                   <option value="staff">{t('employee.role.staff_desc')}</option>
                   <option value="manager">{t('employee.role.manager_desc')}</option>
@@ -605,14 +607,14 @@ export default function EmployeeManager({
                 <button
                   type="button"
                   onClick={() => setEditingEmployee(null)}
-                  className="flex-1 bg-slate-950 border border-slate-800 rounded-xl py-2.5 text-xs font-bold text-slate-400 hover:text-slate-200 transition-all"
+                  className="flex-1 bg-slate-950 border border-slate-800 rounded-xl py-3 text-xs font-bold text-slate-400 hover:text-slate-200 transition-all"
                 >
                   {language === 'ko' ? '취소' : 'Cancel'}
                 </button>
                 <button
                   type="submit"
                   disabled={loading}
-                  className="flex-1 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white shadow-lg shadow-indigo-950/20 py-2.5 text-xs font-bold transition-all disabled:opacity-50"
+                  className="flex-1 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white shadow-lg shadow-indigo-950/20 py-3 text-xs font-bold transition-all disabled:opacity-50"
                 >
                   {loading ? t('employee.saving') : t('employee.save')}
                 </button>

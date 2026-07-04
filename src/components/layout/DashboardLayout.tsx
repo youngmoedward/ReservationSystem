@@ -44,7 +44,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col">
       {/* 상단 권한 시뮬레이터 및 헤더 */}
       <header className="border-b border-slate-900 bg-slate-900/20 backdrop-blur-md sticky top-0 z-40 p-4">
-        <div className="max-w-7xl mx-auto flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+        <div className="max-w-7xl mx-auto flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
           <div className="flex items-center gap-2">
             <img src="/logo.png" alt="Spa Logo" className="w-10 h-10 object-contain shadow-lg rounded-xl" />
             <div>
@@ -53,7 +53,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
             </div>
           </div>
 
-          <div className="flex items-center gap-3 self-start md:self-auto">
+          <div className="flex items-center gap-3 flex-wrap self-stretch lg:self-auto justify-between lg:justify-end w-full lg:w-auto">
             {/* 언어 선택기 */}
             <div className="flex bg-slate-950 border border-slate-800 rounded-xl p-0.5 shadow-inner mr-1">
               <button
@@ -107,11 +107,11 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
       <div className="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 lg:p-8 space-y-6">
         
         {/* 네비게이션 탭 메뉴 (주소창 기반 렌더링) */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-900 pb-2">
-          <div className="flex flex-wrap gap-1">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-900 pb-2 overflow-hidden">
+          <div className="flex overflow-x-auto lg:flex-wrap gap-1 pb-1 w-full scrollbar-none -mb-px">
             <button
               onClick={() => navigateTo('/')}
-              className={`inline-flex items-center gap-1.5 px-4 py-2.5 text-xs font-bold rounded-xl border transition-all ${
+              className={`inline-flex items-center gap-1.5 flex-shrink-0 px-4 py-2.5 text-xs font-bold rounded-xl border transition-all ${
                 pathname === '/'
                   ? 'bg-slate-900 border-slate-850 text-indigo-400'
                   : 'bg-transparent border-transparent text-slate-400 hover:text-slate-200'
@@ -121,7 +121,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
             </button>
             <button
               onClick={() => navigateTo('/list')}
-              className={`inline-flex items-center gap-1.5 px-4 py-2.5 text-xs font-bold rounded-xl border transition-all ${
+              className={`inline-flex items-center gap-1.5 flex-shrink-0 px-4 py-2.5 text-xs font-bold rounded-xl border transition-all ${
                 pathname === '/list'
                   ? 'bg-slate-900 border-slate-850 text-indigo-400'
                   : 'bg-transparent border-transparent text-slate-400 hover:text-slate-200'
@@ -132,7 +132,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
             {currentUser.role !== 'therapist' && (
               <button
                 onClick={() => navigateTo('/blacklist')}
-                className={`inline-flex items-center gap-1.5 px-4 py-2.5 text-xs font-bold rounded-xl border transition-all ${
+                className={`inline-flex items-center gap-1.5 flex-shrink-0 px-4 py-2.5 text-xs font-bold rounded-xl border transition-all ${
                   pathname === '/blacklist'
                     ? 'bg-slate-900 border-slate-850 text-indigo-400'
                     : 'bg-transparent border-transparent text-slate-400 hover:text-slate-200'
@@ -144,7 +144,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
 
             <button
               onClick={() => navigateTo('/schedule')}
-              className={`inline-flex items-center gap-1.5 px-4 py-2.5 text-xs font-bold rounded-xl border transition-all ${
+              className={`inline-flex items-center gap-1.5 flex-shrink-0 px-4 py-2.5 text-xs font-bold rounded-xl border transition-all ${
                 pathname === '/schedule'
                   ? 'bg-slate-900 border-slate-850 text-indigo-400'
                   : 'bg-transparent border-transparent text-slate-400 hover:text-slate-200'
@@ -158,7 +158,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
               <>
                 <button
                   onClick={() => navigateTo('/therapist')}
-                  className={`inline-flex items-center gap-1.5 px-4 py-2.5 text-xs font-bold rounded-xl border transition-all ${
+                  className={`inline-flex items-center gap-1.5 flex-shrink-0 px-4 py-2.5 text-xs font-bold rounded-xl border transition-all ${
                     pathname === '/therapist'
                       ? 'bg-slate-900 border-slate-850 text-amber-400'
                       : 'bg-transparent border-transparent text-slate-400 hover:text-slate-200'
@@ -168,7 +168,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
                 </button>
                 <button
                   onClick={() => navigateTo('/employee')}
-                  className={`inline-flex items-center gap-1.5 px-4 py-2.5 text-xs font-bold rounded-xl border transition-all ${
+                  className={`inline-flex items-center gap-1.5 flex-shrink-0 px-4 py-2.5 text-xs font-bold rounded-xl border transition-all ${
                     pathname === '/employee'
                       ? 'bg-slate-900 border-slate-850 text-amber-400'
                       : 'bg-transparent border-transparent text-slate-400 hover:text-slate-200'
@@ -178,7 +178,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
                 </button>
                 <button
                   onClick={() => navigateTo('/history')}
-                  className={`inline-flex items-center gap-1.5 px-4 py-2.5 text-xs font-bold rounded-xl border transition-all ${
+                  className={`inline-flex items-center gap-1.5 flex-shrink-0 px-4 py-2.5 text-xs font-bold rounded-xl border transition-all ${
                     pathname === '/history'
                       ? 'bg-slate-900 border-slate-850 text-amber-400'
                       : 'bg-transparent border-transparent text-slate-400 hover:text-slate-200'
@@ -188,7 +188,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
                 </button>
                 <button
                   onClick={() => navigateTo('/stats')}
-                  className={`inline-flex items-center gap-1.5 px-4 py-2.5 text-xs font-bold rounded-xl border transition-all ${
+                  className={`inline-flex items-center gap-1.5 flex-shrink-0 px-4 py-2.5 text-xs font-bold rounded-xl border transition-all ${
                     pathname === '/stats'
                       ? 'bg-slate-900 border-slate-850 text-amber-400'
                       : 'bg-transparent border-transparent text-slate-400 hover:text-slate-200'
