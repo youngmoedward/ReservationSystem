@@ -308,15 +308,15 @@ export default function SchedulePage() {
   const getAvailTypeLabel = (type: string | null) => {
     switch (type) {
       case 'full':
-        return { text: t('schedule.type.full'), class: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' }
+        return { text: t('schedule.type.full'), class: 'bg-emerald-50 text-emerald-700 border-emerald-200' }
       case 'off':
-        return { text: t('schedule.type.off'), class: 'bg-rose-500/10 text-rose-450 border-rose-500/20' }
+        return { text: t('schedule.type.off'), class: 'bg-rose-50 text-rose-700 border-rose-200' }
       case 'am_half':
-        return { text: t('schedule.type.am_half'), class: 'bg-amber-500/10 text-amber-400 border-amber-500/25' }
+        return { text: t('schedule.type.am_half'), class: 'bg-amber-50 text-amber-700 border-amber-200' }
       case 'pm_half':
-        return { text: t('schedule.type.pm_half'), class: 'bg-cyan-500/10 text-cyan-400 border-cyan-500/25' }
+        return { text: t('schedule.type.pm_half'), class: 'bg-cyan-50 text-cyan-700 border-cyan-200' }
       default:
-        return { text: '-', class: 'bg-slate-800/20 text-slate-500 border-slate-800' }
+        return { text: '-', class: 'bg-stone-200 text-stone-500 border-stone-300' }
     }
   }
 
@@ -358,26 +358,26 @@ export default function SchedulePage() {
               onClick={() => handleCellClick(dayStr)}
               className={`rounded-xl border p-4 min-h-[350px] flex flex-col cursor-pointer transition-all ${
                 isToday 
-                  ? 'border-indigo-500 bg-slate-900/80 shadow-md shadow-indigo-950/20' 
-                  : 'border-slate-800 bg-slate-900/40 hover:bg-slate-900/60'
+                  ? 'border-emerald-500 bg-[#fbf9f4] shadow-md shadow-emerald-950/5' 
+                  : 'border-stone-200 bg-white/70 hover:bg-stone-100/50'
               }`}
             >
               {/* 날짜 헤더 */}
-              <div className="border-b border-slate-800 pb-2 mb-3 flex justify-between items-baseline">
+              <div className="border-b border-stone-200 pb-2 mb-3 flex justify-between items-baseline">
                 <div className="flex flex-col">
                   <span className={`text-[10px] font-bold uppercase ${
-                    day.getDay() === 0 ? 'text-rose-500' : day.getDay() === 6 ? 'text-blue-500' : 'text-slate-500'
+                    day.getDay() === 0 ? 'text-rose-500' : day.getDay() === 6 ? 'text-blue-500' : 'text-stone-500'
                   }`}>
                     {dayNames[day.getDay()]}{language === 'ko' ? '요일' : ''}
                   </span>
                   <span className={`text-2xl font-bold tracking-tight mt-0.5 ${
-                    isToday ? 'text-indigo-200' : 'text-slate-200'
+                    isToday ? 'text-emerald-800' : 'text-stone-800'
                   }`}>
                     {day.getDate()}
                   </span>
                 </div>
                 {isPast && (
-                  <span className="text-[9px] text-slate-600 font-semibold uppercase">{t('schedule.view_only')}</span>
+                  <span className="text-[9px] text-stone-400 font-semibold uppercase">{t('schedule.view_only')}</span>
                 )}
               </div>
 
@@ -400,9 +400,9 @@ export default function SchedulePage() {
                             e.stopPropagation()
                             handleCellClick(dayStr, tp.id)
                           }}
-                          className="flex items-center justify-between text-[11px] bg-slate-950/40 border border-slate-900 rounded-lg p-2 hover:bg-slate-800 transition-colors"
+                          className="flex items-center justify-between text-[11px] bg-stone-50 border border-stone-200 rounded-lg p-2 hover:bg-stone-100 transition-colors"
                         >
-                          <span className="text-slate-300 font-medium">{tp.name}</span>
+                          <span className="text-stone-700 font-medium">{tp.name}</span>
                           <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold border ${badge.class}`}>
                             {badge.text}
                           </span>
@@ -423,8 +423,8 @@ export default function SchedulePage() {
                         }}
                         className="flex flex-col items-center justify-center h-full space-y-2 py-8"
                       >
-                        <span className="text-xs text-slate-400 font-bold">{activeT.name}</span>
-                        <span className={`px-4 py-2 rounded-xl text-xs font-bold border shadow hover:bg-slate-800 transition-colors ${badge.class}`}>
+                        <span className="text-xs text-stone-500 font-bold">{activeT.name}</span>
+                        <span className={`px-4 py-2 rounded-xl text-xs font-bold border shadow hover:bg-stone-100 transition-colors ${badge.class}`}>
                           {badge.text}
                         </span>
                       </div>
@@ -458,9 +458,9 @@ export default function SchedulePage() {
     const todayStr = toLocalDateString(new Date())
 
     return (
-      <div className="border border-slate-800 rounded-2xl overflow-hidden bg-slate-900/40 shadow-xl">
+      <div className="border border-stone-200 rounded-2xl overflow-hidden bg-white/80 shadow-md">
         {/* 요일 헤더 */}
-        <div className="grid grid-cols-7 border-b border-slate-800 bg-slate-950/50 p-3.5 text-center text-xs font-bold text-slate-400">
+        <div className="grid grid-cols-7 border-b border-stone-200 bg-stone-100 p-3.5 text-center text-xs font-bold text-stone-600">
           <div className="text-rose-500">{t('schedule.weekday.sun')}</div>
           <div>{t('schedule.weekday.mon')}</div>
           <div>{t('schedule.weekday.tue')}</div>
@@ -471,7 +471,7 @@ export default function SchedulePage() {
         </div>
 
         {/* 일자 그리드 */}
-        <div className="grid grid-cols-7 divide-x divide-y divide-slate-850">
+        <div className="grid grid-cols-7 divide-x divide-y divide-stone-200">
           {/* 이전 달 일자 */}
           {prevDaysArray.map(day => {
             const prevMonth = month === 0 ? 11 : month - 1
@@ -482,10 +482,10 @@ export default function SchedulePage() {
               <div
                 key={`prev-${day}`}
                 onClick={() => handleCellClick(dateStr)}
-                className="p-3.5 min-h-[120px] bg-slate-950/20 text-slate-700 text-xs text-left cursor-pointer hover:bg-slate-800/10 flex flex-col justify-between"
+                className="p-3.5 min-h-[120px] bg-stone-100/40 text-stone-400 text-xs text-left cursor-pointer hover:bg-stone-200/20 flex flex-col justify-between"
               >
                 <span className="font-semibold">{day}</span>
-                <span className="text-[9px] text-slate-700/50 font-bold self-end">{language === 'ko' ? '이전달' : 'Prev'}</span>
+                <span className="text-[9px] text-stone-400 font-bold self-end">{language === 'ko' ? '이전달' : 'Prev'}</span>
               </div>
             )
           })}
@@ -503,26 +503,26 @@ export default function SchedulePage() {
               <div
                 key={`curr-${day}`}
                 onClick={() => handleCellClick(dateStr)}
-                className={`p-3 min-h-[120px] text-xs text-left flex flex-col hover:bg-slate-850/30 transition-all cursor-pointer ${
+                className={`p-3 min-h-[120px] text-xs text-left flex flex-col hover:bg-stone-50/80 transition-all cursor-pointer ${
                   isToday 
-                    ? 'bg-indigo-950/10 border-2 border-indigo-500 shadow-inner' 
+                    ? 'bg-emerald-500/5 border-2 border-emerald-600/80 shadow-inner' 
                     : ''
                 }`}
               >
                 <div className="flex justify-between items-baseline mb-2">
                   <span className={`font-bold ${
                     isToday 
-                      ? 'text-indigo-400' 
+                      ? 'text-emerald-700' 
                       : dow === 0 
                         ? 'text-rose-500' 
                         : dow === 6 
                           ? 'text-blue-500' 
-                          : 'text-slate-400'
+                          : 'text-stone-600'
                   }`}>
                     {day}
                   </span>
                   {isPast && (
-                    <span className="text-[8px] text-slate-700 font-bold tracking-tight">{t('schedule.view_only')}</span>
+                    <span className="text-[8px] text-stone-400 font-bold tracking-tight">{t('schedule.view_only')}</span>
                   )}
                 </div>
 
@@ -545,9 +545,9 @@ export default function SchedulePage() {
                               e.stopPropagation()
                               handleCellClick(dateStr, tp.id)
                             }}
-                            className="flex items-center justify-between text-[10px] leading-tight bg-slate-950/20 border border-slate-900/40 rounded px-1.5 py-0.5 mt-0.5 hover:bg-slate-800 transition-colors"
+                            className="flex items-center justify-between text-[10px] leading-tight bg-stone-50 border border-stone-200/60 rounded px-1.5 py-0.5 mt-0.5 hover:bg-stone-150 transition-colors"
                           >
-                            <span className="text-slate-300 font-medium truncate max-w-[54px]">{tp.name}</span>
+                            <span className="text-stone-700 font-medium truncate max-w-[54px]">{tp.name}</span>
                             <span className={`px-1 rounded-[4px] text-[8px] font-bold border ${badge.class}`}>
                               {badge.text}
                             </span>
@@ -568,7 +568,7 @@ export default function SchedulePage() {
                           }}
                           className="h-full flex items-center justify-center py-3"
                         >
-                          <span className={`px-2.5 py-1.5 rounded-lg text-[10px] font-bold border shadow hover:bg-slate-800 transition-colors ${badge.class}`}>
+                          <span className={`px-2.5 py-1.5 rounded-lg text-[10px] font-bold border shadow hover:bg-stone-150 transition-colors ${badge.class}`}>
                             {badge.text}
                           </span>
                         </div>
@@ -590,10 +590,10 @@ export default function SchedulePage() {
               <div
                 key={`next-${day}`}
                 onClick={() => handleCellClick(dateStr)}
-                className="p-3.5 min-h-[120px] bg-slate-950/20 text-slate-700 text-xs text-left cursor-pointer hover:bg-slate-800/10 flex flex-col justify-between"
+                className="p-3.5 min-h-[120px] bg-stone-100/40 text-stone-400 text-xs text-left cursor-pointer hover:bg-stone-200/20 flex flex-col justify-between"
               >
                 <span className="font-semibold">{day}</span>
-                <span className="text-[9px] text-slate-700/50 font-bold self-end">{language === 'ko' ? '다음달' : 'Next'}</span>
+                <span className="text-[9px] text-stone-400 font-bold self-end">{language === 'ko' ? '다음달' : 'Next'}</span>
               </div>
             )
           })}
@@ -607,20 +607,20 @@ export default function SchedulePage() {
       <div className="space-y-5">
         
         {/* 제어 바 (필터 및 검색) */}
-        <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4 bg-slate-900/40 p-5 rounded-2xl border border-slate-800">
+        <div className="flex flex-col xl:flex-row xl:items-center justify-between gap-4 bg-white/70 p-5 rounded-2xl border border-stone-200 shadow-sm">
           <div className="flex flex-wrap items-center gap-3">
-            <span className="text-sm font-bold text-slate-200">{t('schedule.title_main')}</span>
+            <span className="text-sm font-bold text-stone-800">{t('schedule.title_main')}</span>
             
             {/* 주간/월간 전환 탭 */}
-            <div className="flex bg-slate-950 border border-slate-850 rounded-xl p-0.5 shadow-inner">
+            <div className="flex bg-[#e8dec7]/60 border border-stone-300 rounded-xl p-0.5 shadow-inner">
               {(['week', 'month'] as const).map(mode => (
                 <button
                   key={mode}
                   onClick={() => setViewMode(mode)}
                   className={`text-[10px] font-bold uppercase px-3.5 py-1.5 rounded-lg transition-all ${
                     viewMode === mode
-                      ? 'bg-slate-900 text-slate-100 border border-slate-800 shadow'
-                      : 'text-slate-500 hover:text-slate-300'
+                      ? 'bg-white text-stone-800 border border-stone-300 shadow'
+                      : 'text-stone-600 hover:text-stone-800'
                   }`}
                 >
                   {mode === 'week' ? t('schedule.mode.week') : t('schedule.mode.month')}
@@ -632,14 +632,14 @@ export default function SchedulePage() {
           <div className="flex flex-wrap items-center gap-3 self-end xl:self-auto">
             {/* 마사지사 필터 */}
             <div className="relative flex items-center">
-              <span className="absolute left-3 text-slate-600">
+              <span className="absolute left-3 text-stone-400">
                 <User className="w-3.5 h-3.5" />
               </span>
               <select
                 disabled={isTherapistRole}
                 value={selectedTherapistId}
                 onChange={(e) => setSelectedTherapistId(e.target.value)}
-                className="bg-slate-950 border border-slate-800 rounded-xl pl-8 pr-3 py-2 text-xs text-slate-100 focus:outline-none focus:border-indigo-500 disabled:opacity-60 font-semibold"
+                className="bg-white border border-stone-200 rounded-xl pl-8 pr-3 py-2 text-xs text-stone-800 focus:outline-none focus:border-emerald-500/80 disabled:opacity-60 font-semibold shadow-sm"
               >
                 {!isTherapistRole && <option value="all">{t('schedule.filter.all_therapists')}</option>}
                 {therapists.map(tp => (
@@ -652,7 +652,7 @@ export default function SchedulePage() {
 
             <button
               onClick={fetchData}
-              className="inline-flex items-center justify-center p-2 rounded-xl bg-slate-800 hover:bg-slate-750 text-slate-300 transition-all text-xs"
+              className="inline-flex items-center justify-center p-2 rounded-xl bg-stone-200 hover:bg-stone-300 text-stone-600 transition-all text-xs border border-stone-300/40 shadow-sm"
               title={t('history.refresh')}
             >
               <RefreshCw className="w-3.5 h-3.5" />
@@ -661,37 +661,39 @@ export default function SchedulePage() {
         </div>
 
         {/* 달력 서브 제어 (이동 및 헤더) */}
-        <div className="flex items-center justify-between bg-slate-900/40 p-4 rounded-xl border border-slate-800">
+        <div className="flex items-center justify-between bg-white/70 p-4 rounded-xl border border-stone-200 shadow-sm">
           <div className="flex items-center gap-1.5">
             <button
               onClick={handlePrev}
-              className="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-slate-800 hover:bg-slate-750 hover:text-slate-100 transition-colors"
+              className="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-stone-250 hover:bg-stone-350 text-stone-600 hover:text-stone-800 transition-colors"
             >
               <ChevronLeft className="w-4 h-4" />
             </button>
             <button
               onClick={handleNext}
-              className="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-slate-800 hover:bg-slate-750 hover:text-slate-100 transition-colors"
+              className="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-stone-250 hover:bg-stone-350 text-stone-600 hover:text-stone-800 transition-colors"
             >
               <ChevronRight className="w-4 h-4" />
             </button>
             <button
               onClick={handleToday}
-              className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-750 text-slate-300 hover:text-slate-100 transition-colors ml-1"
+              className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-stone-250 hover:bg-stone-350 text-stone-600 hover:text-stone-800 transition-colors ml-1"
             >
               {t('calendar.today')}
             </button>
-            <h2 className="text-base font-bold text-slate-200 ml-3">{getHeaderTitle()}</h2>
+            <h2 className="text-lg font-extrabold tracking-tight text-blue-900 ml-3 flex items-center gap-2">
+              <span className="text-blue-700">📅</span> {getHeaderTitle()}
+            </h2>
           </div>
-          <span className="text-[10px] text-slate-500 self-end font-medium">
+          <span className="text-[10px] text-stone-500 self-end font-medium">
             {t('schedule.edit_guide')}
           </span>
         </div>
 
         {/* 달력 내용부 */}
         {loading && schedules.length === 0 ? (
-          <div className="h-[400px] flex items-center justify-center border border-slate-800 bg-slate-900/10 rounded-2xl">
-            <span className="text-xs text-slate-400 animate-pulse font-medium">{t('schedule.loading')}</span>
+          <div className="h-[400px] flex items-center justify-center border border-stone-200 bg-stone-100/40 rounded-2xl">
+            <span className="text-xs text-stone-500 animate-pulse font-medium">{t('schedule.loading')}</span>
           </div>
         ) : (
           <div>
@@ -702,22 +704,22 @@ export default function SchedulePage() {
 
       {/* 일정 일괄 입력/수정 모달 */}
       {isModalOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/85 backdrop-blur-sm p-4">
-          <div className="w-full max-w-md bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl p-6 relative">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-stone-900/30 backdrop-blur-sm p-4">
+          <div className="w-full max-w-md bg-stone-50 border border-stone-200 rounded-2xl shadow-2xl p-6 relative">
             <button
               onClick={() => setIsModalOpen(false)}
-              className="absolute top-4 right-4 text-slate-500 hover:text-slate-300 transition-colors"
+              className="absolute top-4 right-4 text-stone-500 hover:text-stone-800 transition-colors"
             >
               <X className="w-5 h-5" />
             </button>
 
-            <h3 className="text-sm font-bold text-slate-200 mb-5 flex items-center gap-1.5 uppercase">
-              <Calendar className="w-4 h-4 text-indigo-400" /> {t('schedule.modal.title')}
+            <h3 className="text-sm font-bold text-stone-800 mb-5 flex items-center gap-1.5 uppercase">
+              <Calendar className="w-4 h-4 text-emerald-700" /> {t('schedule.modal.title')}
             </h3>
 
             <form onSubmit={handleSaveSchedule} className="space-y-4">
               {modalError && (
-                <div className="p-3 text-xs rounded-lg bg-rose-500/10 text-rose-400 border border-rose-500/25 flex items-start gap-1.5">
+                <div className="p-3 text-xs rounded-lg bg-rose-500/10 text-rose-700 border border-rose-500/25 flex items-start gap-1.5">
                   <AlertTriangle className="w-4 h-4 flex-shrink-0 mt-0.5" />
                   <span>{modalError}</span>
                 </div>
@@ -725,12 +727,12 @@ export default function SchedulePage() {
 
               {/* 마사지사 선택 (마사지사는 비활성 고정) */}
               <div>
-                <label className="block text-xs font-bold text-slate-400 mb-1.5 uppercase tracking-wider">{t('schedule.modal.therapist')}</label>
+                <label className="block text-xs font-bold text-stone-650 mb-1.5 uppercase tracking-wider">{t('schedule.modal.therapist')}</label>
                 <select
                   disabled={isTherapistRole}
                   value={modalTherapistId}
                   onChange={(e) => handleModalTherapistChange(Number(e.target.value))}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 text-xs text-slate-100 focus:outline-none focus:border-indigo-500 disabled:bg-slate-900 disabled:text-slate-500"
+                  className="w-full bg-white border border-stone-200 rounded-xl px-3 py-2.5 text-xs text-stone-800 focus:outline-none focus:border-emerald-500/80 disabled:bg-stone-100 disabled:text-stone-400 font-semibold"
                 >
                   {therapists.map(tp => (
                     <option key={tp.id} value={tp.id}>{tp.name}{t('schedule.filter.therapist_suffix')}</option>
@@ -741,7 +743,7 @@ export default function SchedulePage() {
               {/* 기간 설정 (From ~ To) */}
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-xs font-bold text-slate-400 mb-1.5 uppercase tracking-wider">{t('schedule.modal.from')}</label>
+                  <label className="block text-xs font-bold text-stone-650 mb-1.5 uppercase tracking-wider">{t('schedule.modal.from')}</label>
                   <div className="relative">
                     <input
                       type="date"
@@ -752,14 +754,14 @@ export default function SchedulePage() {
                       onClick={(e) => e.currentTarget.showPicker?.()}
                       className="absolute inset-0 w-full h-full opacity-0 z-10 cursor-pointer"
                     />
-                    <div className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 text-xs text-slate-100 flex justify-between items-center pointer-events-none min-h-[38px] font-medium">
+                    <div className="w-full bg-white border border-stone-200 rounded-xl px-3 py-2.5 text-xs text-stone-800 flex justify-between items-center pointer-events-none min-h-[38px] font-semibold">
                       <span>{modalFromDate ? toUIDateString(modalFromDate) : t('schedule.modal.from')}</span>
-                      <Calendar className="w-3.5 h-3.5 text-slate-550" />
+                      <Calendar className="w-3.5 h-3.5 text-stone-400" />
                     </div>
                   </div>
                 </div>
                 <div>
-                  <label className="block text-xs font-bold text-slate-400 mb-1.5 uppercase tracking-wider">{t('schedule.modal.to')}</label>
+                  <label className="block text-xs font-bold text-stone-650 mb-1.5 uppercase tracking-wider">{t('schedule.modal.to')}</label>
                   <div className="relative">
                     <input
                       type="date"
@@ -770,20 +772,20 @@ export default function SchedulePage() {
                       onClick={(e) => e.currentTarget.showPicker?.()}
                       className="absolute inset-0 w-full h-full opacity-0 z-10 cursor-pointer"
                     />
-                    <div className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-2.5 text-xs text-slate-100 flex justify-between items-center pointer-events-none min-h-[38px] font-medium">
+                    <div className="w-full bg-white border border-stone-200 rounded-xl px-3 py-2.5 text-xs text-stone-800 flex justify-between items-center pointer-events-none min-h-[38px] font-semibold">
                       <span>{modalToDate ? toUIDateString(modalToDate) : t('schedule.modal.to')}</span>
-                      <Calendar className="w-3.5 h-3.5 text-slate-550" />
+                      <Calendar className="w-3.5 h-3.5 text-stone-400" />
                     </div>
                   </div>
                 </div>
               </div>
-              <p className="text-[10px] text-slate-500">
+              <p className="text-[10px] text-stone-500 font-medium">
                 {t('schedule.modal.limit_info')}
               </p>
 
               {/* 일정 상태 선택 (라디오 버튼) */}
               <div>
-                <label className="block text-xs font-bold text-slate-400 mb-2 uppercase tracking-wider">{t('schedule.modal.type_title')}</label>
+                <label className="block text-xs font-bold text-stone-650 mb-2 uppercase tracking-wider">{t('schedule.modal.type_title')}</label>
                 <div className="grid grid-cols-2 gap-2 text-xs">
                   {[
                     { type: 'full', label: t('schedule.type.full') },
@@ -794,8 +796,8 @@ export default function SchedulePage() {
                   ].map(item => (
                     <label
                       key={item.type}
-                      className={`flex items-center gap-2 border border-slate-800 bg-slate-950/40 p-2.5 rounded-xl cursor-pointer hover:border-slate-700 transition-colors ${
-                        modalAvailType === item.type ? 'border-indigo-500/80 bg-indigo-950/10' : ''
+                      className={`flex items-center gap-2 border border-stone-200 bg-white p-2.5 rounded-xl cursor-pointer hover:border-stone-300 transition-colors ${
+                        modalAvailType === item.type ? 'border-emerald-500/80 bg-emerald-500/5' : ''
                       }`}
                     >
                       <input
@@ -803,9 +805,9 @@ export default function SchedulePage() {
                         name="avail_type"
                         checked={modalAvailType === item.type}
                         onChange={() => setModalAvailType(item.type as any)}
-                        className="w-4 h-4 text-indigo-600 bg-slate-950 border-slate-800 focus:ring-indigo-500/30"
+                        className="w-4 h-4 text-emerald-700 bg-white border-stone-300 focus:ring-emerald-500/30"
                       />
-                      <span className="text-slate-300 font-semibold">{item.label}</span>
+                      <span className="text-stone-700 font-bold">{item.label}</span>
                     </label>
                   ))}
                 </div>
@@ -816,14 +818,14 @@ export default function SchedulePage() {
                 <button
                   type="button"
                   onClick={() => setIsModalOpen(false)}
-                  className="flex-1 bg-slate-950 border border-slate-800 rounded-xl py-2.5 text-xs font-bold text-slate-400 hover:text-slate-200 transition-all"
+                  className="flex-1 bg-stone-200 border border-stone-200 rounded-xl py-2.5 text-xs font-bold text-stone-600 hover:bg-stone-300 hover:text-stone-800 transition-all"
                 >
                   {language === 'ko' ? '취소' : 'Cancel'}
                 </button>
                 <button
                   type="submit"
                   disabled={saving}
-                  className="flex-1 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white shadow-lg shadow-indigo-950/20 py-2.5 text-xs font-bold transition-all disabled:opacity-50"
+                  className="flex-1 rounded-xl bg-emerald-700 hover:bg-emerald-600 text-white shadow-md shadow-emerald-950/10 py-2.5 text-xs font-bold transition-all disabled:opacity-50"
                 >
                   {saving ? t('schedule.saving') : t('schedule.save_button')}
                 </button>

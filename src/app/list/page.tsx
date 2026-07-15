@@ -111,16 +111,18 @@ export default function ListPage() {
     <DashboardLayout>
       <div className="space-y-4">
         {/* 리스트 전용 서브 제어 바 */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-900/40 p-4 rounded-xl border border-slate-800">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-stone-100/40 p-4 rounded-xl border border-stone-200">
           <div className="flex items-center gap-2">
-            <span className="text-xs font-bold text-slate-400">📋 {t('list.title')}</span>
+            <h2 className="text-lg font-extrabold tracking-tight text-blue-900 flex items-center gap-2">
+              <span className="text-blue-700">📋</span> {t('list.title')}
+            </h2>
           </div>
-
+ 
           <div className="flex items-center gap-2 flex-wrap self-stretch sm:self-auto justify-between sm:justify-end w-full sm:w-auto">
             {currentUser.role !== 'therapist' && (
               <button
                 onClick={handleOpenNewReservation}
-                className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white shadow-lg shadow-indigo-950/20 px-4 py-2 text-xs font-bold transition-all hover:scale-[1.01] active:scale-[0.99]"
+                className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-emerald-700 hover:bg-emerald-600 text-white shadow-sm shadow-emerald-900/10 px-4 py-2 text-xs font-bold transition-all hover:scale-[1.01] active:scale-[0.99]"
               >
                 <Plus className="w-4 h-4" /> {t('calendar.new_booking')}
               </button>
@@ -130,8 +132,8 @@ export default function ListPage() {
 
         {/* 리스트 렌더링 */}
         {loading ? (
-          <div className="h-96 flex items-center justify-center border border-slate-900 bg-slate-900/10 rounded-2xl">
-            <span className="text-xs text-slate-400 animate-pulse font-medium">{t('user.syncing')}</span>
+          <div className="h-96 flex items-center justify-center border border-stone-200 bg-stone-100/40 rounded-2xl">
+            <span className="text-xs text-stone-500 animate-pulse font-medium">{t('user.syncing')}</span>
           </div>
         ) : (
           <ListView

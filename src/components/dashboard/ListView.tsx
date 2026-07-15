@@ -81,10 +81,10 @@ export default function ListView({
   // 3. 표 형식 (Table View) 렌더러
   const renderTableView = () => {
     return (
-      <div className="overflow-x-auto rounded-xl border border-slate-800 bg-slate-900/40 backdrop-blur-md animate-in fade-in duration-200 touch-pan-x" style={{ WebkitOverflowScrolling: 'touch' }}>
+      <div className="overflow-x-auto rounded-xl border border-stone-200 bg-stone-100/40 touch-pan-x" style={{ WebkitOverflowScrolling: 'touch' }}>
         <table className="w-full min-w-[800px] text-left text-xs border-collapse">
           <thead>
-            <tr className="border-b border-slate-800 bg-slate-950/60 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+            <tr className="border-b border-stone-200 bg-stone-200/50 text-[10px] font-bold text-stone-600 uppercase tracking-wider">
               <th className="p-4 text-center w-12">No</th>
               <th className="p-4 text-center w-20">{t('list.table.status')}</th>
               <th className="p-4">{t('list.table.client')}</th>
@@ -96,7 +96,7 @@ export default function ListView({
               <th className="p-4 text-center w-16">{t('list.table.actions')}</th>
             </tr>
           </thead>
-          <tbody className="divide-y divide-slate-850/60">
+          <tbody className="divide-y divide-stone-200">
             {filtered.map((res, index) => {
               const therapist = therapists.find(t => t.id === res.therapist_id)
               const isOwner = res.created_by === currentUserId
@@ -107,16 +107,16 @@ export default function ListView({
               return (
                 <tr
                   key={res.id}
-                  className={`hover:bg-slate-800/25 transition-colors group ${
+                  className={`hover:bg-stone-100 transition-colors group ${
                     res.status === 'cancelled'
-                      ? 'opacity-50 line-through text-slate-600'
+                      ? 'opacity-50 line-through text-stone-400'
                       : res.is_premium
                       ? 'bg-amber-500/5 border-l-2 border-l-amber-500/40'
                       : ''
                   }`}
                 >
                   {/* 순번 No */}
-                  <td className="p-3 text-center text-slate-500 font-mono text-[11px]">
+                  <td className="p-3 text-center text-stone-400 font-mono text-[11px]">
                     {index + 1}
                   </td>
                   {/* 상태 배지 */}
@@ -124,8 +124,8 @@ export default function ListView({
                     <span
                       className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-[10px] font-semibold ${
                         res.status === 'confirmed'
-                          ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
-                          : 'bg-rose-500/10 text-rose-400 border border-rose-500/20'
+                          ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                          : 'bg-rose-50 text-rose-700 border border-rose-200'
                       }`}
                     >
                       {res.status === 'confirmed' ? t('calendar.legend.confirmed') : t('calendar.legend.cancelled')}
@@ -133,7 +133,7 @@ export default function ListView({
                   </td>
                   
                   {/* 고객명 */}
-                  <td className="p-3 font-semibold text-slate-200">
+                  <td className="p-3 font-semibold text-stone-800">
                     <div className="flex items-center gap-1.5">
                       {res.customer_name}
                       {res.is_premium && (
@@ -142,7 +142,7 @@ export default function ListView({
                         </span>
                       )}
                       {isOwner && (
-                        <span className="text-[9px] text-indigo-500/80 bg-indigo-500/5 px-1 py-0.5 rounded border border-indigo-500/10 font-bold">
+                        <span className="text-[9px] text-emerald-750 bg-emerald-50 px-1 py-0.5 rounded border border-emerald-200 font-bold">
                           {language === 'ko' ? '내예약' : 'Mine'}
                         </span>
                       )}
@@ -150,27 +150,27 @@ export default function ListView({
                   </td>
                   
                   {/* 연락처 */}
-                  <td className="p-3 text-slate-400 font-mono">
+                  <td className="p-3 text-stone-600 font-mono">
                     {res.customer_phone ? formatUSPhone(res.customer_phone) : '-'}
                   </td>
                   
                   {/* 예약 일시 */}
-                  <td className="p-3 text-slate-350">
+                  <td className="p-3 text-stone-600">
                     {formatDateTime(res.start_time)}
                   </td>
                   
                   {/* 배정 마사지사 */}
-                  <td className="p-3 text-slate-300">
+                  <td className="p-3 text-stone-700">
                     👤 {therapist ? therapist.name : (language === 'ko' ? '미배정 (삭제됨)' : 'Unassigned (Deleted)')}
                   </td>
                   
                   {/* 결제 금액 */}
-                  <td className={`p-3 text-right font-bold ${res.is_premium ? 'text-amber-400' : 'text-indigo-400'}`}>
+                  <td className={`p-3 text-right font-bold ${res.is_premium ? 'text-amber-600' : 'text-emerald-700'}`}>
                     ${res.price.toLocaleString()}
                   </td>
                   
                   {/* 등록자 */}
-                  <td className="p-3 text-slate-400">
+                  <td className="p-3 text-stone-600">
                     {getEmployeeName(res.created_by)}
                   </td>
                   
@@ -179,7 +179,7 @@ export default function ListView({
                     {canModify && (
                       <button
                         onClick={() => onSelectReservation(res)}
-                        className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-750 text-slate-400 hover:text-slate-100 transition-colors opacity-0 group-hover:opacity-100 focus:opacity-100"
+                        className="p-1.5 rounded-lg bg-stone-200 hover:bg-stone-300 text-stone-600 hover:text-stone-800 transition-colors opacity-0 group-hover:opacity-100 focus:opacity-100"
                         title={language === 'ko' ? '예약 변경/취소' : 'Edit/Cancel Booking'}
                       >
                         <Edit2 className="w-3.5 h-3.5" />
@@ -209,18 +209,18 @@ export default function ListView({
           return (
             <div
               key={res.id}
-              className={`relative rounded-xl border p-5 bg-slate-900/40 hover:bg-slate-900/60 transition-all flex flex-col justify-between group ${
+              className={`relative rounded-xl border p-5 bg-stone-100/50 hover:bg-stone-100/80 transition-all flex flex-col justify-between group border-stone-200 ${
                 res.status === 'cancelled'
-                  ? 'border-slate-850 opacity-60'
+                  ? 'opacity-60'
                   : res.is_premium
-                  ? 'border-amber-500/30 shadow-lg shadow-amber-950/5'
-                  : 'border-slate-800'
+                  ? 'border-amber-200 bg-amber-50/10 shadow-lg shadow-amber-900/5'
+                  : ''
               }`}
             >
               {/* 상단 뱃지 및 상태 표기 */}
               <div className="flex justify-between items-start gap-2 mb-3">
                 <div className="flex items-center gap-2">
-                  <span className="text-[10px] bg-slate-800 text-slate-400 font-bold px-1.5 py-0.5 rounded font-mono">
+                  <span className="text-[10px] bg-stone-200 text-stone-600 font-bold px-1.5 py-0.5 rounded font-mono">
                     #{index + 1}
                   </span>
                   <div className="flex flex-wrap gap-1.5">
@@ -232,8 +232,8 @@ export default function ListView({
                     <span
                       className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase ${
                         res.status === 'confirmed'
-                          ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
-                          : 'bg-rose-500/10 text-rose-400 border border-rose-500/20'
+                          ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                          : 'bg-rose-50 text-rose-700 border border-rose-200'
                       }`}
                     >
                       {res.status === 'confirmed' ? t('calendar.legend.confirmed') : t('calendar.legend.cancelled')}
@@ -245,7 +245,7 @@ export default function ListView({
                 {canModify && (
                   <button
                     onClick={() => onSelectReservation(res)}
-                    className="p-1.5 rounded-lg bg-slate-800 hover:bg-slate-750 text-slate-400 hover:text-slate-100 transition-colors opacity-0 group-hover:opacity-100 focus:opacity-100"
+                    className="p-1.5 rounded-lg bg-stone-200 hover:bg-stone-300 text-stone-600 hover:text-stone-800 transition-colors opacity-0 group-hover:opacity-100 focus:opacity-100"
                     title={language === 'ko' ? '예약 변경/취소' : 'Edit/Cancel Booking'}
                   >
                     <Edit2 className="w-3.5 h-3.5" />
@@ -255,30 +255,30 @@ export default function ListView({
 
               {/* 고객 및 예약 요약 */}
               <div className="space-y-2.5 flex-1">
-                <h3 className="text-base font-bold text-slate-200 tracking-tight flex items-center gap-1.5">
-                  <User className="w-4 h-4 text-slate-500" /> {res.customer_name}
+                <h3 className="text-base font-bold text-stone-800 tracking-tight flex items-center gap-1.5">
+                  <User className="w-4 h-4 text-stone-400" /> {res.customer_name}
                 </h3>
 
                 {res.customer_phone && (
-                  <p className="text-xs text-slate-400 flex items-center gap-1.5">
-                    <Phone className="w-3.5 h-3.5 text-slate-500" /> {formatUSPhone(res.customer_phone)}
+                  <p className="text-xs text-stone-600 flex items-center gap-1.5">
+                    <Phone className="w-3.5 h-3.5 text-stone-400" /> {formatUSPhone(res.customer_phone)}
                   </p>
                 )}
 
-                <p className="text-xs text-slate-400 flex items-center gap-1.5">
-                  <Calendar className="w-3.5 h-3.5 text-slate-500" /> {formatDateTime(res.start_time)}
+                <p className="text-xs text-stone-600 flex items-center gap-1.5">
+                  <Calendar className="w-3.5 h-3.5 text-stone-400" /> {formatDateTime(res.start_time)}
                 </p>
 
-                <div className="rounded-lg bg-slate-950/60 p-3 mt-3 border border-slate-850 flex items-center justify-between">
+                <div className="rounded-lg bg-white p-3 mt-3 border border-stone-200 flex items-center justify-between">
                   <div>
-                    <span className="text-[10px] text-slate-500 block mb-0.5">{t('list.table.therapist')}</span>
-                    <span className="text-xs font-semibold text-slate-300">
+                    <span className="text-[10px] text-stone-500 block mb-0.5">{t('list.table.therapist')}</span>
+                    <span className="text-xs font-semibold text-stone-700">
                       {therapist ? therapist.name : (language === 'ko' ? '미배정 (삭제됨)' : 'Unassigned (Deleted)')}
                     </span>
                   </div>
                   <div className="text-right">
-                    <span className="text-[10px] text-slate-500 block mb-0.5">{t('booking.modal.price')}</span>
-                    <span className="text-xs font-bold text-indigo-400 flex items-center justify-end">
+                    <span className="text-[10px] text-stone-500 block mb-0.5">{t('booking.modal.price')}</span>
+                    <span className="text-xs font-bold text-emerald-700 flex items-center justify-end">
                       <DollarSign className="w-3.5 h-3.5" /> {res.price.toLocaleString()}
                     </span>
                   </div>
@@ -286,10 +286,10 @@ export default function ListView({
               </div>
 
               {/* 하단 생성자(소유주) 정보 표시 */}
-              <div className="mt-4 pt-3 border-t border-slate-850 flex items-center justify-between text-[11px] text-slate-500">
+              <div className="mt-4 pt-3 border-t border-stone-200 flex items-center justify-between text-[11px] text-stone-500">
                 <span>{t('list.table.creator')}: {getEmployeeName(res.created_by)}</span>
                 {isOwner && (
-                  <span className="font-semibold text-indigo-500/80 bg-indigo-500/5 px-1.5 py-0.5 rounded border border-indigo-500/10 text-[10px]">
+                  <span className="font-semibold text-emerald-750 bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200 text-[10px]">
                     {language === 'ko' ? '내 예약' : 'My Booking'}
                   </span>
                 )}
@@ -304,14 +304,14 @@ export default function ListView({
   return (
     <div className="space-y-4">
       {/* 검색 및 필터 바 */}
-      <div className="flex flex-col lg:flex-row gap-4 items-center justify-between bg-slate-900/40 p-4 rounded-xl border border-slate-800">
+      <div className="flex flex-col lg:flex-row gap-4 items-center justify-between bg-stone-100/40 p-4 rounded-xl border border-stone-200">
         <div className="flex flex-col sm:flex-row items-center gap-3 w-full lg:w-auto">
           {/* 기간 필터 */}
           <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
-            <span className="text-[10px] font-bold text-slate-500 uppercase whitespace-nowrap mr-1">
+            <span className="text-[10px] font-bold text-stone-500 uppercase whitespace-nowrap mr-1">
               {language === 'ko' ? '예약기간:' : 'Booking Period:'}
             </span>
-            <div className="relative flex items-center gap-1.5 bg-slate-950 border border-slate-800 hover:border-slate-700 rounded-xl px-3 py-1.5 transition-colors focus-within:border-indigo-500/80 shadow-inner group min-w-[130px] min-h-[32px]">
+            <div className="relative flex items-center gap-1.5 bg-white border border-stone-200 hover:border-stone-300 rounded-xl px-3 py-1.5 transition-colors focus-within:border-emerald-500/80 shadow-inner group min-w-[130px] min-h-[32px]">
               <input
                 type="date"
                 value={startDate}
@@ -319,13 +319,13 @@ export default function ListView({
                 onClick={(e) => e.currentTarget.showPicker?.()}
                 className="absolute inset-0 w-full h-full opacity-0 z-10 cursor-pointer"
               />
-              <div className="flex items-center gap-1.5 pointer-events-none font-medium text-xs text-slate-200 w-full">
-                <Calendar className="w-3.5 h-3.5 text-indigo-400 group-hover:text-indigo-300 transition-colors" />
+              <div className="flex items-center gap-1.5 pointer-events-none font-medium text-xs text-stone-800 w-full">
+                <Calendar className="w-3.5 h-3.5 text-emerald-700 group-hover:text-emerald-800 transition-colors" />
                 <span>{startDate ? toUIDateString(startDate) : ''}</span>
               </div>
             </div>
-            <span className="text-slate-600 text-xs px-0.5">~</span>
-            <div className="relative flex items-center gap-1.5 bg-slate-950 border border-slate-800 hover:border-slate-700 rounded-xl px-3 py-1.5 transition-colors focus-within:border-indigo-500/80 shadow-inner group min-w-[130px] min-h-[32px]">
+            <span className="text-stone-400 text-xs px-0.5">~</span>
+            <div className="relative flex items-center gap-1.5 bg-white border border-stone-200 hover:border-stone-300 rounded-xl px-3 py-1.5 transition-colors focus-within:border-emerald-500/80 shadow-inner group min-w-[130px] min-h-[32px]">
               <input
                 type="date"
                 value={endDate}
@@ -333,8 +333,8 @@ export default function ListView({
                 onClick={(e) => e.currentTarget.showPicker?.()}
                 className="absolute inset-0 w-full h-full opacity-0 z-10 cursor-pointer"
               />
-              <div className="flex items-center gap-1.5 pointer-events-none font-medium text-xs text-slate-200 w-full">
-                <Calendar className="w-3.5 h-3.5 text-indigo-400 group-hover:text-indigo-300 transition-colors" />
+              <div className="flex items-center gap-1.5 pointer-events-none font-medium text-xs text-stone-800 w-full">
+                <Calendar className="w-3.5 h-3.5 text-emerald-700 group-hover:text-emerald-800 transition-colors" />
                 <span>{endDate ? toUIDateString(endDate) : ''}</span>
               </div>
             </div>
@@ -347,27 +347,27 @@ export default function ListView({
               placeholder={language === 'ko' ? '고객명, 연락처, 마사지사 검색...' : 'Search customer, phone, therapist...'}
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-indigo-500/80 transition-colors"
+              className="w-full bg-white border border-stone-200 rounded-xl px-3.5 py-2 text-xs text-stone-800 placeholder-stone-400 focus:outline-none focus:border-emerald-500/80 transition-colors"
             />
           </div>
         </div>
 
         <div className="flex flex-wrap gap-3 w-full lg:w-auto justify-end items-center">
           {/* 보기 형식 토글 그룹 */}
-          <div className="flex bg-slate-950 border border-slate-800 rounded-xl p-0.5 shadow-inner">
+          <div className="flex bg-stone-100 border border-stone-200 rounded-xl p-0.5 shadow-inner">
             <button
               onClick={() => setViewType('card')}
               className={`text-xs font-bold px-3.5 py-1.5 rounded-lg transition-all relative overflow-visible ${
                 viewType === 'card'
-                  ? 'bg-slate-900 text-indigo-400 border border-slate-850 shadow'
-                  : 'bg-indigo-950/20 text-indigo-300 hover:text-indigo-200 border border-indigo-500/20 hover:border-indigo-500/50 shadow-[0_0_10px_rgba(99,102,241,0.05)] hover:shadow-[0_0_12px_rgba(99,102,241,0.15)]'
+                  ? 'bg-stone-200 text-stone-800 border border-stone-300 shadow'
+                  : 'bg-transparent text-stone-500 hover:text-stone-700'
               }`}
             >
               {language === 'ko' ? '카드 형식' : 'Card View'}
               {viewType !== 'card' && (
                 <span className="absolute -top-1 -right-1 flex h-2 w-2">
-                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-indigo-400 opacity-75"></span>
-                  <span className="relative inline-flex rounded-full h-2 w-2 bg-indigo-500"></span>
+                  <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+                  <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-600"></span>
                 </span>
               )}
             </button>
@@ -375,8 +375,8 @@ export default function ListView({
               onClick={() => setViewType('table')}
               className={`text-xs font-bold px-3.5 py-1.5 rounded-lg transition-all ${
                 viewType === 'table'
-                  ? 'bg-slate-900 text-indigo-400 border border-slate-850 shadow'
-                  : 'bg-transparent text-slate-500 hover:text-slate-350'
+                  ? 'bg-stone-200 text-stone-800 border border-stone-300 shadow'
+                  : 'bg-transparent text-stone-500 hover:text-stone-700'
               }`}
             >
               {language === 'ko' ? '표 형식' : 'Table View'}
@@ -389,8 +389,8 @@ export default function ListView({
               onClick={() => setFilterStatus('confirmed')}
               className={`text-xs font-bold px-3.5 py-1.5 rounded-lg transition-all ${
                 filterStatus === 'confirmed'
-                  ? 'bg-indigo-600 text-white shadow-md shadow-indigo-950/20'
-                  : 'bg-slate-800 hover:bg-slate-750 text-slate-400 hover:text-slate-200 border border-slate-750/50'
+                  ? 'bg-emerald-700 text-white shadow-sm'
+                  : 'bg-stone-200 hover:bg-stone-300 text-stone-700 hover:text-stone-900'
               }`}
             >
               {language === 'ko' ? '확정된 예약' : 'Confirmed'}
@@ -399,8 +399,8 @@ export default function ListView({
               onClick={() => setFilterStatus('cancelled')}
               className={`text-xs font-bold px-3.5 py-1.5 rounded-lg transition-all ${
                 filterStatus === 'cancelled'
-                  ? 'bg-indigo-600 text-white shadow-md shadow-indigo-950/20'
-                  : 'bg-slate-800 hover:bg-slate-750 text-slate-400 hover:text-slate-200 border border-slate-750/50'
+                  ? 'bg-emerald-700 text-white shadow-sm'
+                  : 'bg-stone-200 hover:bg-stone-300 text-stone-700 hover:text-stone-900'
               }`}
             >
               {language === 'ko' ? '취소된 예약' : 'Cancelled'}
@@ -409,8 +409,8 @@ export default function ListView({
               onClick={() => setFilterStatus('all')}
               className={`text-xs font-bold px-3.5 py-1.5 rounded-lg transition-all ${
                 filterStatus === 'all'
-                  ? 'bg-indigo-600 text-white shadow-md shadow-indigo-950/20'
-                  : 'bg-slate-800 hover:bg-slate-750 text-slate-400 hover:text-slate-200 border border-slate-750/50'
+                  ? 'bg-emerald-700 text-white shadow-sm'
+                  : 'bg-stone-200 hover:bg-stone-300 text-stone-700 hover:text-stone-900'
               }`}
             >
               {language === 'ko' ? '전체 보기' : 'Show All'}
@@ -420,20 +420,20 @@ export default function ListView({
       </div>
 
       {/* 조회 정보 메타 요약 */}
-      <div className="text-[11px] text-slate-455 font-bold flex items-center gap-1.5 pl-1.5">
+      <div className="text-[11px] text-stone-500 font-bold flex items-center gap-1.5 pl-1.5">
         <span>{language === 'ko' ? '📊 조회된 예약 건수:' : '📊 Bookings Found:'}</span>
-        <span className="text-indigo-400 font-extrabold font-mono text-xs">
+        <span className="text-emerald-700 font-extrabold font-mono text-xs">
           {filtered.length}{language === 'ko' ? '건' : ''}
         </span>
-        <span className="text-slate-700">|</span>
-        <span className="text-slate-500 font-mono">{toUIDateString(startDate)} ~ {toUIDateString(endDate)}</span>
+        <span className="text-stone-300">|</span>
+        <span className="text-stone-500 font-mono">{toUIDateString(startDate)} ~ {toUIDateString(endDate)}</span>
       </div>
 
       {/* 예약 리스트 그리드/표 분기 */}
       {filtered.length === 0 ? (
-        <div className="rounded-xl border border-slate-800 bg-slate-900/10 py-16 text-center">
-          <ShieldAlert className="w-10 h-10 text-slate-600 mx-auto mb-3" />
-          <p className="text-sm text-slate-400">{t('list.no_data')}</p>
+        <div className="rounded-xl border border-stone-200 bg-stone-100/40 py-16 text-center">
+          <ShieldAlert className="w-10 h-10 text-stone-400 mx-auto mb-3" />
+          <p className="text-sm text-stone-500">{t('list.no_data')}</p>
         </div>
       ) : viewType === 'table' ? (
         renderTableView()

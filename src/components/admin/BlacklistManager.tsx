@@ -212,22 +212,22 @@ export default function BlacklistManager({ supabase, currentUserId }: BlacklistM
   return (
     <div className="space-y-4">
       {/* 안내 알림판 */}
-      <div className="rounded-xl border border-indigo-550/15 bg-indigo-500/5 p-4 flex items-start gap-3">
-        <Info className="w-5 h-5 text-indigo-400 flex-shrink-0 mt-0.5" />
+      <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-4 flex items-start gap-3">
+        <Info className="w-5 h-5 text-emerald-700 flex-shrink-0 mt-0.5" />
         <div className="space-y-1">
-          <h4 className="text-xs font-bold text-indigo-300">{t('blacklist.guide.title')}</h4>
-          <p className="text-[11px] text-slate-400 leading-relaxed">
+          <h4 className="text-xs font-bold text-emerald-800">{t('blacklist.guide.title')}</h4>
+          <p className="text-[11px] text-stone-600 leading-relaxed">
             {t('blacklist.guide.desc')}
           </p>
         </div>
       </div>
 
       {/* 필터 및 검색 제어바 */}
-      <div className="flex flex-col sm:flex-row gap-3 items-center justify-between bg-slate-900/40 p-4 rounded-xl border border-slate-800 backdrop-blur-md">
+      <div className="flex flex-col sm:flex-row gap-3 items-center justify-between bg-stone-100/50 p-4 rounded-xl border border-stone-200 backdrop-blur-md">
         <div className="flex flex-col sm:flex-row items-center gap-3 w-full sm:w-auto">
           {/* 검색창 */}
           <div className="relative w-full sm:w-64">
-            <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-550">
+            <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-stone-400">
               <Search className="w-4 h-4" />
             </span>
             <input
@@ -235,21 +235,21 @@ export default function BlacklistManager({ supabase, currentUserId }: BlacklistM
               placeholder={t('blacklist.filter.search_placeholder')}
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="w-full bg-slate-950 border border-slate-850 rounded-xl pl-9 pr-3.5 py-2 text-xs text-slate-100 placeholder-slate-500 focus:outline-none focus:border-indigo-500/80 transition-colors"
+              className="w-full bg-white border border-stone-200 rounded-xl pl-9 pr-3.5 py-2 text-xs text-stone-800 placeholder-stone-400 focus:outline-none focus:border-emerald-500/80 transition-colors"
             />
           </div>
 
           {/* 최소 취소 횟수 필터 */}
-          <div className="flex items-center gap-2 bg-slate-950 border border-slate-850 rounded-xl px-3 py-1.5 w-full sm:w-auto">
-            <span className="text-[10px] font-bold text-slate-500 uppercase whitespace-nowrap">{t('blacklist.filter.label')}</span>
+          <div className="flex items-center gap-2 bg-white border border-stone-200 rounded-xl px-3 py-1.5 w-full sm:w-auto">
+            <span className="text-[10px] font-bold text-stone-500 uppercase whitespace-nowrap">{t('blacklist.filter.label')}</span>
             <select
               value={minCancelCount}
               onChange={(e) => setMinCancelCount(Number(e.target.value))}
-              className="bg-transparent border-none text-xs text-slate-200 focus:outline-none cursor-pointer"
+              className="bg-transparent border-none text-xs text-stone-700 focus:outline-none cursor-pointer"
             >
-              <option value={1} className="bg-slate-950">{t('blacklist.filter.penalty_all')}</option>
-              <option value={3} className="bg-slate-950">{t('blacklist.filter.penalty_warning')}</option>
-              <option value={5} className="bg-slate-950">{t('blacklist.filter.penalty_danger')}</option>
+              <option value={1} className="bg-white text-stone-800">{t('blacklist.filter.penalty_all')}</option>
+              <option value={3} className="bg-white text-stone-800">{t('blacklist.filter.penalty_warning')}</option>
+              <option value={5} className="bg-white text-stone-800">{t('blacklist.filter.penalty_danger')}</option>
             </select>
           </div>
         </div>
@@ -257,7 +257,7 @@ export default function BlacklistManager({ supabase, currentUserId }: BlacklistM
         {/* 새로고침 버튼 */}
         <button
           onClick={fetchData}
-          className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-slate-800 bg-slate-950 hover:bg-slate-900 text-slate-400 hover:text-slate-200 px-3 py-2 text-xs font-bold transition-all"
+          className="inline-flex items-center justify-center gap-1.5 rounded-xl border border-stone-200 bg-stone-200 hover:bg-stone-300 text-stone-700 hover:text-stone-800 px-3 py-2 text-xs font-bold transition-all"
         >
           <RefreshCw className="w-3.5 h-3.5" /> {t('blacklist.sync')}
         </button>
@@ -265,19 +265,19 @@ export default function BlacklistManager({ supabase, currentUserId }: BlacklistM
 
       {/* 데이터 테이블 */}
       {loading ? (
-        <div className="h-80 flex items-center justify-center border border-slate-900 bg-slate-900/10 rounded-2xl">
-          <span className="text-xs text-slate-400 animate-pulse font-medium">{t('blacklist.loading')}</span>
+        <div className="h-80 flex items-center justify-center border border-stone-200 bg-stone-100/40 rounded-2xl">
+          <span className="text-xs text-stone-500 animate-pulse font-medium">{t('blacklist.loading')}</span>
         </div>
       ) : customerGroups.length === 0 ? (
-        <div className="rounded-xl border border-slate-850 bg-slate-900/10 py-16 text-center">
-          <Award className="w-10 h-10 text-slate-700 mx-auto mb-3" />
-          <p className="text-sm text-slate-400">{t('blacklist.no_records')}</p>
+        <div className="rounded-xl border border-stone-200 bg-stone-100/40 py-16 text-center">
+          <Award className="w-10 h-10 text-stone-400 mx-auto mb-3" />
+          <p className="text-sm text-stone-500">{t('blacklist.no_records')}</p>
         </div>
       ) : (
-        <div className="overflow-x-auto rounded-xl border border-slate-800 bg-slate-900/40 backdrop-blur-md touch-pan-x" style={{ WebkitOverflowScrolling: 'touch' }}>
+        <div className="overflow-x-auto rounded-xl border border-stone-200 bg-stone-100/40 backdrop-blur-md touch-pan-x" style={{ WebkitOverflowScrolling: 'touch' }}>
           <table className="w-full min-w-[1000px] text-left text-xs border-collapse">
             <thead>
-              <tr className="border-b border-slate-800 bg-slate-950/60 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+              <tr className="border-b border-stone-200 bg-stone-200/50 text-[10px] font-bold text-stone-600 uppercase tracking-wider">
                 <th className="p-4 text-center w-12">{t('blacklist.table.no')}</th>
                 <th className="p-4">{t('blacklist.table.level')}</th>
                 <th className="p-4">{t('list.table.client')}</th>
@@ -292,7 +292,7 @@ export default function BlacklistManager({ supabase, currentUserId }: BlacklistM
                 <th className="p-4 text-center w-24">{t('blacklist.table.details')}</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-850/60">
+            <tbody className="divide-y divide-stone-200">
               {customerGroups.map((group, index) => {
                 const key = `${group.name}_${group.phone}`
                 const isExpanded = expandedCustomer === key
@@ -302,21 +302,21 @@ export default function BlacklistManager({ supabase, currentUserId }: BlacklistM
                 
                 // 블랙리스트 경고 등급 판단
                 let statusBadge = (
-                  <span className="inline-flex items-center rounded-full bg-slate-800 text-slate-450 border border-slate-750 px-2.5 py-0.5 text-[10px] font-semibold">
+                  <span className="inline-flex items-center rounded-full bg-stone-200 text-stone-600 border border-stone-300 px-2.5 py-0.5 text-[10px] font-semibold">
                     {t('blacklist.badge.normal')}
                   </span>
                 )
                 let rowBgClass = ''
                 if (group.penaltyPoints >= 5) {
                   statusBadge = (
-                    <span className="inline-flex items-center rounded-full bg-rose-500/10 text-rose-400 border border-rose-500/20 px-2.5 py-0.5 text-[10px] font-bold animate-pulse">
+                    <span className="inline-flex items-center rounded-full bg-rose-50 text-rose-700 border border-rose-200 px-2.5 py-0.5 text-[10px] font-bold animate-pulse">
                       {t('blacklist.badge.danger')}
                     </span>
                   )
                   rowBgClass = 'bg-rose-500/5'
                 } else if (group.penaltyPoints >= 3) {
                   statusBadge = (
-                    <span className="inline-flex items-center rounded-full bg-amber-500/10 text-amber-400 border border-amber-500/20 px-2.5 py-0.5 text-[10px] font-semibold">
+                    <span className="inline-flex items-center rounded-full bg-amber-50 text-amber-700 border border-amber-200 px-2.5 py-0.5 text-[10px] font-semibold">
                       {t('blacklist.badge.warning')}
                     </span>
                   )
@@ -325,9 +325,9 @@ export default function BlacklistManager({ supabase, currentUserId }: BlacklistM
 
                 return (
                   <React.Fragment key={key}>
-                    <tr className={`hover:bg-slate-850/30 transition-colors group cursor-pointer ${rowBgClass}`} onClick={() => toggleExpand(key)}>
+                    <tr className={`hover:bg-stone-100/60 transition-colors group cursor-pointer ${rowBgClass}`} onClick={() => toggleExpand(key)}>
                       {/* 순번 */}
-                      <td className="p-4 text-center text-slate-500 font-mono text-[11px]">
+                      <td className="p-4 text-center text-stone-400 font-mono text-[11px]">
                         {index + 1}
                       </td>
                       {/* 등급 */}
@@ -335,41 +335,41 @@ export default function BlacklistManager({ supabase, currentUserId }: BlacklistM
                         {statusBadge}
                       </td>
                       {/* 고객명 */}
-                      <td className="p-4 font-bold text-slate-200">
+                      <td className="p-4 font-bold text-stone-800">
                         {group.name}
                       </td>
                       {/* 연락처 */}
-                      <td className="p-4 text-slate-400 font-mono">
+                      <td className="p-4 text-stone-600 font-mono">
                         {group.phone ? formatUSPhone(group.phone) : '-'}
                       </td>
                       {/* 누적 페널티 */}
-                      <td className="p-4 text-center font-extrabold text-indigo-400 font-mono text-sm">
+                      <td className="p-4 text-center font-extrabold text-emerald-700 font-mono text-sm">
                         {group.penaltyPoints}{t('blacklist.badge.penalty')}
                       </td>
                       {/* 취소 횟수 */}
-                      <td className="p-4 text-center font-bold text-rose-400 font-mono">
+                      <td className="p-4 text-center font-bold text-rose-700 font-mono">
                         {group.cancelledCount}{t('blacklist.times')}
                       </td>
                       {/* 정상 이용 */}
-                      <td className="p-4 text-center font-mono text-slate-450">
+                      <td className="p-4 text-center font-mono text-stone-500">
                         {group.confirmedCount}{t('blacklist.times')}
                       </td>
                       {/* 취소율 */}
                       <td className="p-4 text-center">
-                        <span className={`font-mono font-bold ${cancelRate >= 50 ? 'text-rose-400' : 'text-slate-350'}`}>
+                        <span className={`font-mono font-bold ${cancelRate >= 50 ? 'text-rose-700' : 'text-stone-500'}`}>
                           {cancelRate}%
                         </span>
                       </td>
                       {/* 기회 손실액 */}
-                      <td className="p-4 text-right font-mono font-bold text-slate-300">
+                      <td className="p-4 text-right font-mono font-bold text-stone-700">
                         ${group.totalLoss.toLocaleString()}
                       </td>
                       {/* 평균 취소 소요 시간 */}
-                      <td className="p-4 text-center font-mono text-indigo-400 font-semibold">
+                      <td className="p-4 text-center font-mono text-emerald-700 font-semibold">
                         {formatDuration(group.avgDurationMs)}
                       </td>
                       {/* 최근 취소일 */}
-                      <td className="p-4 text-slate-400 font-mono">
+                      <td className="p-4 text-stone-600 font-mono">
                         {group.lastCancelledDate ? formatDateTime(group.lastCancelledDate) : '-'}
                       </td>
                       {/* 아코디언 토글 */}
@@ -379,20 +379,19 @@ export default function BlacklistManager({ supabase, currentUserId }: BlacklistM
                             e.stopPropagation()
                             toggleExpand(key)
                           }}
-                          className="p-1 rounded bg-slate-800 hover:bg-slate-750 text-slate-400 group-hover:text-slate-100 transition-colors"
+                          className="p-1 rounded bg-stone-200 hover:bg-stone-300 text-stone-500 group-hover:text-stone-800 transition-colors"
                         >
                           {isExpanded ? <ChevronUp className="w-3.5 h-3.5" /> : <ChevronDown className="w-3.5 h-3.5" />}
                         </button>
                       </td>
                     </tr>
-                    
                     {/* 아코디언 확장 취소 예약 로그 목록 */}
                     {isExpanded && (
                       <tr>
-                        <td colSpan={12} className="p-0 bg-slate-950/40 border-t border-b border-slate-850">
+                        <td colSpan={12} className="p-0 bg-stone-100/30 border-t border-b border-stone-200">
                           <div className="p-5 space-y-3">
-                            <div className="flex items-center gap-1.5 text-slate-400 text-xs font-bold pl-1 border-l-2 border-l-rose-500">
-                              <Ban className="w-3.5 h-3.5 text-rose-400" />
+                            <div className="flex items-center gap-1.5 text-stone-500 text-xs font-bold pl-1 border-l-2 border-l-rose-600">
+                              <Ban className="w-3.5 h-3.5 text-rose-700" />
                               <span>
                                 {t('blacklist.detail.title')
                                   .replace('{name}', group.name)
@@ -406,65 +405,65 @@ export default function BlacklistManager({ supabase, currentUserId }: BlacklistM
                                 return (
                                   <div 
                                     key={res.id} 
-                                    className="bg-slate-900 border border-slate-850 rounded-xl p-4 space-y-2 text-xs hover:border-slate-800 transition-colors relative"
+                                    className="bg-white border border-stone-200 rounded-xl p-4 space-y-2 text-xs hover:border-stone-300 transition-colors relative"
                                   >
-                                    <div className="flex justify-between items-center pb-1.5 border-b border-slate-850/50">
-                                      <span className="text-[10px] font-bold bg-rose-500/10 text-rose-400 border border-rose-500/20 px-1.5 py-0.5 rounded">
+                                    <div className="flex justify-between items-center pb-1.5 border-b border-stone-200">
+                                      <span className="text-[10px] font-bold bg-rose-50 text-rose-700 border border-rose-200 px-1.5 py-0.5 rounded">
                                         {t('blacklist.detail.status.cancelled')}
                                       </span>
-                                      <span className="text-slate-500 font-mono text-[10px]">ID: #{res.id}</span>
+                                      <span className="text-stone-400 font-mono text-[10px]">ID: #{res.id}</span>
                                     </div>
                                     
-                                    <div className="space-y-1.5 text-[11px] text-slate-350">
+                                    <div className="space-y-1.5 text-[11px] text-stone-600">
                                       <p className="flex items-center gap-1.5">
-                                        <Calendar className="w-3.5 h-3.5 text-slate-550" />
+                                        <Calendar className="w-3.5 h-3.5 text-stone-400" />
                                         <span>{t('blacklist.detail.booked_use')}</span>
-                                        <span className="font-semibold text-slate-200">{formatDateTime(res.start_time)}</span>
+                                        <span className="font-semibold text-stone-800">{formatDateTime(res.start_time)}</span>
                                       </p>
                                       <p className="flex items-center gap-1.5">
-                                        <Calendar className="w-3.5 h-3.5 text-slate-600" />
+                                        <Calendar className="w-3.5 h-3.5 text-stone-400" />
                                         <span>{t('blacklist.detail.created_at')}</span>
-                                        <span className="font-mono text-slate-400">{formatDateTime(res.created_at)}</span>
+                                        <span className="font-mono text-stone-600">{formatDateTime(res.created_at)}</span>
                                       </p>
                                       <p className="flex items-center gap-1.5">
-                                        <Calendar className="w-3.5 h-3.5 text-rose-500/50" />
+                                        <Calendar className="w-3.5 h-3.5 text-rose-600/50" />
                                         <span>{t('blacklist.detail.cancelled_at')}</span>
-                                        <span className="font-mono text-rose-450/95 font-bold">
+                                        <span className="font-mono text-rose-700 font-bold">
                                           {cancelTimeMap[res.id] ? formatDateTime(cancelTimeMap[res.id]) : t('blacklist.no_log')}
                                         </span>
                                       </p>
                                       <p className="flex items-center gap-1.5">
-                                        <Clock className="w-3.5 h-3.5 text-indigo-400/50" />
+                                        <Clock className="w-3.5 h-3.5 text-emerald-700/50" />
                                         <span>{t('blacklist.detail.duration')}</span>
-                                        <span className="font-bold text-indigo-400 font-mono">
+                                        <span className="font-bold text-emerald-700 font-mono">
                                           {cancelTimeMap[res.id] 
                                             ? formatDuration(new Date(cancelTimeMap[res.id]).getTime() - new Date(res.created_at).getTime()) 
                                             : t('blacklist.no_log')}
                                         </span>
                                       </p>
                                       <p className="flex items-center gap-1.5">
-                                        <User className="w-3.5 h-3.5 text-slate-550" />
+                                        <User className="w-3.5 h-3.5 text-stone-400" />
                                         <span>{t('blacklist.detail.therapist')}</span>
-                                        <span className="font-semibold text-slate-200">{therapist ? therapist.name : t('blacklist.detail.no_assign')}</span>
+                                        <span className="font-semibold text-stone-800">{therapist ? therapist.name : t('blacklist.detail.no_assign')}</span>
                                       </p>
                                       <p className="flex items-center gap-1.5">
-                                        <DollarSign className="w-3.5 h-3.5 text-slate-550" />
+                                        <DollarSign className="w-3.5 h-3.5 text-stone-400" />
                                         <span>{t('blacklist.detail.price')}</span>
-                                        <span className="font-bold text-slate-200">${Number(res.price).toLocaleString()}</span>
+                                        <span className="font-bold text-stone-800">${Number(res.price).toLocaleString()}</span>
                                       </p>
                                       {res.cancellation_type && (
                                         <>
-                                          <p className="flex items-center gap-1.5 border-t border-slate-850/30 pt-1.5 mt-1.5">
-                                            <Award className="w-3.5 h-3.5 text-indigo-400/60" />
+                                          <p className="flex items-center gap-1.5 border-t border-stone-200 pt-1.5 mt-1.5">
+                                            <Award className="w-3.5 h-3.5 text-emerald-700/50" />
                                             <span>{t('blacklist.detail.cancel_type')}</span>
-                                            <span className="font-semibold text-slate-200">
+                                            <span className="font-semibold text-stone-800">
                                               {res.cancellation_type === 'request' ? t('booking.modal.cancel.type_request') : t('booking.modal.cancel.type_noshow')}
                                             </span>
                                           </p>
                                           <p className="flex items-center gap-1.5">
-                                            <Award className="w-3.5 h-3.5 text-indigo-400/60" />
+                                            <Award className="w-3.5 h-3.5 text-emerald-700/50" />
                                             <span>{t('blacklist.detail.penalty')}</span>
-                                            <span className="font-bold text-indigo-400">
+                                            <span className="font-bold text-emerald-700">
                                               {res.penalty_points}{t('blacklist.badge.penalty')}
                                             </span>
                                           </p>

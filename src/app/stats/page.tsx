@@ -15,8 +15,10 @@ export default function StatsPage() {
   return (
     <DashboardLayout>
       <div className="space-y-4">
-        <div className="flex items-center justify-between pb-2 border-b border-slate-900/60">
-          <h2 className="text-sm font-bold text-slate-400">📊 {t('stats.title')}</h2>
+        <div className="flex items-center justify-between pb-2 border-b border-stone-200">
+          <h2 className="text-lg font-extrabold tracking-tight text-blue-900 flex items-center gap-2">
+            <span className="text-blue-700">📊</span> {t('stats.title')}
+          </h2>
         </div>
 
         <StatsManager

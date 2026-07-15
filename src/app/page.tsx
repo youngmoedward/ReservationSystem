@@ -93,21 +93,23 @@ export default function Home() {
     <DashboardLayout>
       <div className="space-y-4">
         {/* 달력 전용 서브 제어 바 */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-slate-900/40 p-4 rounded-xl border border-slate-800">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-stone-100/40 p-4 rounded-xl border border-stone-200">
           <div className="flex items-center gap-2">
-            <span className="text-xs font-bold text-slate-400">📅 {t('calendar.title')}</span>
+            <h2 className="text-lg font-extrabold tracking-tight text-blue-900 flex items-center gap-2">
+              <span className="text-blue-700">📅</span> {t('calendar.title')}
+            </h2>
           </div>
-
+ 
           <div className="flex items-center gap-2 flex-wrap self-stretch sm:self-auto justify-between sm:justify-end w-full sm:w-auto">
-            <div className="flex bg-slate-950 border border-slate-800 rounded-xl p-0.5 shadow-inner">
+            <div className="flex bg-stone-100 border border-stone-200 rounded-xl p-0.5 shadow-inner">
               {(['day', 'week', 'month'] as const).map(mode => (
                 <button
                   key={mode}
                   onClick={() => setCalendarViewMode(mode)}
                   className={`text-[10px] font-bold uppercase px-3 py-1.5 rounded-lg transition-all ${
                     calendarViewMode === mode
-                      ? 'bg-slate-900 text-slate-100 border border-slate-850 shadow'
-                      : 'text-slate-500 hover:text-slate-300'
+                      ? 'bg-white text-stone-800 border border-stone-200 shadow-sm'
+                      : 'text-stone-500 hover:text-stone-700'
                   }`}
                 >
                   {mode === 'day' ? t('calendar.mode.day') : mode === 'week' ? t('calendar.mode.week') : t('calendar.mode.month')}
@@ -118,7 +120,7 @@ export default function Home() {
             {currentUser.role !== 'therapist' && (
               <button
                 onClick={handleOpenNewReservation}
-                className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white shadow-lg shadow-indigo-950/20 px-4 py-2 text-xs font-bold transition-all hover:scale-[1.01] active:scale-[0.99]"
+                className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-emerald-700 hover:bg-emerald-600 text-white shadow-sm shadow-emerald-900/10 px-4 py-2 text-xs font-bold transition-all hover:scale-[1.01] active:scale-[0.99]"
               >
                 <Plus className="w-4 h-4" /> {t('calendar.new_booking')}
               </button>

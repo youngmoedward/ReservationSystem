@@ -424,9 +424,9 @@ export default function TherapistManager({
   return (
     <div className="space-y-6">
       {/* 마사지사 목록 관리 */}
-      <div className="rounded-2xl border border-slate-800 bg-slate-900/40 p-5">
+      <div className="rounded-2xl border border-stone-200 bg-stone-100/40 p-5">
         <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
-          <h3 className="text-sm font-bold tracking-tight text-slate-200 flex items-center gap-2">
+          <h3 className="text-sm font-bold tracking-tight text-stone-800 flex items-center gap-2">
             {language === 'ko' ? `근무 마사지사 관리 (${therapists.length}명)` : `Manage Active Therapists (${therapists.length})`}
           </h3>
           <button
@@ -436,16 +436,16 @@ export default function TherapistManager({
               setSuccessMsg(null)
               setIsAddingTherapist(true)
             }}
-            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold transition-all shadow-lg shadow-indigo-950/20"
+            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-700 hover:bg-emerald-600 text-white text-xs font-bold transition-all shadow-sm"
           >
             <UserPlus className="w-3.5 h-3.5" />
             {t('therapist.add')}
           </button>
         </div>
 
-        <div className="overflow-x-auto rounded-lg border border-slate-850 bg-slate-950/20 touch-pan-x" style={{ WebkitOverflowScrolling: 'touch' }}>
-          <table className="min-w-[750px] w-full divide-y divide-slate-850">
-            <thead className="bg-slate-950/50 text-[10px] font-bold text-slate-400 uppercase tracking-wider text-left">
+        <div className="overflow-x-auto rounded-lg border border-stone-200 bg-stone-100/50 touch-pan-x" style={{ WebkitOverflowScrolling: 'touch' }}>
+          <table className="min-w-[750px] w-full divide-y divide-stone-200">
+            <thead className="bg-stone-200/50 text-[10px] font-bold text-stone-600 uppercase tracking-wider text-left">
               <tr>
                 <th className="px-4 py-3">{language === 'ko' ? '마사지사 정보' : 'Therapist Info'}</th>
                 <th className="px-4 py-3">{t('therapist.email')}</th>
@@ -455,41 +455,41 @@ export default function TherapistManager({
                 <th className="px-4 py-3 text-right">{t('list.table.actions')}</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-850 text-xs text-slate-300">
+            <tbody className="divide-y divide-stone-200 text-xs text-stone-700">
               {therapists.length === 0 ? (
                 <tr>
-                  <td colSpan={6} className="px-4 py-8 text-center text-slate-500">
+                  <td colSpan={6} className="px-4 py-8 text-center text-stone-400">
                     {t('calendar.no_therapists')}
                   </td>
                 </tr>
               ) : (
                 therapists.map((therapist) => (
-                  <tr key={therapist.id} className="hover:bg-slate-900/40 transition-colors">
+                  <tr key={therapist.id} className="hover:bg-stone-100 transition-colors">
                     <td className="px-4 py-3">
-                      <div className="font-semibold text-slate-200 flex items-center gap-1.5 flex-wrap">
+                      <div className="font-semibold text-stone-800 flex items-center gap-1.5 flex-wrap">
                         <span>{therapist.name}</span>
                         {therapist.user_id ? (
-                          <span className="inline-flex items-center rounded bg-indigo-500/10 px-1.5 py-0.5 text-[9px] font-bold text-indigo-400 border border-indigo-500/10" title="로그인 연동 완료">
+                          <span className="inline-flex items-center rounded bg-emerald-50 px-1.5 py-0.5 text-[9px] font-bold text-emerald-700 border border-emerald-200" title="로그인 연동 완료">
                             {language === 'ko' ? '🔑 로그인 연동' : '🔑 Account Linked'}
                           </span>
                         ) : (
-                          <span className="inline-flex items-center rounded bg-slate-800 px-1.5 py-0.5 text-[9px] font-bold text-slate-500 border border-slate-750" title="수정에서 이메일 등록 후 열쇠 아이콘 클릭 시 연동 가능">
+                          <span className="inline-flex items-center rounded bg-stone-200 px-1.5 py-0.5 text-[9px] font-bold text-stone-500 border border-stone-300" title="수정에서 이메일 등록 후 열쇠 아이콘 클릭 시 연동 가능">
                             {language === 'ko' ? '로그인 미연동' : 'Not Linked'}
                           </span>
                         )}
                       </div>
-                      <div className="font-mono text-slate-500 text-[9px] mt-0.5">ID: {therapist.id}</div>
+                      <div className="font-mono text-stone-400 text-[9px] mt-0.5">ID: {therapist.id}</div>
                     </td>
-                    <td className="px-4 py-3 text-slate-300 font-medium">{therapist.email || '-'}</td>
-                    <td className="px-4 py-3 text-slate-300 font-medium">{therapist.phone ? formatUSPhone(therapist.phone) : '-'}</td>
+                    <td className="px-4 py-3 text-stone-700 font-medium">{therapist.email || '-'}</td>
+                    <td className="px-4 py-3 text-stone-700 font-medium">{therapist.phone ? formatUSPhone(therapist.phone) : '-'}</td>
                     <td className="px-4 py-3">
                       <button
                         type="button"
                         onClick={() => handleToggleActive(therapist.id, therapist.is_active)}
                         className={`inline-flex items-center gap-1 font-medium px-2 py-0.5 rounded ${
                           therapist.is_active
-                            ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/10'
-                            : 'bg-slate-800 text-slate-500 border border-slate-750'
+                            ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                            : 'bg-stone-200 text-stone-500 border border-stone-300'
                         }`}
                       >
                         {therapist.is_active ? (
@@ -509,13 +509,13 @@ export default function TherapistManager({
                         onClick={() => handleTogglePremiumTarget(therapist.id, therapist.is_premium_target)}
                         className={`inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[10px] font-bold tracking-tight transition-all border ${
                           therapist.is_premium_target
-                            ? 'bg-amber-500/15 border-amber-500/30 text-amber-400 hover:bg-amber-500/20'
-                            : 'bg-slate-900 border-slate-800 text-slate-500 hover:text-slate-450'
+                            ? 'bg-amber-50 border-amber-200 text-amber-700 hover:bg-amber-100/60'
+                            : 'bg-stone-200 border-stone-200 text-stone-500 hover:text-stone-800'
                         }`}
                       >
                         {therapist.is_premium_target ? (
                           <>
-                            <Star className="w-3 h-3 fill-current text-amber-500" /> {language === 'ko' ? '★ 고급 전담' : '★ Premium'}
+                            <Star className="w-3 h-3 fill-current text-amber-600" /> {language === 'ko' ? '★ 고급 전담' : '★ Premium'}
                           </>
                         ) : (
                           <>{language === 'ko' ? '고급 전담 지정' : 'Premium Course Assign'}</>
@@ -527,7 +527,7 @@ export default function TherapistManager({
                         <button
                           type="button"
                           onClick={() => startEdit(therapist)}
-                          className="p-1 rounded-lg hover:bg-indigo-500/10 text-slate-500 hover:text-indigo-400 transition-colors"
+                          className="p-1 rounded-lg hover:bg-emerald-50 text-stone-500 hover:text-emerald-700 transition-colors"
                           title={language === 'ko' ? '정보 수정' : 'Edit Info'}
                         >
                           <Edit className="w-4 h-4" />
@@ -535,7 +535,7 @@ export default function TherapistManager({
                         <button
                           type="button"
                           onClick={() => handleResetOrLinkPassword(therapist)}
-                          className="p-1 rounded-lg hover:bg-amber-500/10 text-slate-500 hover:text-amber-400 transition-colors"
+                          className="p-1 rounded-lg hover:bg-amber-50 text-stone-500 hover:text-amber-700 transition-colors"
                           title={therapist.user_id ? (language === 'ko' ? "비밀번호 초기화" : "Reset Password") : (language === 'ko' ? "로그인 계정 생성 (연동)" : "Create & Link Account")}
                         >
                           <Key className="w-4 h-4" />
@@ -543,7 +543,7 @@ export default function TherapistManager({
                         <button
                           type="button"
                           onClick={() => handleDeleteTherapist(therapist.id, therapist.name)}
-                          className="p-1 rounded-lg hover:bg-rose-500/10 text-slate-500 hover:text-rose-400 transition-colors"
+                          className="p-1 rounded-lg hover:bg-rose-50 text-stone-500 hover:text-rose-700 transition-colors"
                           title={language === 'ko' ? '마사지사 삭제' : 'Delete Therapist'}
                         >
                           <Trash2 className="w-4 h-4" />
@@ -560,58 +560,58 @@ export default function TherapistManager({
 
       {/* 신규 마사지사 추가 모달 */}
       {isAddingTherapist && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-          <div className="w-full max-w-md bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl p-6 relative">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-stone-900/30 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+          <div className="w-full max-w-md bg-stone-50 border border-stone-200 rounded-2xl shadow-2xl p-6 relative">
             <button
               onClick={() => {
                 setIsAddingTherapist(false)
                 setErrorMsg(null)
                 setSuccessMsg(null)
               }}
-              className="absolute top-4 right-4 p-2.5 rounded-xl text-slate-500 hover:text-slate-350 transition-colors"
+              className="absolute top-4 right-4 p-2.5 rounded-xl text-stone-500 hover:text-stone-700 transition-colors"
               aria-label="Close"
             >
               <X className="w-5 h-5" />
             </button>
 
-            <h3 className="text-base font-bold text-slate-200 mb-6 flex items-center gap-1.5 uppercase">
-              <UserPlus className="w-4 h-4 text-indigo-500" /> {t('therapist.add')}
+            <h3 className="text-base font-bold text-stone-800 mb-6 flex items-center gap-1.5 uppercase">
+              <UserPlus className="w-4 h-4 text-emerald-700" /> {t('therapist.add')}
             </h3>
 
             <form onSubmit={handleAddTherapist} className="space-y-4">
               {errorMsg && (
-                <div className="p-3 text-xs rounded-lg bg-rose-500/10 text-rose-400 border border-rose-500/20">
+                <div className="p-3 text-xs rounded-lg bg-rose-50 text-rose-700 border border-rose-200">
                   ⚠️ {errorMsg}
                 </div>
               )}
 
               {successMsg && (
-                <div className="p-3 text-xs rounded-lg bg-emerald-500/10 text-emerald-450 border border-emerald-500/20">
+                <div className="p-3 text-xs rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-250">
                   {successMsg}
                 </div>
               )}
 
               <div>
-                <label className="block text-xs font-semibold text-slate-400 mb-1.5">{t('employee.name')}</label>
+                <label className="block text-xs font-semibold text-stone-600 mb-1.5">{t('employee.name')}</label>
                 <input
                   type="text"
                   required
                   value={newTherapistName}
                   onChange={(e) => setNewTherapistName(e.target.value)}
                   placeholder={language === 'ko' ? '예: 박안마' : 'e.g. John Doe'}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-3 text-sm text-slate-100 placeholder-slate-660 focus:outline-none focus:border-indigo-500/80 transition-colors"
+                  className="w-full bg-white border border-stone-200 rounded-xl px-3.5 py-3 text-sm text-stone-800 placeholder-stone-400 focus:outline-none focus:border-emerald-500/80 transition-colors"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-400 mb-1.5">{t('therapist.phone')}</label>
+                <label className="block text-xs font-semibold text-stone-600 mb-1.5">{t('therapist.phone')}</label>
                 <input
                   type="text"
                   value={phone}
                   onChange={(e) => setPhone(formatUSPhone(e.target.value))}
                   placeholder={language === 'ko' ? '예: 123-456-7890' : 'e.g. 123-456-7890'}
                   maxLength={12}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-3 text-sm text-slate-100 placeholder-slate-660 focus:outline-none focus:border-indigo-500/80 transition-colors"
+                  className="w-full bg-white border border-stone-200 rounded-xl px-3.5 py-3 text-sm text-stone-800 placeholder-stone-400 focus:outline-none focus:border-emerald-500/80 transition-colors"
                 />
               </div>
 
@@ -621,15 +621,15 @@ export default function TherapistManager({
                   id="is_premium_target_chk"
                   checked={isPremiumTarget}
                   onChange={(e) => setIsPremiumTarget(e.target.checked)}
-                  className="w-4 h-4 rounded border-slate-800 bg-slate-950 text-indigo-600 focus:ring-indigo-500/30"
+                  className="w-4 h-4 rounded border-stone-300 bg-white text-emerald-600 focus:ring-emerald-500/30"
                 />
-                <label htmlFor="is_premium_target_chk" className="text-xs text-slate-300 font-medium cursor-pointer">
+                <label htmlFor="is_premium_target_chk" className="text-xs text-stone-600 font-medium cursor-pointer">
                   {language === 'ko' ? '오늘의 고급 마사지 전담 우선 지정' : 'Premium Course Assignment Priority'}
                 </label>
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-400 mb-1.5">
+                <label className="block text-xs font-semibold text-stone-600 mb-1.5">
                   {language === 'ko' ? '이메일 계정 (ID)' : 'Email Account (ID)'}
                 </label>
                 <input
@@ -638,14 +638,14 @@ export default function TherapistManager({
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder={language === 'ko' ? '예: therapist1@jjimjil.com' : 'e.g. therapist1@spa.com'}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-3 text-sm text-slate-100 placeholder-slate-660 focus:outline-none focus:border-indigo-500/80 transition-colors"
+                  className="w-full bg-white border border-stone-200 rounded-xl px-3.5 py-3 text-sm text-stone-800 placeholder-stone-400 focus:outline-none focus:border-emerald-500/80 transition-colors"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-400 mb-1.5">{t('login.password')}</label>
+                <label className="block text-xs font-semibold text-stone-600 mb-1.5">{t('login.password')}</label>
                 <div className="relative">
-                  <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-650">
+                  <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-stone-400">
                     <Key className="w-4 h-4" />
                   </span>
                   <input
@@ -654,7 +654,7 @@ export default function TherapistManager({
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder={language === 'ko' ? '비밀번호 설정' : 'Configure password'}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-9 pr-3.5 py-3 text-sm text-slate-100 placeholder-slate-660 focus:outline-none focus:border-indigo-500/80 transition-colors"
+                    className="w-full bg-white border border-stone-200 rounded-xl pl-9 pr-3.5 py-3 text-sm text-stone-800 placeholder-stone-400 focus:outline-none focus:border-emerald-500/80 transition-colors"
                   />
                 </div>
               </div>
@@ -667,14 +667,14 @@ export default function TherapistManager({
                     setErrorMsg(null)
                     setSuccessMsg(null)
                   }}
-                  className="flex-1 bg-slate-950 border border-slate-800 rounded-xl py-3 text-xs font-bold text-slate-400 hover:text-slate-200 transition-all"
+                  className="flex-1 bg-stone-200 border border-stone-200 rounded-xl py-3 text-xs font-bold text-stone-600 hover:text-stone-800 transition-all"
                 >
                   {language === 'ko' ? '취소' : 'Cancel'}
                 </button>
                 <button
                   type="submit"
                   disabled={loading}
-                  className="flex-1 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white shadow-lg shadow-indigo-950/20 py-3 text-xs font-bold transition-all disabled:opacity-50"
+                  className="flex-1 rounded-xl bg-emerald-700 hover:bg-emerald-600 text-white shadow-sm py-3 text-xs font-bold transition-all disabled:opacity-50"
                 >
                   {loading ? (language === 'ko' ? '등록 중...' : 'Registering...') : t('therapist.add')}
                 </button>
@@ -686,52 +686,52 @@ export default function TherapistManager({
 
       {/* 마사지사 정보 수정 모달 */}
       {editingTherapist && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-          <div className="w-full max-w-md bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl p-6 relative">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-stone-900/30 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+          <div className="w-full max-w-md bg-stone-50 border border-stone-200 rounded-2xl shadow-2xl p-6 relative">
             <button
               onClick={() => setEditingTherapist(null)}
-              className="absolute top-4 right-4 p-2.5 rounded-xl text-slate-500 hover:text-slate-350 transition-colors"
+              className="absolute top-4 right-4 p-2.5 rounded-xl text-stone-500 hover:text-stone-700 transition-colors"
               aria-label="Close"
             >
               <X className="w-5 h-5" />
             </button>
 
-            <h3 className="text-base font-bold text-slate-200 mb-6 flex items-center gap-1.5">
-              <Edit className="w-4 h-4 text-indigo-400" /> {language === 'ko' ? '마사지사 정보 수정' : 'Edit Therapist Info'}
+            <h3 className="text-base font-bold text-stone-800 mb-6 flex items-center gap-1.5">
+              <Edit className="w-4 h-4 text-emerald-700" /> {language === 'ko' ? '마사지사 정보 수정' : 'Edit Therapist Info'}
             </h3>
 
             <form onSubmit={handleUpdateTherapist} className="space-y-4">
               <div>
-                <label className="block text-xs font-semibold text-slate-400 mb-1.5">{t('employee.name')}</label>
+                <label className="block text-xs font-semibold text-stone-600 mb-1.5">{t('employee.name')}</label>
                 <input
                   type="text"
                   required
                   value={editName}
                   onChange={(e) => setEditName(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-3 text-sm text-slate-100 focus:outline-none focus:border-indigo-500/80 transition-colors"
+                  className="w-full bg-white border border-stone-200 rounded-xl px-3.5 py-3 text-sm text-stone-800 focus:outline-none focus:border-emerald-500/80 transition-colors"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-400 mb-1.5">{t('therapist.email')}</label>
+                <label className="block text-xs font-semibold text-stone-600 mb-1.5">{t('therapist.email')}</label>
                 <input
                   type="email"
                   value={editEmail}
                   onChange={(e) => setEditEmail(e.target.value)}
                   placeholder={language === 'ko' ? '예: therapist1@jjimjil.com' : 'e.g. therapist1@spa.com'}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-3 text-sm text-slate-100 focus:outline-none focus:border-indigo-500/80 transition-colors"
+                  className="w-full bg-white border border-stone-200 rounded-xl px-3.5 py-3 text-sm text-stone-800 focus:outline-none focus:border-emerald-500/80 transition-colors"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-400 mb-1.5">{t('therapist.phone')}</label>
+                <label className="block text-xs font-semibold text-stone-600 mb-1.5">{t('therapist.phone')}</label>
                 <input
                   type="text"
                   value={editPhone}
                   onChange={(e) => setEditPhone(formatUSPhone(e.target.value))}
                   placeholder={language === 'ko' ? '예: 123-456-7890' : 'e.g. 123-456-7890'}
                   maxLength={12}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-3 text-sm text-slate-100 focus:outline-none focus:border-indigo-500/80 transition-colors"
+                  className="w-full bg-white border border-stone-200 rounded-xl px-3.5 py-3 text-sm text-stone-855 focus:outline-none focus:border-emerald-500/80 transition-colors"
                 />
               </div>
 
@@ -739,14 +739,14 @@ export default function TherapistManager({
                 <button
                   type="button"
                   onClick={() => setEditingTherapist(null)}
-                  className="flex-1 bg-slate-950 border border-slate-800 rounded-xl py-3 text-xs font-bold text-slate-400 hover:text-slate-200 transition-all"
+                  className="flex-1 bg-stone-200 border border-stone-200 rounded-xl py-3 text-xs font-bold text-stone-600 hover:text-stone-800 transition-all"
                 >
                   {language === 'ko' ? '취소' : 'Cancel'}
                 </button>
                 <button
                   type="submit"
                   disabled={loading}
-                  className="flex-1 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white shadow-lg shadow-indigo-950/20 py-3 text-xs font-bold transition-all disabled:opacity-50"
+                  className="flex-1 rounded-xl bg-emerald-700 hover:bg-emerald-600 text-white shadow-sm py-3 text-xs font-bold transition-all disabled:opacity-50"
                 >
                   {loading ? (language === 'ko' ? '수정 중...' : 'Saving...') : t('therapist.save')}
                 </button>

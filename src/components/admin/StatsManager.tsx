@@ -263,17 +263,17 @@ export default function StatsManager({ supabase, currentUserId }: StatsManagerPr
   return (
     <div className="space-y-6">
       {/* 기간 선택 컨트롤러 */}
-      <div className="flex flex-col md:flex-row gap-4 items-center justify-between bg-slate-900/40 p-4 rounded-xl border border-slate-800 backdrop-blur-md">
+      <div className="flex flex-col md:flex-row gap-4 items-center justify-between bg-stone-100/40 p-4 rounded-xl border border-stone-200 backdrop-blur-md">
         {/* 단위 선택 */}
-        <div className="flex bg-slate-950 border border-slate-800 rounded-xl p-0.5 shadow-inner">
+        <div className="flex bg-stone-200/50 border border-stone-200 rounded-xl p-0.5 shadow-inner">
           {(['daily', 'weekly', 'monthly'] as const).map(type => (
             <button
               key={type}
               onClick={() => setPeriodType(type)}
               className={`text-xs font-bold px-4 py-2 rounded-lg transition-all capitalize ${
                 periodType === type
-                  ? 'bg-slate-900 text-indigo-400 border border-slate-850 shadow'
-                  : 'bg-transparent text-slate-500 hover:text-slate-350'
+                  ? 'bg-white text-emerald-700 border border-stone-300/80 shadow-sm'
+                  : 'bg-transparent text-stone-500 hover:text-stone-700'
               }`}
             >
               {type === 'daily' ? t('stats.period.daily') : type === 'weekly' ? t('stats.period.weekly') : t('stats.period.monthly')}
@@ -285,14 +285,14 @@ export default function StatsManager({ supabase, currentUserId }: StatsManagerPr
         <div className="flex items-center gap-3">
           <button
             onClick={handlePrevPeriod}
-            className="p-2 rounded-xl bg-slate-950 border border-slate-850 hover:bg-slate-900 text-slate-400 hover:text-slate-200 transition-colors"
+            className="p-2 rounded-xl bg-white border border-stone-200 hover:bg-stone-50 text-stone-600 hover:text-stone-800 transition-colors"
           >
             <ChevronLeft className="w-4 h-4" />
           </button>
           
-          <div className="flex items-center gap-2 bg-slate-950 border border-slate-850 rounded-xl px-4 py-2 min-w-[180px] justify-center relative group">
-            <CalendarIcon className="w-4 h-4 text-indigo-400" />
-            <span className="text-xs font-bold text-slate-200 font-mono">{getPeriodLabel()}</span>
+          <div className="flex items-center gap-2 bg-white border border-stone-200 rounded-xl px-4 py-2 min-w-[180px] justify-center relative group">
+            <CalendarIcon className="w-4 h-4 text-emerald-700" />
+            <span className="text-xs font-bold text-stone-800 font-mono">{getPeriodLabel()}</span>
             <input
               type="date"
               value={selectedDate}
@@ -304,7 +304,7 @@ export default function StatsManager({ supabase, currentUserId }: StatsManagerPr
 
           <button
             onClick={handleNextPeriod}
-            className="p-2 rounded-xl bg-slate-950 border border-slate-850 hover:bg-slate-900 text-slate-400 hover:text-slate-200 transition-colors"
+            className="p-2 rounded-xl bg-white border border-stone-200 hover:bg-stone-50 text-stone-600 hover:text-stone-800 transition-colors"
           >
             <ChevronRight className="w-4 h-4" />
           </button>
@@ -312,67 +312,67 @@ export default function StatsManager({ supabase, currentUserId }: StatsManagerPr
       </div>
 
       {loading ? (
-        <div className="h-96 flex items-center justify-center border border-slate-900 bg-slate-900/10 rounded-2xl">
-          <span className="text-xs text-slate-400 animate-pulse font-medium">{t('stats.loading')}</span>
+        <div className="h-96 flex items-center justify-center border border-stone-200 bg-stone-100/20 rounded-2xl">
+          <span className="text-xs text-stone-500 animate-pulse font-medium">{t('stats.loading')}</span>
         </div>
       ) : (
         <>
           {/* KPI 요약 메트릭 그리드 */}
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
             {/* 총 확정 예약 건수 */}
-            <div className="rounded-xl border border-slate-800 bg-slate-900/40 p-5 flex items-center justify-between shadow-lg shadow-slate-950/20">
+            <div className="rounded-xl border border-stone-200 bg-stone-50 p-5 flex items-center justify-between shadow-sm">
               <div className="space-y-1">
-                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">{t('stats.kpi.total_bookings')}</span>
-                <span className="text-2xl font-black text-slate-100 font-mono tracking-tight">
+                <span className="text-[10px] font-bold text-stone-500 uppercase tracking-wider block">{t('stats.kpi.total_bookings')}</span>
+                <span className="text-2xl font-black text-stone-800 font-mono tracking-tight">
                   {totalBookings}{language === 'ko' ? '건' : ''}
                 </span>
-                <span className="text-[9px] text-slate-500 block">
+                <span className="text-[9px] text-stone-500 block">
                   {t('stats.kpi.cancelled_label')
                     .replace('{count}', cancelledRes.length.toString())
                     .replace('{rate}', cancellationRate.toString())}
                 </span>
               </div>
-              <div className="w-10 h-10 rounded-lg bg-indigo-500/10 border border-indigo-500/20 flex items-center justify-center text-indigo-400 shadow-inner">
+              <div className="w-10 h-10 rounded-lg bg-emerald-50 border border-emerald-200 flex items-center justify-center text-emerald-700 shadow-inner">
                 <BarChart3 className="w-5 h-5" />
               </div>
             </div>
 
             {/* 총 매출액 */}
-            <div className="rounded-xl border border-slate-800 bg-slate-900/40 p-5 flex items-center justify-between shadow-lg shadow-slate-950/20">
+            <div className="rounded-xl border border-stone-200 bg-stone-50 p-5 flex items-center justify-between shadow-sm">
               <div className="space-y-1">
-                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">{t('stats.kpi.total_revenue')}</span>
-                <span className="text-2xl font-black text-indigo-400 font-mono tracking-tight">
+                <span className="text-[10px] font-bold text-stone-500 uppercase tracking-wider block">{t('stats.kpi.total_revenue')}</span>
+                <span className="text-2xl font-black text-emerald-700 font-mono tracking-tight">
                   ${totalRevenue.toLocaleString()}
                 </span>
-                <span className="text-[9px] text-slate-500 block">{t('stats.kpi.revenue_label')}</span>
+                <span className="text-[9px] text-stone-500 block">{t('stats.kpi.revenue_label')}</span>
               </div>
-              <div className="w-10 h-10 rounded-lg bg-emerald-500/10 border border-emerald-500/20 flex items-center justify-center text-emerald-400 shadow-inner">
+              <div className="w-10 h-10 rounded-lg bg-emerald-50 border border-emerald-200 flex items-center justify-center text-emerald-700 shadow-inner">
                 <DollarSign className="w-5 h-5" />
               </div>
             </div>
 
             {/* 고급 코스 점유율 */}
-            <div className="rounded-xl border border-slate-800 bg-slate-900/40 p-5 flex items-center justify-between shadow-lg shadow-slate-950/20">
+            <div className="rounded-xl border border-stone-200 bg-stone-50 p-5 flex items-center justify-between shadow-sm">
               <div className="space-y-1">
-                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">{t('stats.kpi.premium_ratio')}</span>
-                <span className="text-2xl font-black text-amber-500 font-mono tracking-tight">{premiumRatio}%</span>
-                <span className="text-[9px] text-slate-500 block">
+                <span className="text-[10px] font-bold text-stone-500 uppercase tracking-wider block">{t('stats.kpi.premium_ratio')}</span>
+                <span className="text-2xl font-black text-amber-700 font-mono tracking-tight">{premiumRatio}%</span>
+                <span className="text-[9px] text-stone-500 block">
                   {t('stats.kpi.premium_label').replace('{count}', premiumBookings.toString())}
                 </span>
               </div>
-              <div className="w-10 h-10 rounded-lg bg-amber-500/10 border border-amber-500/20 flex items-center justify-center text-amber-500 shadow-inner">
+              <div className="w-10 h-10 rounded-lg bg-amber-50 border border-amber-200 flex items-center justify-center text-amber-700 shadow-inner">
                 <PieChart className="w-5 h-5" />
               </div>
             </div>
 
             {/* 최다 예약 마사지사 */}
-            <div className="rounded-xl border border-slate-800 bg-slate-900/40 p-5 flex items-center justify-between shadow-lg shadow-slate-950/20">
+            <div className="rounded-xl border border-stone-200 bg-stone-50 p-5 flex items-center justify-between shadow-sm">
               <div className="space-y-1">
-                <span className="text-[10px] font-bold text-slate-500 uppercase tracking-wider block">{t('stats.kpi.top_therapist')}</span>
-                <span className="text-2xl font-black text-slate-100 tracking-tight">
+                <span className="text-[10px] font-bold text-stone-500 uppercase tracking-wider block">{t('stats.kpi.top_therapist')}</span>
+                <span className="text-2xl font-black text-stone-800 tracking-tight">
                   {topTherapist && topTherapist.count > 0 ? `${topTherapist.name}` : t('stats.kpi.none')}
                 </span>
-                <span className="text-[9px] text-slate-500 block">
+                <span className="text-[9px] text-stone-500 block">
                   {topTherapist && topTherapist.count > 0 
                     ? t('stats.kpi.top_therapist_label')
                         .replace('{count}', topTherapist.count.toString())
@@ -380,7 +380,7 @@ export default function StatsManager({ supabase, currentUserId }: StatsManagerPr
                     : t('stats.kpi.no_data')}
                 </span>
               </div>
-              <div className="w-10 h-10 rounded-lg bg-yellow-500/10 border border-yellow-500/20 flex items-center justify-center text-yellow-400 shadow-inner">
+              <div className="w-10 h-10 rounded-lg bg-amber-50 border border-amber-200 flex items-center justify-center text-amber-700 shadow-inner">
                 <Trophy className="w-5 h-5 animate-pulse" />
               </div>
             </div>
@@ -390,21 +390,21 @@ export default function StatsManager({ supabase, currentUserId }: StatsManagerPr
           <div className="grid grid-cols-1 lg:grid-cols-12 gap-6">
             
             {/* 1. 마사지사별 예약/매출 비교 가로 막대 차트 (7열) */}
-            <div className="lg:col-span-7 rounded-xl border border-slate-800 bg-slate-900/40 p-5 space-y-4">
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-800/80 pb-3">
+            <div className="lg:col-span-7 rounded-xl border border-stone-200 bg-stone-100/40 p-5 space-y-4">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-stone-200 pb-3">
                 <div className="flex items-center gap-2">
-                  <PieChart className="w-4 h-4 text-indigo-400" />
-                  <h3 className="text-xs font-bold text-slate-300">{t('stats.chart.ranking_title')}</h3>
+                  <PieChart className="w-4 h-4 text-emerald-700" />
+                  <h3 className="text-xs font-bold text-stone-700">{t('stats.chart.ranking_title')}</h3>
                 </div>
                 
                 {/* 정렬 메트릭 토글 */}
-                <div className="flex bg-slate-950 border border-slate-850 rounded-lg p-0.5">
+                <div className="flex bg-stone-200/50 border border-stone-200 rounded-lg p-0.5">
                   <button
                     onClick={() => setActiveMetric('count')}
                     className={`text-[10px] font-bold px-2.5 py-1 rounded transition-all ${
                       activeMetric === 'count'
-                        ? 'bg-slate-900 text-indigo-400 shadow-[0_1px_3px_rgba(0,0,0,0.4)]'
-                        : 'bg-transparent text-slate-500 hover:text-slate-400'
+                        ? 'bg-white text-emerald-700 shadow-sm'
+                        : 'bg-transparent text-stone-500 hover:text-stone-850'
                     }`}
                   >
                     {t('stats.chart.sort.count')}
@@ -413,8 +413,8 @@ export default function StatsManager({ supabase, currentUserId }: StatsManagerPr
                     onClick={() => setActiveMetric('revenue')}
                     className={`text-[10px] font-bold px-2.5 py-1 rounded transition-all ${
                       activeMetric === 'revenue'
-                        ? 'bg-slate-900 text-indigo-400 shadow-[0_1px_3px_rgba(0,0,0,0.4)]'
-                        : 'bg-transparent text-slate-500 hover:text-slate-400'
+                        ? 'bg-white text-emerald-700 shadow-sm'
+                        : 'bg-transparent text-stone-500 hover:text-stone-850'
                     }`}
                   >
                     {t('stats.chart.sort.revenue')}
@@ -438,49 +438,49 @@ export default function StatsManager({ supabase, currentUserId }: StatsManagerPr
                       key={item.id} 
                       className={`p-3 rounded-lg border transition-all ${
                         isTop 
-                          ? 'bg-amber-500/5 border-amber-500/30' 
-                          : 'bg-slate-950/20 border-slate-850 hover:border-slate-800'
+                          ? 'bg-amber-50 border-amber-200' 
+                          : 'bg-white border-stone-200 hover:border-stone-300'
                       }`}
                     >
                       <div className="flex items-center justify-between text-xs mb-1.5">
                         <div className="flex items-center gap-2">
                           <span className={`w-4 h-4 rounded flex items-center justify-center text-[10px] font-bold ${
                             index === 0 
-                              ? 'bg-amber-500 text-slate-950 font-black' 
+                              ? 'bg-amber-100 text-amber-800 font-bold border border-amber-200' 
                               : index === 1 
-                              ? 'bg-slate-400 text-slate-950' 
+                              ? 'bg-stone-200 text-stone-700 border border-stone-300' 
                               : index === 2 
-                              ? 'bg-amber-700/50 text-amber-200' 
-                              : 'bg-slate-900 text-slate-500'
+                              ? 'bg-amber-50 text-amber-700 border border-amber-100' 
+                              : 'bg-stone-100 text-stone-500'
                           }`}>
                             {index + 1}
                           </span>
-                          <span className="font-bold text-slate-200">{item.name}</span>
+                          <span className="font-bold text-stone-800">{item.name}</span>
                           {!item.isActive && (
-                            <span className="text-[9px] bg-slate-900 text-slate-500 px-1 py-0.2 rounded">{t('stats.chart.off_duty')}</span>
+                            <span className="text-[9px] bg-stone-200 text-stone-500 px-1 py-0.2 rounded">{t('stats.chart.off_duty')}</span>
                           )}
                           {item.isPremiumTarget && (
-                            <span className="text-[9px] bg-amber-500/10 text-amber-500 border border-amber-500/20 px-1 py-0.2 rounded font-semibold">{t('stats.chart.premium_role')}</span>
+                            <span className="text-[9px] bg-amber-50 text-amber-700 border border-amber-200 px-1 py-0.2 rounded font-semibold">{t('stats.chart.premium_role')}</span>
                           )}
                         </div>
-                        <div className="text-right font-mono text-[11px] font-semibold text-slate-300">
-                          <span className={activeMetric === 'count' ? 'text-indigo-400 font-extrabold' : 'text-slate-400'}>
+                        <div className="text-right font-mono text-[11px] font-semibold text-stone-700">
+                          <span className={activeMetric === 'count' ? 'text-emerald-700 font-extrabold' : 'text-stone-500'}>
                             {item.count}{language === 'ko' ? '건' : ''}
                           </span>
-                          <span className="mx-1.5 text-slate-700">|</span>
-                          <span className={activeMetric === 'revenue' ? 'text-emerald-400 font-extrabold' : 'text-slate-400'}>
+                          <span className="mx-1.5 text-stone-300">|</span>
+                          <span className={activeMetric === 'revenue' ? 'text-emerald-700 font-extrabold' : 'text-stone-500'}>
                             ${item.revenue.toLocaleString()}
                           </span>
                         </div>
                       </div>
 
                       {/* 커스텀 그래프 막대 */}
-                      <div className="w-full h-2 rounded-full bg-slate-950/80 overflow-hidden relative border border-slate-900">
+                      <div className="w-full h-2 rounded-full bg-stone-200 overflow-hidden relative border border-stone-300">
                         <div 
                           className={`h-full rounded-full transition-all duration-500 ${
                             isTop 
-                              ? 'bg-gradient-to-r from-amber-500 to-yellow-400' 
-                              : 'bg-gradient-to-r from-indigo-600 to-purple-500'
+                              ? 'bg-gradient-to-r from-amber-600 to-amber-400' 
+                              : 'bg-gradient-to-r from-emerald-600 to-emerald-500'
                           }`}
                           style={{ width: `${activeMetric === 'count' ? countPercent : revenuePercent}%` }}
                         />
@@ -492,17 +492,17 @@ export default function StatsManager({ supabase, currentUserId }: StatsManagerPr
             </div>
 
             {/* 2. 기간 내 시간/요일/일별 세로 막대 트렌드 차트 (5열) */}
-            <div className="lg:col-span-5 rounded-xl border border-slate-800 bg-slate-900/40 p-5 flex flex-col justify-between space-y-4">
-              <div className="border-b border-slate-800/80 pb-3 flex items-center justify-between">
+            <div className="lg:col-span-5 rounded-xl border border-stone-200 bg-stone-100/40 p-5 flex flex-col justify-between space-y-4">
+              <div className="border-b border-stone-200 pb-3 flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <TrendingUp className="w-4 h-4 text-indigo-400" />
-                  <h3 className="text-xs font-bold text-slate-300">
+                  <TrendingUp className="w-4 h-4 text-emerald-700" />
+                  <h3 className="text-xs font-bold text-stone-700">
                     {t('stats.chart.trend_title')
                       .replace('{period}', periodType === 'daily' ? t('stats.chart.trend.hour') : periodType === 'weekly' ? t('stats.chart.trend.day') : t('stats.chart.trend.date'))}
                   </h3>
                 </div>
                 
-                <span className="text-[10px] text-slate-500 font-medium">
+                <span className="text-[10px] text-stone-500 font-medium">
                   {t('stats.chart.trend.unit')}
                 </span>
               </div>
@@ -511,9 +511,9 @@ export default function StatsManager({ supabase, currentUserId }: StatsManagerPr
               <div className="flex-1 min-h-[260px] flex items-end justify-between gap-1.5 pt-6 pb-2 px-1 relative">
                 {/* 배경 가이드 라인 (3단) */}
                 <div className="absolute inset-x-0 top-6 bottom-8 flex flex-col justify-between pointer-events-none">
-                  <div className="border-t border-slate-800/50 w-full" />
-                  <div className="border-t border-slate-800/50 w-full" />
-                  <div className="border-t border-slate-800/50 w-full" />
+                  <div className="border-t border-stone-200 w-full" />
+                  <div className="border-t border-stone-200 w-full" />
+                  <div className="border-t border-stone-200 w-full" />
                 </div>
 
                 {trendStats.map((slot, index) => {
@@ -525,24 +525,24 @@ export default function StatsManager({ supabase, currentUserId }: StatsManagerPr
                       className="flex-1 flex flex-col items-center justify-end h-full relative group cursor-pointer"
                     >
                       {/* Hover 시 툴팁 말풍선 */}
-                      <div className="absolute bottom-full mb-2 bg-slate-950 border border-slate-800 text-[10px] text-slate-200 px-2 py-1 rounded shadow-lg opacity-0 pointer-events-none group-hover:opacity-100 transition-opacity z-10 whitespace-nowrap text-center">
-                        <p className="font-bold text-indigo-400">{slot.label}</p>
-                        <p className="font-mono text-slate-300">{t('stats.chart.trend.confirmed').replace('{count}', slot.count.toString())}</p>
-                        <p className="font-mono text-emerald-400">${slot.revenue.toLocaleString()}</p>
+                      <div className="absolute bottom-full mb-2 bg-white border border-stone-200 text-[10px] text-stone-700 px-2 py-1 rounded shadow-lg opacity-0 pointer-events-none group-hover:opacity-100 transition-opacity z-10 whitespace-nowrap text-center">
+                        <p className="font-bold text-emerald-700">{slot.label}</p>
+                        <p className="font-mono text-stone-700">{t('stats.chart.trend.confirmed').replace('{count}', slot.count.toString())}</p>
+                        <p className="font-mono text-amber-700">${slot.revenue.toLocaleString()}</p>
                       </div>
 
                       {/* 세로 막대 기둥 */}
                       <div 
                         className={`w-full rounded-t transition-all duration-300 ${
                           slot.count > 0 
-                            ? 'bg-gradient-to-t from-indigo-600 via-indigo-500 to-indigo-400 group-hover:from-indigo-500 group-hover:to-indigo-300 shadow-[0_0_8px_rgba(99,102,241,0.2)]' 
-                            : 'bg-slate-950/20 border border-slate-900'
+                            ? 'bg-gradient-to-t from-emerald-700 via-emerald-600 to-emerald-500 group-hover:from-emerald-600 group-hover:to-emerald-400 shadow-sm' 
+                            : 'bg-stone-200/50 border border-stone-300'
                         }`}
                         style={{ height: slot.count > 0 ? `${heightPercent + 5}%` : '4%' }}
                       />
                       
                       {/* X축 레이블 */}
-                      <span className="text-[9px] text-slate-500 font-mono mt-2 scale-90 origin-top whitespace-nowrap block">
+                      <span className="text-[9px] text-stone-500 font-mono mt-2 scale-90 origin-top whitespace-nowrap block">
                         {periodType === 'monthly' && Number(slot.label.replace('일', '')) % 5 !== 1 && Number(slot.label.replace('일', '')) !== trendStats.length
                           ? '' // 월간 뷰일 때는 5일 간격으로 X축 텍스트 출력하여 가독성 확보
                           : slot.label}
@@ -553,8 +553,8 @@ export default function StatsManager({ supabase, currentUserId }: StatsManagerPr
               </div>
 
               {/* 차트 추가 요약 */}
-              <div className="bg-slate-950/40 rounded-lg border border-slate-850 p-3 flex items-center gap-2.5 text-[11px] text-slate-400">
-                <Info className="w-4 h-4 text-indigo-400 flex-shrink-0" />
+              <div className="bg-white rounded-lg border border-stone-200 p-3 flex items-center gap-2.5 text-[11px] text-stone-600">
+                <Info className="w-4 h-4 text-emerald-700 flex-shrink-0" />
                 <p className="leading-relaxed">
                   {periodType === 'daily' 
                     ? t('stats.chart.trend.daily_desc') 
@@ -569,11 +569,11 @@ export default function StatsManager({ supabase, currentUserId }: StatsManagerPr
 
           {/* 3. 취소 내역 분석용 관리 알림 (전체 보기 데이터 기반) */}
           {cancelledRes.length > 0 && (
-            <div className="rounded-xl border border-rose-500/10 bg-rose-500/5 p-4 flex items-start gap-3">
-              <ShieldAlert className="w-5 h-5 text-rose-400 flex-shrink-0 mt-0.5 animate-pulse" />
+            <div className="rounded-xl border border-rose-200 bg-rose-50 p-4 flex items-start gap-3">
+              <ShieldAlert className="w-5 h-5 text-rose-700 flex-shrink-0 mt-0.5 animate-pulse" />
               <div className="space-y-1">
-                <h4 className="text-xs font-bold text-rose-400">{t('stats.warning.cancellation_title')}</h4>
-                <p className="text-[11px] text-slate-400 leading-relaxed">
+                <h4 className="text-xs font-bold text-rose-700">{t('stats.warning.cancellation_title')}</h4>
+                <p className="text-[11px] text-stone-600 leading-relaxed">
                   {t('stats.warning.cancellation_desc')
                     .replace('{count}', cancelledRes.length.toString())
                     .replace('{loss}', cancelledRes.reduce((sum, r) => sum + Number(r.price), 0).toLocaleString())}

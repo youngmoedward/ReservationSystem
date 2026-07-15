@@ -207,16 +207,16 @@ export default function HistoryManager({ supabase }: HistoryManagerProps) {
   }
 
   return (
-    <div className="rounded-2xl border border-slate-800 bg-slate-900/40 p-5 space-y-4">
+    <div className="rounded-2xl border border-stone-200 bg-stone-100/40 p-5 space-y-4">
       {/* 헤더 및 새로고침 */}
-      <div className="flex items-center justify-between border-b border-slate-800 pb-3">
-        <h3 className="text-sm font-bold tracking-tight text-slate-200 flex items-center gap-1.5 uppercase">
-          <History className="w-4 h-4 text-indigo-500" /> {t('history.title_admin')}
+      <div className="flex items-center justify-between border-b border-stone-200 pb-3">
+        <h3 className="text-sm font-bold tracking-tight text-stone-800 flex items-center gap-1.5 uppercase">
+          <History className="w-4 h-4 text-emerald-700" /> {t('history.title_admin')}
         </h3>
         <button
           onClick={fetchLogs}
           disabled={loading}
-          className="inline-flex items-center justify-center p-1.5 rounded-lg bg-slate-800 hover:bg-slate-750 text-slate-400 hover:text-slate-100 transition-all text-xs gap-1"
+          className="inline-flex items-center justify-center p-1.5 rounded-lg bg-stone-200 hover:bg-stone-300 text-stone-600 hover:text-stone-800 transition-all text-xs gap-1"
           title={t('history.refresh')}
         >
           <RefreshCw className={`w-3.5 h-3.5 ${loading ? 'animate-spin' : ''}`} />
@@ -225,16 +225,16 @@ export default function HistoryManager({ supabase }: HistoryManagerProps) {
       </div>
 
       {/* 필터 제어 영역 */}
-      <div className="flex flex-col sm:flex-row items-center gap-3 bg-slate-950/30 border border-slate-850 p-4 rounded-xl text-xs">
+      <div className="flex flex-col sm:flex-row items-center gap-3 bg-stone-100/50 border border-stone-200 p-4 rounded-xl text-xs">
         {/* 이력 종류 필터 */}
         <div className="flex items-center gap-2 w-full sm:w-auto">
-          <span className="text-slate-400 font-semibold flex items-center gap-1">
-            <Filter className="w-3.5 h-3.5 text-slate-500" /> {t('history.filter.type')}
+          <span className="text-stone-500 font-semibold flex items-center gap-1">
+            <Filter className="w-3.5 h-3.5 text-stone-500" /> {t('history.filter.type')}
           </span>
           <select
             value={logTypeFilter}
             onChange={(e) => setLogTypeFilter(e.target.value)}
-            className="bg-slate-950 border border-slate-800 rounded-xl px-3 py-2 text-slate-200 focus:outline-none focus:border-indigo-500 font-medium w-full sm:w-44"
+            className="bg-white border border-stone-200 rounded-xl px-3 py-2 text-stone-800 focus:outline-none focus:border-emerald-500/80 font-medium w-full sm:w-44"
           >
             <option value="all">{t('history.filter.all')}</option>
             <option value="reservation">{t('history.filter.reservation')}</option>
@@ -246,11 +246,11 @@ export default function HistoryManager({ supabase }: HistoryManagerProps) {
 
         {/* 날짜 범위 필터 */}
         <div className="flex items-center gap-2 w-full sm:w-auto sm:ml-auto">
-          <span className="text-slate-400 font-semibold flex items-center gap-1">
-            <Calendar className="w-3.5 h-3.5 text-slate-550" /> {t('history.filter.period')}
+          <span className="text-stone-500 font-semibold flex items-center gap-1">
+            <Calendar className="w-3.5 h-3.5 text-stone-400" /> {t('history.filter.period')}
           </span>
           <div className="flex items-center gap-1.5 w-full sm:w-auto">
-            <div className="relative flex items-center gap-1.5 bg-slate-950 border border-slate-800 hover:border-slate-700 rounded-xl px-3 py-1.5 transition-colors focus-within:border-indigo-500 cursor-pointer w-full sm:w-36 min-h-[32px]">
+            <div className="relative flex items-center gap-1.5 bg-white border border-stone-200 hover:border-stone-300 rounded-xl px-3 py-1.5 transition-colors focus-within:border-emerald-500/80 cursor-pointer w-full sm:w-36 min-h-[32px]">
               <input
                 type="date"
                 value={fromDateFilter}
@@ -258,10 +258,10 @@ export default function HistoryManager({ supabase }: HistoryManagerProps) {
                 onClick={(e) => e.currentTarget.showPicker?.()}
                 className="absolute inset-0 w-full h-full opacity-0 z-10 cursor-pointer"
               />
-              <span className="text-slate-200 text-xs font-semibold">{fromDateFilter ? toUIDateString(fromDateFilter) : ''}</span>
+              <span className="text-stone-800 text-xs font-semibold">{fromDateFilter ? toUIDateString(fromDateFilter) : ''}</span>
             </div>
-            <span className="text-slate-600">~</span>
-            <div className="relative flex items-center gap-1.5 bg-slate-950 border border-slate-800 hover:border-slate-700 rounded-xl px-3 py-1.5 transition-colors focus-within:border-indigo-500 cursor-pointer w-full sm:w-36 min-h-[32px]">
+            <span className="text-stone-400">~</span>
+            <div className="relative flex items-center gap-1.5 bg-white border border-stone-200 hover:border-stone-300 rounded-xl px-3 py-1.5 transition-colors focus-within:border-emerald-500/80 cursor-pointer w-full sm:w-36 min-h-[32px]">
               <input
                 type="date"
                 value={toDateFilter}
@@ -269,16 +269,16 @@ export default function HistoryManager({ supabase }: HistoryManagerProps) {
                 onClick={(e) => e.currentTarget.showPicker?.()}
                 className="absolute inset-0 w-full h-full opacity-0 z-10 cursor-pointer"
               />
-              <span className="text-slate-200 text-xs font-semibold">{toDateFilter ? toUIDateString(toDateFilter) : ''}</span>
+              <span className="text-stone-800 text-xs font-semibold">{toDateFilter ? toUIDateString(toDateFilter) : ''}</span>
             </div>
           </div>
         </div>
       </div>
 
       {errorMsg && (
-        <div className="p-3 text-xs rounded-lg bg-rose-500/10 text-rose-400 border border-rose-500/20">
+        <div className="p-3 text-xs rounded-lg bg-rose-50 text-rose-700 border border-rose-200">
           ⚠️ {errorMsg}
-          <p className="mt-1 text-[10px] text-slate-500">
+          <p className="mt-1 text-[10px] text-stone-400">
             {language === 'ko' 
               ? '* 데이터베이스에 테이블 컬럼(log_type 등)이 정상 생성되어 있는지 확인해 주세요.' 
               : '* Please make sure the database table column (log_type etc.) is properly created.'}
@@ -287,20 +287,20 @@ export default function HistoryManager({ supabase }: HistoryManagerProps) {
       )}
 
       {loading ? (
-        <div className="py-16 text-center text-xs text-slate-500 animate-pulse font-medium">
+        <div className="py-16 text-center text-xs text-stone-400 animate-pulse font-medium">
           {t('history.loading')}
         </div>
       ) : logs.length === 0 ? (
-        <div className="rounded-xl border border-slate-800/60 bg-slate-950/20 py-16 text-center">
-          <ShieldAlert className="w-9 h-9 text-slate-700 mx-auto mb-2.5" />
-          <p className="text-xs text-slate-400">{t('history.no_records')}</p>
+        <div className="rounded-xl border border-stone-200 bg-stone-50 py-16 text-center">
+          <ShieldAlert className="w-9 h-9 text-stone-300 mx-auto mb-2.5" />
+          <p className="text-xs text-stone-500">{t('history.no_records')}</p>
         </div>
       ) : (
         <div className="space-y-4">
-          <div className="overflow-x-auto rounded-xl border border-slate-800/80 bg-slate-950/30 shadow-inner">
+          <div className="overflow-x-auto rounded-xl border border-stone-200 bg-stone-50 shadow-inner font-sans">
             <table className="w-full text-left text-xs border-collapse">
               <thead>
-                <tr className="border-b border-slate-800 bg-slate-950/60 text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+                <tr className="border-b border-stone-200 bg-stone-100 text-[10px] font-bold text-stone-600 uppercase tracking-wider">
                   <th className="p-4 w-40">{t('history.table.time')}</th>
                   <th className="p-4 w-28 text-center">{t('history.table.type')}</th>
                   <th className="p-4 w-28 text-center">{t('history.table.action')}</th>
@@ -309,32 +309,32 @@ export default function HistoryManager({ supabase }: HistoryManagerProps) {
                   <th className="p-4">{t('history.table.details')}</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-850/60 text-slate-300">
+              <tbody className="divide-y divide-stone-200 text-stone-700">
                 {logs.map((log) => {
                   // 이력 종류별 뱃지
                   const logTypeLabels = {
-                    reservation: { text: t('history.type.reservation'), class: 'bg-indigo-500/10 text-indigo-400 border-indigo-500/15' },
-                    schedule: { text: t('history.type.schedule'), class: 'bg-amber-500/10 text-amber-400 border-amber-500/15' },
-                    therapist: { text: t('history.type.therapist'), class: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/15' },
-                    employee: { text: t('history.type.employee'), class: 'bg-teal-500/10 text-teal-400 border-teal-500/15' }
+                    reservation: { text: t('history.type.reservation'), class: 'bg-emerald-50 text-emerald-700 border border-emerald-200 font-bold' },
+                    schedule: { text: t('history.type.schedule'), class: 'bg-amber-50 text-amber-700 border border-amber-200 font-bold' },
+                    therapist: { text: t('history.type.therapist'), class: 'bg-stone-100 text-stone-700 border border-stone-300 font-bold' },
+                    employee: { text: t('history.type.employee'), class: 'bg-stone-200 text-stone-600 border border-stone-300 font-bold' }
                   }
 
                   // 액션 뱃지
                   const actionLabels: Record<string, { text: string; class: string }> = {
-                    create: { text: t('history.action.create'), class: 'bg-emerald-500/10 text-emerald-400 border-emerald-500/20' },
-                    update: { text: t('history.action.update'), class: 'bg-blue-500/10 text-blue-450 border-blue-500/20' },
-                    delete: { text: t('history.action.delete'), class: 'bg-slate-800 text-slate-400 border-slate-750' },
-                    cancel: { text: t('history.action.cancel'), class: 'bg-rose-500/10 text-rose-450 border-rose-500/20' }
+                    create: { text: t('history.action.create'), class: 'bg-emerald-50 text-emerald-700 border border-emerald-200 font-bold' },
+                    update: { text: t('history.action.update'), class: 'bg-blue-50 text-blue-700 border border-blue-200 font-bold' },
+                    delete: { text: t('history.action.delete'), class: 'bg-stone-200 text-stone-600 border border-stone-300 font-bold' },
+                    cancel: { text: t('history.action.cancel'), class: 'bg-rose-50 text-rose-700 border border-rose-200 font-bold' }
                   }
 
-                  const logTypeData = logTypeLabels[log.log_type] || { text: t('history.type.other'), class: 'bg-slate-800 text-slate-450 border-slate-750' }
-                  const actionData = actionLabels[log.action] || { text: log.action, class: 'bg-slate-800 text-slate-300 border-slate-750' }
+                  const logTypeData = logTypeLabels[log.log_type] || { text: t('history.type.other'), class: 'bg-stone-100 text-stone-500 border-stone-300' }
+                  const actionData = actionLabels[log.action] || { text: log.action, class: 'bg-stone-100 text-stone-700 border border-stone-300' }
 
                   const performerName = log.employee?.name || t('history.system')
 
                   return (
-                    <tr key={log.id} className="hover:bg-slate-900/10 transition-colors">
-                      <td className="p-3.5 font-mono text-slate-400 text-[11px]">
+                    <tr key={log.id} className="hover:bg-stone-100 transition-colors">
+                      <td className="p-3.5 font-mono text-stone-400 text-[11px]">
                         {formatDateTime(log.performed_at)}
                       </td>
                       <td className="p-3.5 text-center">
@@ -347,29 +347,29 @@ export default function HistoryManager({ supabase }: HistoryManagerProps) {
                           {actionData.text}
                         </span>
                       </td>
-                      <td className="p-3.5 font-semibold text-slate-200">
+                      <td className="p-3.5 font-semibold text-stone-800">
                         {performerName}
                       </td>
-                      <td className="p-3.5 text-slate-400">
+                      <td className="p-3.5 text-stone-500">
                         {log.log_type === 'reservation' ? (
                           log.reservations ? (
-                            <span className="font-semibold text-slate-350">
+                            <span className="font-semibold text-stone-600">
                               {log.reservations.customer_name} ({toUIDateString(new Date(log.reservations.start_time))})
                             </span>
                           ) : (
-                            <span className="text-slate-500 font-medium">{t('history.no_info')}</span>
+                            <span className="text-stone-400 font-medium">{t('history.no_info')}</span>
                           )
                         ) : log.log_type === 'schedule' ? (
-                          <span className="text-slate-500 font-medium">{t('history.target.schedule')}</span>
+                          <span className="text-stone-400 font-medium">{t('history.target.schedule')}</span>
                         ) : log.log_type === 'therapist' ? (
-                          <span className="text-slate-400 font-medium">{t('history.type.therapist')}</span>
+                          <span className="text-stone-400 font-medium">{t('history.type.therapist')}</span>
                         ) : log.log_type === 'employee' ? (
-                          <span className="text-slate-400 font-medium">{t('history.type.employee')}</span>
+                          <span className="text-stone-400 font-medium">{t('history.type.employee')}</span>
                         ) : (
-                          <span className="text-slate-500 font-medium">{t('history.type.other')}</span>
+                          <span className="text-stone-400 font-medium">{t('history.type.other')}</span>
                         )}
                       </td>
-                      <td className="p-3.5 text-slate-300 leading-relaxed font-medium">
+                      <td className="p-3.5 text-stone-700 leading-relaxed font-medium">
                         {renderDetailsText(log.details)}
                       </td>
                     </tr>
@@ -380,8 +380,8 @@ export default function HistoryManager({ supabase }: HistoryManagerProps) {
           </div>
 
           {/* 페이징 네비게이션 UI */}
-          <div className="flex items-center justify-between border-t border-slate-800/60 pt-4 px-1 text-xs">
-            <span className="text-slate-400">
+          <div className="flex items-center justify-between border-t border-stone-200 pt-4 px-1 text-xs font-sans">
+            <span className="text-stone-500">
               {t('history.pagination.page')
                 .replace('{current}', String(currentPage))
                 .replace('{total}', String(Math.ceil(totalCount / itemsPerPage) || 1))}
@@ -390,14 +390,14 @@ export default function HistoryManager({ supabase }: HistoryManagerProps) {
               <button
                 disabled={currentPage === 1 || loading}
                 onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
-                className="px-3 py-1.5 rounded-xl border border-slate-800 bg-slate-950 hover:bg-slate-900/60 disabled:opacity-40 disabled:cursor-not-allowed font-medium text-slate-300 transition-colors"
+                className="px-3 py-1.5 rounded-xl border border-stone-200 bg-white hover:bg-stone-50 disabled:opacity-40 disabled:cursor-not-allowed font-medium text-stone-700 transition-colors"
               >
                 {t('history.pagination.prev')}
               </button>
               <button
                 disabled={currentPage * itemsPerPage >= totalCount || loading}
                 onClick={() => setCurrentPage(prev => prev + 1)}
-                className="px-3 py-1.5 rounded-xl border border-slate-800 bg-slate-950 hover:bg-slate-900/60 disabled:opacity-40 disabled:cursor-not-allowed font-medium text-slate-300 transition-colors"
+                className="px-3 py-1.5 rounded-xl border border-stone-200 bg-white hover:bg-stone-50 disabled:opacity-40 disabled:cursor-not-allowed font-medium text-stone-700 transition-colors"
               >
                 {t('history.pagination.next')}
               </button>

@@ -552,59 +552,52 @@ export default function BookingModal({
   // ==========================================
   if (successResult) {
     return (
-      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-in fade-in duration-200">
-        <div className="w-full max-w-md bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl p-6 flex flex-col items-center text-center space-y-5">
-          {/* 성공 뱃지 */}
-          <div className="w-14 h-14 rounded-full bg-gradient-to-tr from-emerald-500 to-teal-500 flex items-center justify-center shadow-lg shadow-emerald-950/20 text-white text-xl font-bold animate-bounce">
-            🎉
+      <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-stone-900/30 backdrop-blur-sm animate-in fade-in duration-200">
+        <div className="w-full max-w-sm bg-stone-50 border border-stone-200 rounded-2xl shadow-2xl p-6 text-center space-y-6">
+          <div className="flex justify-center">
+            <div className="w-14 h-14 rounded-full bg-emerald-50 border border-emerald-200 flex items-center justify-center text-emerald-700 shadow-inner">
+              <UserCheck className="w-7 h-7" />
+            </div>
           </div>
           
           <div className="space-y-1.5">
-            <h2 className="text-lg font-bold text-slate-100">
+            <h2 className="text-lg font-bold text-stone-800">
               {successResult.isEdit 
                 ? (language === 'ko' ? '예약 변경 완료' : 'Booking Updated') 
                 : (language === 'ko' ? '예약 접수 완료' : 'Booking Registered')}
             </h2>
-            <p className="text-xs text-slate-500">
+            <p className="text-xs text-stone-500">
               {language === 'ko' ? '실시간 마사지사 배정 및 DB 저장이 정상 완료되었습니다.' : 'Real-time therapist assignment and database save completed successfully.'}
             </p>
           </div>
 
           {/* 성공 메시지 상세 디테일 (고객명, 시간, 배정 마사지사) */}
-          <div className="w-full bg-slate-950/60 border border-slate-850 rounded-xl p-4.5 text-xs text-slate-350 leading-relaxed text-left space-y-2.5">
-            <p className="font-semibold text-slate-400">
+          <div className="w-full bg-white border border-stone-200 rounded-xl p-4 text-xs text-stone-600 leading-relaxed text-left space-y-2.5 shadow-inner">
+            <p className="font-semibold text-stone-700">
               {successResult.isEdit 
                 ? (language === 'ko' ? '✏️ 변경 완료 정보:' : '✏️ Updated Info:') 
                 : (language === 'ko' ? '📋 접수 완료 정보:' : '📋 Registered Info:')}
             </p>
-            <p className="text-slate-300 text-sm">
-              {language === 'ko' ? (
-                <>
-                  고객 <span className="font-bold text-indigo-400">{successResult.customerName}</span>님이{' '}
-                  마사지사 <span className="font-bold text-amber-400">{successResult.therapistName}</span>님에게{' '}
-                  <span className="font-bold text-slate-200">{String(successResult.startTime).padStart(2, '0')}:{String(successResult.startMinute).padStart(2, '0')}</span>부터{' '}
-                  <span className="font-bold text-slate-200">{String(successResult.endTime).padStart(2, '0')}:{String(successResult.endMinute).padStart(2, '0')}</span>까지 예약이{' '}
-                  {successResult.isEdit ? '변경' : '등록'}되었습니다.
-                </>
-              ) : (
-                <>
-                  Booking for client <span className="font-bold text-indigo-400">{successResult.customerName}</span> with{' '}
-                  therapist <span className="font-bold text-amber-400">{successResult.therapistName}</span> has been{' '}
-                  {successResult.isEdit ? 'updated' : 'registered'} from{' '}
-                  <span className="font-bold text-slate-200">{String(successResult.startTime).padStart(2, '0')}:{String(successResult.startMinute).padStart(2, '0')}</span> to{' '}
-                  <span className="font-bold text-slate-200">{String(successResult.endTime).padStart(2, '0')}:{String(successResult.endMinute).padStart(2, '0')}</span>.
-                </>
-              )}
-            </p>
-            <div className="text-[10px] text-slate-500 pt-2 border-t border-slate-850/80">
+            <div className="text-[10px] text-stone-400 pt-2 border-t border-stone-200">
               {language === 'ko' ? `예약 날짜: ${toUIDateString(successResult.date)}` : `Booking Date: ${toUIDateString(successResult.date)}`}
+            </div>
+            <div className="text-[10px] text-stone-400">
+              {language === 'ko' 
+                ? `예약 시간: ${String(successResult.startTime).padStart(2, '0')}:${String(successResult.startMinute).padStart(2, '0')} ~ ${String(successResult.endTime).padStart(2, '0')}:${String(successResult.endMinute).padStart(2, '0')}` 
+                : `Booking Time: ${String(successResult.startTime).padStart(2, '0')}:${String(successResult.startMinute).padStart(2, '0')} ~ ${String(successResult.endTime).padStart(2, '0')}:${String(successResult.endMinute).padStart(2, '0')}`}
+            </div>
+            <div className="text-[10px] text-stone-400">
+              {language === 'ko' ? `고객 이름: ${successResult.customerName}` : `Client Name: ${successResult.customerName}`}
+            </div>
+            <div className="text-[10px] text-stone-400">
+              {language === 'ko' ? `배정 마사지사: ${successResult.therapistName}` : `Assigned Therapist: ${successResult.therapistName}`}
             </div>
           </div>
 
           <button
             type="button"
             onClick={handleConfirmClose}
-            className="w-full rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white shadow-lg shadow-indigo-950/20 py-2.5 text-xs font-bold transition-all hover:scale-[1.01] active:scale-[0.99]"
+            className="w-full rounded-xl bg-emerald-700 hover:bg-emerald-600 text-white shadow-md py-2.5 text-xs font-bold transition-all"
           >
             {language === 'ko' ? '확인' : 'Confirm'}
           </button>
@@ -617,17 +610,17 @@ export default function BookingModal({
   // [기본 입력 폼 렌더러]
   // ==========================================
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-sm animate-in fade-in duration-200">
-      <div className="w-full max-w-lg bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl flex flex-col max-h-[90vh] overflow-hidden">
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-stone-900/30 backdrop-blur-sm animate-in fade-in duration-200">
+      <div className="w-full max-w-lg bg-stone-50 border border-stone-200 rounded-2xl shadow-2xl flex flex-col max-h-[90vh] overflow-hidden">
         {/* 헤더 */}
-        <div className="flex items-center justify-between p-5 border-b border-slate-800/80 bg-slate-950/20">
-          <h2 className="text-lg font-bold tracking-tight text-slate-200 flex items-center gap-2">
-            <Calendar className="w-5 h-5 text-indigo-500" />
+        <div className="flex items-center justify-between p-5 border-b border-stone-200 bg-stone-100">
+          <h2 className="text-lg font-bold tracking-tight text-stone-800 flex items-center gap-2">
+            <Calendar className="w-5 h-5 text-emerald-700" />
             {isEditMode ? t('booking.modal.edit') : t('booking.modal.new')}
           </h2>
           <button
             onClick={onClose}
-            className="p-2.5 rounded-xl hover:bg-slate-850 text-slate-400 hover:text-slate-200 transition-colors"
+            className="p-2.5 rounded-xl hover:bg-stone-200 text-stone-500 hover:text-stone-800 transition-colors"
             aria-label="Close"
           >
             <X className="w-5 h-5" />
@@ -656,9 +649,9 @@ export default function BookingModal({
 
           {/* 고객명 */}
           <div>
-            <label className="block text-xs font-bold text-slate-400 mb-1.5 uppercase tracking-wider">{t('booking.modal.client_name')}</label>
+            <label className="block text-xs font-bold text-stone-600 mb-1.5 uppercase tracking-wider">{t('booking.modal.client_name')}</label>
             <div className="relative">
-              <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-600">
+              <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-stone-400">
                 <User className="w-4 h-4" />
               </span>
               <input
@@ -667,16 +660,16 @@ export default function BookingModal({
                 value={customerName}
                 onChange={(e) => setCustomerName(e.target.value)}
                 placeholder={language === 'ko' ? '고객 성함을 기입해 주세요' : 'Enter client name'}
-                className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-9 pr-3.5 py-3 text-sm text-slate-100 placeholder-slate-660 focus:outline-none focus:border-indigo-500/80 transition-colors disabled:opacity-50"
+                className="w-full bg-white border border-stone-200 rounded-xl pl-9 pr-3.5 py-3 text-sm text-stone-800 placeholder-stone-400 focus:outline-none focus:border-emerald-500/80 transition-colors disabled:opacity-50"
               />
             </div>
           </div>
 
           {/* 연락처 */}
           <div>
-            <label className="block text-xs font-bold text-slate-400 mb-1.5 uppercase tracking-wider">{t('list.table.phone')}</label>
+            <label className="block text-xs font-bold text-stone-600 mb-1.5 uppercase tracking-wider">{t('list.table.phone')}</label>
             <div className="relative">
-              <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-600">
+              <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-stone-400">
                 <Phone className="w-4 h-4" />
               </span>
               <input
@@ -686,14 +679,14 @@ export default function BookingModal({
                 onChange={(e) => setCustomerPhone(formatUSPhone(e.target.value))}
                 placeholder={language === 'ko' ? '예: 123-456-7890' : 'e.g. 123-456-7890'}
                 maxLength={12} // US 포맷 123-456-7890 총 12자 제한
-                className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-9 pr-3.5 py-3 text-sm text-slate-100 placeholder-slate-660 focus:outline-none focus:border-indigo-500/80 transition-colors disabled:opacity-50"
+                className="w-full bg-white border border-stone-200 rounded-xl pl-9 pr-3.5 py-3 text-sm text-stone-800 placeholder-stone-400 focus:outline-none focus:border-emerald-500/80 transition-colors disabled:opacity-50"
               />
             </div>
           </div>
 
           {/* 예약 일자 */}
           <div>
-            <label className="block text-xs font-bold text-slate-400 mb-1.5 uppercase tracking-wider">
+            <label className="block text-xs font-bold text-stone-600 mb-1.5 uppercase tracking-wider">
               {language === 'ko' ? '예약 날짜' : 'Booking Date'}
             </label>
             <div className="relative">
@@ -705,8 +698,8 @@ export default function BookingModal({
                 onClick={(e) => e.currentTarget.showPicker?.()}
                 className="absolute inset-0 w-full h-full opacity-0 z-10 cursor-pointer disabled:cursor-not-allowed"
               />
-              <div className={`w-full bg-slate-950 border border-slate-800 rounded-xl pl-9 pr-3.5 py-2.5 text-sm text-slate-100 flex justify-between items-center pointer-events-none min-h-[42px] font-medium ${!canModify ? 'opacity-50' : ''}`}>
-                <span className="absolute left-3 text-indigo-400">
+              <div className={`w-full bg-white border border-stone-200 rounded-xl pl-9 pr-3.5 py-2.5 text-sm text-stone-800 flex justify-between items-center pointer-events-none min-h-[42px] font-medium ${!canModify ? 'opacity-50' : ''}`}>
+                <span className="absolute left-3 text-emerald-700">
                   <Calendar className="w-4 h-4" />
                 </span>
                 <span>{date ? toUIDateString(date) : (language === 'ko' ? '날짜 선택' : 'Select Date')}</span>
@@ -717,7 +710,7 @@ export default function BookingModal({
           {/* 예약 시간 */}
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-xs font-bold text-slate-400 mb-1.5 uppercase tracking-wider">{t('booking.modal.start_time')}</label>
+              <label className="block text-xs font-bold text-stone-600 mb-1.5 uppercase tracking-wider">{t('booking.modal.start_time')}</label>
               <div className="flex gap-2">
                 <select
                   disabled={!canModify}
@@ -729,7 +722,7 @@ export default function BookingModal({
                     setEndHour(eh)
                     setEndMinute(em)
                   }}
-                  className="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-3 py-3 text-xs text-slate-100 focus:outline-none focus:border-indigo-500/80 transition-colors disabled:opacity-50"
+                  className="flex-1 bg-white border border-stone-200 rounded-xl px-3 py-3 text-xs text-stone-800 focus:outline-none focus:border-emerald-500/80 transition-colors disabled:opacity-50"
                 >
                   {Array.from({ length: 16 }, (_, i) => i + 9).map(h => (
                     <option key={h} value={h}>
@@ -747,7 +740,7 @@ export default function BookingModal({
                     setEndHour(eh)
                     setEndMinute(em)
                   }}
-                  className="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-3 py-3 text-xs text-slate-100 focus:outline-none focus:border-indigo-500/80 transition-colors disabled:opacity-50"
+                  className="flex-1 bg-white border border-stone-200 rounded-xl px-3 py-3 text-xs text-stone-800 focus:outline-none focus:border-emerald-500/80 transition-colors disabled:opacity-50"
                 >
                   {[0, 10, 20, 30, 40, 50].map(m => (
                     <option key={m} value={m}>
@@ -758,7 +751,7 @@ export default function BookingModal({
               </div>
             </div>
             <div>
-              <label className="block text-xs font-bold text-slate-400 mb-1.5 uppercase tracking-wider">
+              <label className="block text-xs font-bold text-stone-600 mb-1.5 uppercase tracking-wider">
                 {language === 'ko' ? '종료 시간' : 'End Time'}
               </label>
               <div className="flex gap-2">
@@ -766,7 +759,7 @@ export default function BookingModal({
                   disabled={!canModify}
                   value={endHour}
                   onChange={(e) => setEndHour(Number(e.target.value))}
-                  className="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-3 py-3 text-xs text-slate-100 focus:outline-none focus:border-indigo-500/80 transition-colors disabled:opacity-50"
+                  className="flex-1 bg-white border border-stone-200 rounded-xl px-3 py-3 text-xs text-stone-800 focus:outline-none focus:border-emerald-500/80 transition-colors disabled:opacity-50"
                 >
                   {Array.from({ length: 16 }, (_, i) => i + 9).map(h => (
                     <option key={h} value={h} disabled={h < startHour}>
@@ -778,7 +771,7 @@ export default function BookingModal({
                   disabled={!canModify}
                   value={endMinute}
                   onChange={(e) => setEndMinute(Number(e.target.value))}
-                  className="flex-1 bg-slate-950 border border-slate-800 rounded-xl px-3 py-3 text-xs text-slate-100 focus:outline-none focus:border-indigo-500/80 transition-colors disabled:opacity-50"
+                  className="flex-1 bg-white border border-stone-200 rounded-xl px-3 py-3 text-xs text-stone-800 focus:outline-none focus:border-emerald-500/80 transition-colors disabled:opacity-50"
                 >
                   {[0, 10, 20, 30, 40, 50].map(m => {
                     const isDisabled = startHour === endHour && m <= startMinute
@@ -795,11 +788,11 @@ export default function BookingModal({
 
           {/* 마사지 금액 */}
           <div>
-            <label className="block text-xs font-bold text-slate-400 mb-1.5 uppercase tracking-wider">
+            <label className="block text-xs font-bold text-stone-600 mb-1.5 uppercase tracking-wider">
               {t('booking.modal.price')}
             </label>
             <div className="relative">
-              <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-600">
+              <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-stone-400">
                 <DollarSign className="w-4 h-4" />
               </span>
               <input
@@ -809,10 +802,10 @@ export default function BookingModal({
                 onChange={(e) => setPrice(Number(e.target.value))}
                 step="10"
                 min="10"
-                className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-9 pr-3.5 py-3 text-sm text-slate-100 placeholder-slate-660 focus:outline-none focus:border-indigo-500/80 transition-colors disabled:opacity-50"
+                className="w-full bg-white border border-stone-200 rounded-xl pl-9 pr-3.5 py-3 text-sm text-stone-800 placeholder-stone-400 focus:outline-none focus:border-emerald-500/80 transition-colors disabled:opacity-50"
               />
             </div>
-            <p className="text-[10px] text-slate-500 mt-1.5">
+            <p className="text-[10px] text-stone-500 mt-1.5">
               {language === 'ko' 
                 ? '* $120 이상인 고급 코스는 당일 전담 마사지사(고급 우선)에게 최우선 배정됩니다.' 
                 : '* Premium courses of $120 or more are assigned to designated premium therapists first.'}
@@ -821,16 +814,16 @@ export default function BookingModal({
 
           {/* 마사지사 배정 (수동 지정 및 자동 배정 토글) */}
           <div>
-            <label className="block text-xs font-bold text-slate-400 mb-1.5 uppercase tracking-wider">{t('booking.modal.therapist')}</label>
+            <label className="block text-xs font-bold text-stone-600 mb-1.5 uppercase tracking-wider">{t('booking.modal.therapist')}</label>
             <div className="relative">
-              <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-650">
+              <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-stone-400">
                 <UserCheck className="w-4 h-4" />
               </span>
               <select
                 disabled={!canModify}
                 value={therapistId}
                 onChange={(e) => setTherapistId(e.target.value)}
-                className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-9 pr-3 py-3 text-sm text-slate-100 focus:outline-none focus:border-indigo-500/80 transition-colors disabled:opacity-50"
+                className="w-full bg-white border border-stone-200 rounded-xl pl-9 pr-3 py-3 text-sm text-stone-800 focus:outline-none focus:border-emerald-500/80 transition-colors disabled:opacity-50"
               >
                 <option value="auto">
                   {language === 'ko' ? '✨ 시스템 자동 지정 (가장 비어 있는 마사지사 매핑)' : '✨ Auto-Assign (Map most available therapist)'}
@@ -861,8 +854,8 @@ export default function BookingModal({
 
           {/* 선택한 마사지사의 오늘자 예약 현황 (리스트) */}
           {therapistId !== 'auto' && (
-            <div className="rounded-xl border border-slate-800 bg-slate-950/40 p-4 space-y-2">
-              <span className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">
+            <div className="rounded-xl border border-stone-200 bg-stone-100 p-4 space-y-2">
+              <span className="block text-[10px] font-bold text-stone-500 uppercase tracking-wider">
                 {language === 'ko' ? '선택한 마사지사의 오늘 예약 선점 현황' : 'Current Bookings of Chosen Therapist Today'}
               </span>
               {scheduleList.length === 0 ? (
@@ -874,7 +867,7 @@ export default function BookingModal({
                   {scheduleList.map(item => (
                     <div
                       key={item.id}
-                      className="flex items-center justify-between text-xs rounded-lg bg-rose-500/5 border border-rose-500/10 text-rose-450 p-2 font-medium"
+                      className="flex items-center justify-between text-xs rounded-lg bg-rose-50 border border-rose-200 text-rose-700 p-2 font-medium"
                     >
                       <span>{language === 'ko' ? `👤 ${item.customerName} 고객님` : `👤 Client ${item.customerName}`}</span>
                       <span className="font-mono text-[11px] font-semibold">{item.timeStr}</span>
@@ -888,17 +881,17 @@ export default function BookingModal({
 
         {/* 푸터 액션 */}
         {isCancelling ? (
-          <div className="p-5 border-t border-slate-800 bg-slate-950/20 flex flex-col gap-3 w-full animate-in slide-in-from-bottom duration-250">
+          <div className="p-5 border-t border-stone-200 bg-stone-100 flex flex-col gap-3 w-full animate-in slide-in-from-bottom duration-250">
             <div className="flex flex-col gap-1.5 text-xs">
-              <span className="font-bold text-rose-400">⚠️ {t('booking.modal.cancel.type_label')}</span>
+              <span className="font-bold text-rose-700">⚠️ {t('booking.modal.cancel.type_label')}</span>
               <div className="grid grid-cols-2 gap-3 mt-1.5">
                 <button
                   type="button"
                   onClick={() => setSelectedCancelType('request')}
                   className={`flex flex-col items-center justify-center rounded-xl p-3 border text-xs font-bold transition-all ${
                     selectedCancelType === 'request'
-                      ? 'border-indigo-500 bg-indigo-500/10 text-indigo-350 border-indigo-550/40'
-                      : 'border-slate-800 bg-slate-950 hover:bg-slate-900 text-slate-400'
+                      ? 'border-emerald-600 bg-emerald-50 text-emerald-800'
+                      : 'border-stone-200 bg-white hover:bg-stone-100 text-stone-600'
                   }`}
                 >
                   <span>{t('booking.modal.cancel.type_request')}</span>
@@ -908,8 +901,8 @@ export default function BookingModal({
                   onClick={() => setSelectedCancelType('noshow')}
                   className={`flex flex-col items-center justify-center rounded-xl p-3 border text-xs font-bold transition-all ${
                     selectedCancelType === 'noshow'
-                      ? 'border-rose-500 bg-rose-500/10 text-rose-350 border-rose-550/40'
-                      : 'border-slate-800 bg-slate-950 hover:bg-slate-900 text-slate-400'
+                      ? 'border-rose-600 bg-rose-50 text-rose-700'
+                      : 'border-stone-200 bg-white hover:bg-stone-100 text-stone-600'
                   }`}
                 >
                   <span>{t('booking.modal.cancel.type_noshow')}</span>
@@ -921,7 +914,7 @@ export default function BookingModal({
               <button
                 type="button"
                 onClick={() => setIsCancelling(false)}
-                className="rounded-xl border border-slate-800 bg-slate-900 text-slate-300 hover:bg-slate-800 px-4 py-3 text-xs font-bold transition-all animate-none"
+                className="rounded-xl border border-stone-200 bg-stone-200 text-stone-700 hover:bg-stone-300 px-4 py-3 text-xs font-bold transition-all animate-none"
               >
                 {t('booking.modal.cancel.back_btn')}
               </button>
@@ -929,21 +922,21 @@ export default function BookingModal({
                 type="button"
                 onClick={handleCancelReservation}
                 disabled={loading}
-                className="rounded-xl bg-rose-600 hover:bg-rose-500 text-white shadow-lg shadow-rose-950/20 px-5 py-3 text-xs font-bold transition-all disabled:opacity-50"
+                className="rounded-xl bg-rose-700 hover:bg-rose-600 text-white shadow-sm shadow-rose-900/10 px-5 py-3 text-xs font-bold transition-all disabled:opacity-50"
               >
                 {loading ? (language === 'ko' ? '처리 중...' : 'Processing...') : t('booking.modal.cancel.confirm_btn')}
               </button>
             </div>
           </div>
         ) : (
-          <div className="p-5 border-t border-slate-800 bg-slate-950/20 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+          <div className="p-5 border-t border-stone-200 bg-stone-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
             {/* 예약 취소 버튼 (수정 모드이면서 권한 권한 소지 시 노출) */}
             {isEditMode && canModify && selectedReservation.status === 'confirmed' ? (
               <button
                 type="button"
                 onClick={handleCancelReservation}
                 disabled={loading}
-                className="inline-flex items-center justify-center rounded-xl bg-rose-500/10 hover:bg-rose-500/20 text-rose-450 border border-rose-500/20 px-4 py-3 text-xs font-bold transition-all disabled:opacity-50"
+                className="inline-flex items-center justify-center rounded-xl bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 px-4 py-3 text-xs font-bold transition-all disabled:opacity-50"
               >
                 <Trash2 className="w-4 h-4 mr-1.5" /> {t('booking.modal.cancel_booking')}
               </button>
@@ -955,7 +948,7 @@ export default function BookingModal({
               <button
                 type="button"
                 onClick={onClose}
-                className="rounded-xl border border-slate-800 bg-slate-900 text-slate-300 hover:bg-slate-800 px-4 py-3 text-xs font-bold transition-all"
+                className="rounded-xl border border-stone-200 bg-stone-200 text-stone-700 hover:bg-stone-300 px-4 py-3 text-xs font-bold transition-all"
               >
                 {t('booking.modal.close')}
               </button>
@@ -963,7 +956,7 @@ export default function BookingModal({
                 <button
                   onClick={handleSubmit}
                   disabled={loading}
-                  className="rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white shadow-lg shadow-indigo-950/20 px-6 py-3 text-xs font-bold transition-all disabled:opacity-50 flex items-center justify-center"
+                  className="rounded-xl bg-emerald-700 hover:bg-emerald-600 text-white shadow-sm shadow-emerald-900/10 px-6 py-3 text-xs font-bold transition-all disabled:opacity-50 flex items-center justify-center"
                 >
                   {loading 
                     ? (language === 'ko' ? '처리 중...' : 'Processing...') 

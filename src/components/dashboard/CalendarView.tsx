@@ -123,13 +123,13 @@ export default function CalendarView({
     })
 
     return (
-      <div className="overflow-x-auto rounded-lg border border-slate-800 bg-slate-900/60 backdrop-blur-md touch-pan-x" style={{ WebkitOverflowScrolling: 'touch' }}>
+      <div className="overflow-x-auto rounded-lg border border-stone-200 bg-stone-100/70 backdrop-blur-md touch-pan-x" style={{ WebkitOverflowScrolling: 'touch' }}>
         <div className="min-w-[900px]">
           <div 
-            className="grid border-b border-slate-800 bg-slate-950/60 p-3 text-xs font-semibold text-slate-400"
+            className="grid border-b border-stone-200 bg-stone-200/50 p-3 text-xs font-semibold text-stone-600"
             style={{ gridTemplateColumns: 'repeat(18, minmax(0, 1fr))' }}
           >
-            <div className="col-span-2 text-left pl-2 text-slate-300">
+            <div className="col-span-2 text-left pl-2 text-stone-700">
               {language === 'ko' ? '마사지사 (오늘)' : 'Therapist (Today)'}
             </div>
             {hours.map(hour => (
@@ -137,7 +137,7 @@ export default function CalendarView({
             ))}
           </div>
 
-          <div className="divide-y divide-slate-800/60">
+          <div className="divide-y divide-stone-200">
             {therapists.map(therapist => {
               const therapistResList = dayReservations.filter(r => r.therapist_id === therapist.id)
 
@@ -200,19 +200,19 @@ export default function CalendarView({
               return (
                 <div 
                   key={therapist.id} 
-                  className="grid min-h-[64px] items-center hover:bg-slate-800/30 transition-colors"
+                  className="grid min-h-[64px] items-center hover:bg-stone-100 transition-colors"
                   style={{ gridTemplateColumns: 'repeat(18, minmax(0, 1fr))' }}
                 >
-                  <div className="col-span-2 pl-4 py-2 border-r border-slate-800/80">
+                  <div className="col-span-2 pl-4 py-2 border-r border-stone-200">
                     <div className="flex items-center gap-1.5">
-                      <span className="font-semibold text-slate-200">{therapist.name}</span>
+                      <span className="font-semibold text-stone-800">{therapist.name}</span>
                       {therapist.is_premium_target && (
-                        <span className="inline-flex items-center rounded-full bg-amber-500/10 px-2 py-0.5 text-[10px] font-medium text-amber-500 border border-amber-500/20">
+                        <span className="inline-flex items-center rounded-full bg-amber-500/10 px-2 py-0.5 text-[10px] font-medium text-amber-600 border border-amber-500/20">
                           {language === 'ko' ? '고급 우선' : 'Premium'}
                         </span>
                       )}
                     </div>
-                    <span className="text-[11px] text-slate-500">
+                    <span className="text-[11px] text-stone-500">
                       {therapist.is_active ? t('schedule.on_duty') : t('schedule.off_duty')}
                     </span>
                   </div>
@@ -240,14 +240,14 @@ export default function CalendarView({
                         <div
                           key={`res-${res.id}-${idx}`}
                           onClick={() => onSelectReservation(res)}
-                          className="h-full border-r border-slate-800/40 relative flex items-center p-1 cursor-pointer transition-all"
+                          className="h-full border-r border-stone-200/60 relative flex items-center p-1 cursor-pointer transition-all"
                           style={{ gridColumn: `span ${seg.colSpan} / span ${seg.colSpan}` }}
                         >
                           <div
                             className={`h-full rounded flex flex-col justify-center px-2 py-1 text-[11px] font-medium transition-transform active:scale-[0.98] ${
                               res.is_premium
-                                ? 'bg-gradient-to-r from-amber-500 to-orange-600 text-white shadow-lg shadow-amber-950/20'
-                                : 'bg-indigo-600/90 hover:bg-indigo-600 text-indigo-50 shadow-md shadow-indigo-950/20'
+                                ? 'bg-gradient-to-r from-amber-600 to-orange-700 text-white shadow-sm shadow-amber-900/10'
+                                : 'bg-emerald-700 hover:bg-emerald-600 text-white shadow-sm shadow-emerald-900/10'
                             }`}
                             style={{
                               width: `${widthPercent}%`,
@@ -273,11 +273,11 @@ export default function CalendarView({
                             bookingTime.setHours(seg.hour, 0, 0, 0)
                             onAddReservationAt(bookingTime, therapist.id)
                           }}
-                          className="h-full border-r border-slate-800/40 relative flex items-center justify-center p-1 cursor-pointer transition-all hover:bg-slate-800/50"
+                          className="h-full border-r border-stone-200/60 relative flex items-center justify-center p-1 cursor-pointer transition-all hover:bg-stone-200/50"
                           style={{ gridColumn: 'span 1 / span 1' }}
                         >
                           {currentUser.role !== 'therapist' && (
-                            <Plus className="w-3.5 h-3.5 text-slate-700 opacity-0 hover:opacity-100 transition-opacity" />
+                            <Plus className="w-3.5 h-3.5 text-stone-400 opacity-0 hover:opacity-100 transition-opacity" />
                           )}
                         </div>
                       )
@@ -324,26 +324,26 @@ export default function CalendarView({
               key={idx}
               className={`rounded-xl border p-4 min-h-[300px] flex flex-col transition-all ${
                 isToday 
-                  ? 'border-indigo-500 bg-slate-900/80 shadow-md shadow-indigo-950/20' 
-                  : 'border-slate-800 bg-slate-900/40'
+                  ? 'border-emerald-600 bg-stone-100 shadow-md shadow-emerald-900/10' 
+                  : 'border-stone-200 bg-stone-100/40'
               }`}
             >
-              <div className="border-b border-slate-800/80 pb-2 mb-3">
-                <span className={`text-xs font-semibold uppercase ${isToday ? 'text-indigo-400' : 'text-slate-400'}`}>
+              <div className="border-b border-stone-200 pb-2 mb-3">
+                <span className={`text-xs font-semibold uppercase ${isToday ? 'text-emerald-700' : 'text-stone-500'}`}>
                   {dayNames[day.getDay()]}
                 </span>
                 <div className="flex items-baseline gap-1 mt-1">
-                  <span className={`text-2xl font-bold tracking-tight ${isToday ? 'text-indigo-200' : 'text-slate-200'}`}>
+                  <span className={`text-2xl font-bold tracking-tight ${isToday ? 'text-emerald-800' : 'text-stone-800'}`}>
                     {day.getDate()}
                   </span>
-                  <span className="text-[11px] text-slate-500">{language === 'ko' ? '일' : ''}</span>
+                  <span className="text-[11px] text-stone-500">{language === 'ko' ? '일' : ''}</span>
                 </div>
               </div>
 
               <div className="flex-1 space-y-2 overflow-y-auto max-h-[220px] scrollbar-thin">
                 {dayResList.length === 0 ? (
                   <div className="h-full flex items-center justify-center py-8">
-                    <span className="text-xs text-slate-600">{language === 'ko' ? '예약 없음' : 'No Bookings'}</span>
+                    <span className="text-xs text-stone-400">{language === 'ko' ? '예약 없음' : 'No Bookings'}</span>
                   </div>
                 ) : (
                   dayResList.map(res => {
@@ -355,15 +355,15 @@ export default function CalendarView({
                         onClick={() => onSelectReservation(res)}
                         className={`rounded-lg p-2.5 text-left text-xs cursor-pointer transition-all border hover:translate-y-[-1px] ${
                           res.is_premium
-                            ? 'bg-amber-950/20 border-amber-500/20 text-amber-200 hover:bg-amber-950/30'
-                            : 'bg-indigo-950/20 border-indigo-500/20 text-indigo-200 hover:bg-indigo-950/30'
+                            ? 'bg-amber-50 border-amber-200 text-amber-800 hover:bg-amber-100/60'
+                            : 'bg-emerald-50 border-emerald-200/20 text-emerald-800 hover:bg-emerald-100/60'
                         }`}
                       >
                         <div className="font-semibold flex items-center justify-between gap-1 mb-1">
                           <span className="truncate">{res.customer_name}</span>
                           <span className="text-[10px] opacity-75 font-mono">{toLocalTimeString(new Date(res.start_time))}</span>
                         </div>
-                        <div className="text-[10px] text-slate-400 truncate">
+                        <div className="text-[10px] text-stone-500 truncate">
                           👨‍⚕️ {therapist?.name || (language === 'ko' ? '미배정' : 'Unassigned')}
                         </div>
                       </div>
@@ -379,7 +379,7 @@ export default function CalendarView({
                     bookingTime.setHours(9, 0, 0, 0)
                     onAddReservationAt(bookingTime)
                   }}
-                  className="mt-3 w-full inline-flex items-center justify-center rounded-lg border border-dashed border-slate-800 py-1.5 text-slate-500 hover:border-indigo-500/40 hover:text-indigo-400 transition-colors text-[11px] font-medium"
+                  className="mt-3 w-full inline-flex items-center justify-center rounded-lg border border-dashed border-stone-200 py-1.5 text-stone-600 hover:border-emerald-500/40 hover:text-emerald-700 transition-colors text-[11px] font-medium"
                 >
                   <Plus className="w-3.5 h-3.5 mr-1" /> {language === 'ko' ? '예약 추가' : 'Add Booking'}
                 </button>
@@ -412,14 +412,14 @@ export default function CalendarView({
       : ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat']
 
     return (
-      <div className="border border-slate-800 rounded-xl overflow-hidden bg-slate-900/40">
-        <div className="grid grid-cols-7 border-b border-slate-850 bg-slate-950/40 p-3 text-center text-xs font-semibold text-slate-400">
+      <div className="border border-stone-200 rounded-xl overflow-hidden bg-stone-100/40">
+        <div className="grid grid-cols-7 border-b border-stone-200 bg-stone-200/50 p-3 text-center text-xs font-semibold text-stone-600">
           {dayNames.map((d, i) => <div key={i}>{d}</div>)}
         </div>
 
-        <div className="grid grid-cols-7 divide-x divide-y divide-slate-850">
+        <div className="grid grid-cols-7 divide-x divide-y divide-stone-200">
           {prevDaysArray.map(day => (
-            <div key={`prev-${day}`} className="p-3 min-h-[100px] bg-slate-950/20 text-slate-700 text-xs text-left">
+            <div key={`prev-${day}`} className="p-3 min-h-[100px] bg-stone-200/20 text-stone-400 text-xs text-left">
               {day}
             </div>
           ))}
@@ -442,11 +442,11 @@ export default function CalendarView({
                     onAddReservationAt(bookingTime)
                   }
                 }}
-                className={`p-2.5 min-h-[100px] text-xs text-left flex flex-col hover:bg-slate-800/10 transition-colors cursor-pointer ${
-                  isToday ? 'bg-indigo-950/10' : ''
+                className={`p-2.5 min-h-[100px] text-xs text-left flex flex-col hover:bg-stone-100 transition-colors cursor-pointer ${
+                  isToday ? 'bg-emerald-50' : ''
                 }`}
               >
-                <span className={`font-semibold ${isToday ? 'text-indigo-400' : 'text-slate-400'}`}>
+                <span className={`font-semibold ${isToday ? 'text-emerald-700' : 'text-stone-500'}`}>
                   {day}
                 </span>
 
@@ -460,8 +460,8 @@ export default function CalendarView({
                       }}
                       className={`truncate rounded px-1.5 py-0.5 text-[10px] font-medium cursor-pointer transition-all border ${
                         res.is_premium
-                          ? 'bg-amber-950/30 border-amber-500/20 text-amber-300 hover:bg-amber-950/50'
-                          : 'bg-indigo-950/30 border-indigo-500/20 text-indigo-300 hover:bg-indigo-950/50'
+                          ? 'bg-amber-50 border-amber-200/20 text-amber-800 hover:bg-amber-100/50'
+                          : 'bg-emerald-50 border-emerald-200/20 text-emerald-800 hover:bg-emerald-100/50'
                       }`}
                     >
                       {res.customer_name} ({toLocalTimeString(new Date(res.start_time))})
@@ -473,7 +473,7 @@ export default function CalendarView({
                         e.stopPropagation()
                         setPopoverDate(dateStr)
                       }}
-                      className="text-[10px] text-slate-500 hover:text-indigo-400 text-center font-medium cursor-pointer transition-colors"
+                      className="text-[10px] text-stone-500 hover:text-emerald-700 text-center font-medium cursor-pointer transition-colors"
                     >
                       {language === 'ko' ? `외 ${dayResList.length - 3}건 더 있음` : `+${dayResList.length - 3} more`}
                     </div>
@@ -484,7 +484,7 @@ export default function CalendarView({
           })}
 
           {nextDaysArray.map(day => (
-            <div key={`next-${day}`} className="p-3 min-h-[100px] bg-slate-950/20 text-slate-700 text-xs text-left">
+            <div key={`next-${day}`} className="p-3 min-h-[100px] bg-stone-200/20 text-stone-400 text-xs text-left">
               {day}
             </div>
           ))}
@@ -495,30 +495,30 @@ export default function CalendarView({
 
   return (
     <div className="space-y-4">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 bg-slate-900/40 p-4 rounded-xl border border-slate-800">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 bg-stone-100/40 p-4 rounded-xl border border-stone-200">
         <div className="flex items-center gap-1.5">
           <button
             onClick={handlePrev}
-            className="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-slate-800 hover:bg-slate-750 hover:text-slate-100 transition-colors"
+            className="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-stone-200 hover:bg-stone-300 hover:text-stone-900 text-stone-700 transition-colors"
           >
             <ChevronLeft className="w-4 h-4" />
           </button>
           <button
             onClick={handleNext}
-            className="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-slate-800 hover:bg-slate-750 hover:text-slate-100 transition-colors"
+            className="inline-flex items-center justify-center w-8 h-8 rounded-lg bg-stone-200 hover:bg-stone-300 hover:text-stone-900 text-stone-700 transition-colors"
           >
             <ChevronRight className="w-4 h-4" />
           </button>
           <button
             onClick={handleToday}
-            className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-slate-800 hover:bg-slate-750 text-slate-300 hover:text-slate-100 transition-colors ml-1"
+            className="text-xs font-semibold px-3 py-1.5 rounded-lg bg-stone-200 hover:bg-stone-300 text-stone-700 hover:text-stone-900 transition-colors ml-1"
           >
             {t('calendar.today')}
           </button>
-          <h2 className="text-lg font-bold tracking-tight text-slate-200 ml-3">{getHeaderTitle()}</h2>
+          <h2 className="text-lg font-bold tracking-tight text-stone-800 ml-3">{getHeaderTitle()}</h2>
         </div>
 
-        <span className="text-[11px] text-slate-500 self-end">
+        <span className="text-[11px] text-stone-500 self-end">
           {language === 'ko' 
             ? '* 비어있는 슬롯을 클릭하면 해당 시간대에 바로 새 예약을 추가할 수 있습니다.' 
             : '* Click on an empty slot to instantly create a new booking for that time.'}
@@ -544,23 +544,23 @@ export default function CalendarView({
         
         return (
           <div 
-            className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 backdrop-blur-sm transition-opacity"
+            className="fixed inset-0 z-50 flex items-center justify-center bg-stone-900/30 backdrop-blur-sm transition-opacity"
             onClick={() => setPopoverDate(null)}
           >
             <div 
-              className="w-full max-w-sm rounded-xl border border-slate-800 bg-slate-900 p-5 shadow-2xl space-y-4"
+              className="w-full max-w-sm rounded-xl border border-stone-200 bg-stone-50 p-5 shadow-2xl space-y-4"
               onClick={(e) => e.stopPropagation()}
             >
-              <div className="flex items-center justify-between border-b border-slate-800 pb-3">
+              <div className="flex items-center justify-between border-b border-stone-200 pb-3">
                 <div className="flex flex-col">
-                  <span className="text-xs font-bold text-indigo-400 font-sans">{displayDate}</span>
-                  <span className="text-[10px] text-slate-500 font-medium mt-0.5">
+                  <span className="text-xs font-bold text-emerald-750 font-sans">{displayDate}</span>
+                  <span className="text-[10px] text-stone-500 font-medium mt-0.5">
                     {language === 'ko' ? `등록된 예약 총 ${dayResList.length}건` : `Total ${dayResList.length} booking(s)`}
                   </span>
                 </div>
                 <button 
                   onClick={() => setPopoverDate(null)}
-                  className="p-1 rounded-lg bg-slate-800 hover:bg-slate-750 text-slate-500 hover:text-slate-200 transition-colors"
+                  className="p-1 rounded-lg bg-stone-200 hover:bg-stone-300 text-stone-500 hover:text-stone-800 transition-colors"
                 >
                   <X className="w-4 h-4" />
                 </button>
@@ -576,17 +576,17 @@ export default function CalendarView({
                     }}
                     className={`flex items-center justify-between rounded-lg p-3 text-xs font-medium cursor-pointer border transition-all ${
                       res.is_premium
-                        ? 'bg-amber-950/30 border-amber-500/20 text-amber-300 hover:bg-amber-950/50 hover:border-amber-500/30 shadow-sm shadow-amber-950/20'
-                        : 'bg-indigo-950/30 border-indigo-500/20 text-indigo-300 hover:bg-indigo-950/50 hover:border-indigo-500/30 shadow-sm shadow-indigo-950/20'
+                        ? 'bg-amber-50 border-amber-250/20 text-amber-800 hover:bg-amber-100/60 shadow-sm'
+                        : 'bg-emerald-50 border-emerald-250/20 text-emerald-800 hover:bg-emerald-100/60 shadow-sm'
                     }`}
                   >
                     <div className="flex flex-col space-y-0.5">
                       <span className="font-bold">{res.customer_name}</span>
                       {res.is_premium && (
-                        <span className="text-[9px] text-amber-500 font-semibold uppercase tracking-wider">Premium</span>
+                        <span className="text-[9px] text-amber-600 font-semibold uppercase tracking-wider">Premium</span>
                       )}
                     </div>
-                    <span className="font-mono text-[10px] text-slate-400 bg-slate-950/40 px-1.5 py-0.5 rounded border border-slate-850">
+                    <span className="font-mono text-[10px] text-stone-600 bg-stone-100 px-1.5 py-0.5 rounded border border-stone-200">
                       {toLocalTimeString(new Date(res.start_time))}
                     </span>
                   </div>
@@ -600,7 +600,7 @@ export default function CalendarView({
                     setPopoverDate(null)
                     onAddReservationAt(bookingTime)
                   }}
-                  className="w-full inline-flex items-center justify-center gap-1.5 bg-gradient-to-r from-indigo-600 to-indigo-500 hover:from-indigo-500 hover:to-indigo-400 text-white font-bold text-xs py-3 rounded-xl transition-all shadow-md shadow-indigo-950/20 active:scale-[0.98]"
+                  className="w-full inline-flex items-center justify-center gap-1.5 bg-gradient-to-r from-emerald-700 to-emerald-600 hover:from-emerald-650 hover:to-emerald-550 text-white font-bold text-xs py-3 rounded-xl transition-all shadow-md active:scale-[0.98]"
                 >
                   <Plus className="w-3.5 h-3.5" />
                   {language === 'ko' ? '새 예약 접수' : 'Add New Booking'}

@@ -41,53 +41,56 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
   }
 
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col">
+    <div
+      className="min-h-screen text-stone-800 flex flex-col relative bg-cover bg-center bg-no-repeat bg-fixed"
+      style={{ backgroundImage: 'url("/dashboard_massage_bg.png")' }}
+    >
+      {/* 은은하게 마사지/스파 힐링 분위기를 백그라운드로 스며들게 하는 크림 마스크 overlay */}
+      <div className="absolute inset-0 bg-[#faf7f0]/80 backdrop-blur-[1px] pointer-events-none z-0" />
+
       {/* 상단 권한 시뮬레이터 및 헤더 */}
-      <header className="border-b border-slate-900 bg-slate-900/20 backdrop-blur-md sticky top-0 z-40 p-4">
+      <header className="border-b border-stone-300 bg-[#f3edd7]/90 backdrop-blur-md sticky top-0 z-40 p-4 shadow-sm relative">
         <div className="max-w-7xl mx-auto flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
           <div className="flex items-center gap-2">
             <img src="/logo.png" alt="Spa Logo" className="w-10 h-10 object-contain shadow-lg rounded-xl" />
             <div>
-              <h1 className="text-base font-bold tracking-tight text-slate-100">{t('app.title')}</h1>
-              <span className="text-[10px] text-slate-500 font-medium font-mono">{t('app.subtitle')}</span>
+              <h1 className="text-base font-extrabold tracking-tight text-stone-800">{t('app.title')}</h1>
+              <span className="text-[10px] text-stone-500 font-medium font-mono">{t('app.subtitle')}</span>
             </div>
           </div>
 
           <div className="flex items-center gap-3 flex-wrap self-stretch lg:self-auto justify-between lg:justify-end w-full lg:w-auto">
             {/* 언어 선택기 */}
-            <div className="flex bg-slate-950 border border-slate-800 rounded-xl p-0.5 shadow-inner mr-1">
+            <div className="flex bg-[#e3d7bd] border border-stone-300 rounded-xl p-0.5 shadow-inner mr-1">
               <button
                 onClick={() => setLanguage('ko')}
-                className={`text-[10px] font-bold px-2.5 py-1 rounded-lg transition-all ${
-                  language === 'ko'
-                    ? 'bg-slate-900 text-slate-100 border border-slate-850 shadow'
-                    : 'text-slate-500 hover:text-slate-350'
-                }`}
+                className={`text-[10px] font-bold px-2.5 py-1 rounded-lg transition-all ${language === 'ko'
+                  ? 'bg-white text-stone-800 border border-stone-300 shadow-sm'
+                  : 'text-stone-600 hover:text-stone-800'
+                  }`}
               >
                 KO
               </button>
               <button
                 onClick={() => setLanguage('en')}
-                className={`text-[10px] font-bold px-2.5 py-1 rounded-lg transition-all ${
-                  language === 'en'
-                    ? 'bg-slate-900 text-slate-100 border border-slate-850 shadow'
-                    : 'text-slate-500 hover:text-slate-350'
-                }`}
+                className={`text-[10px] font-bold px-2.5 py-1 rounded-lg transition-all ${language === 'en'
+                  ? 'bg-white text-stone-800 border border-stone-300 shadow-sm'
+                  : 'text-stone-600 hover:text-stone-800'
+                  }`}
               >
                 EN
               </button>
             </div>
 
             {/* 로그인한 사용자 정보 표시 */}
-            <div className="flex items-center gap-2 bg-slate-900/60 border border-slate-800 rounded-xl px-3.5 py-2">
-              <span className={`w-2 h-2 rounded-full ${
-                currentUser.role === 'manager' 
-                  ? 'bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.5)]' 
-                  : currentUser.role === 'staff' 
-                    ? 'bg-indigo-500 shadow-[0_0_8px_rgba(99,102,241,0.5)]' 
-                    : 'bg-emerald-500 shadow-[0_0_8px_rgba(16,185,129,0.5)]'
-              }`} />
-              <span className="text-xs font-bold text-slate-300">
+            <div className="flex items-center gap-2 bg-[#e3d7bd]/60 border border-stone-300 rounded-xl px-3.5 py-2">
+              <span className={`w-2 h-2 rounded-full ${currentUser.role === 'manager'
+                ? 'bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.5)]'
+                : currentUser.role === 'staff'
+                  ? 'bg-emerald-600 shadow-[0_0_8px_rgba(5,150,105,0.5)]'
+                  : 'bg-teal-500 shadow-[0_0_8px_rgba(20,184,166,0.5)]'
+                }`} />
+              <span className="text-xs font-bold text-stone-700">
                 {currentUser.name} ({getRoleText(currentUser.role)})
               </span>
             </div>
@@ -95,7 +98,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
             {/* 로그아웃 버튼 */}
             <button
               onClick={logout}
-              className="text-xs font-bold px-4 py-2 rounded-xl bg-rose-500/10 text-rose-450 border border-rose-500/20 hover:bg-rose-500/20 hover:text-rose-450 transition-all flex items-center gap-1.5"
+              className="text-xs font-bold px-4 py-2 rounded-xl bg-rose-500/10 text-rose-700 border border-rose-500/20 hover:bg-rose-500/20 hover:text-rose-700 transition-all flex items-center gap-1.5"
             >
               <LogOut className="w-3.5 h-3.5" /> {t('nav.logout')}
             </button>
@@ -104,39 +107,36 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
       </header>
 
       {/* 본문 콘텐츠 레이아웃 */}
-      <div className="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 lg:p-8 space-y-6">
-        
+      <div className="flex-1 max-w-7xl w-full mx-auto p-4 sm:p-6 lg:p-8 space-y-6 relative z-10">
+
         {/* 네비게이션 탭 메뉴 (주소창 기반 렌더링) */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b border-slate-900 pb-2 overflow-hidden">
-          <div className="flex overflow-x-auto lg:flex-wrap gap-1 pb-1 w-full scrollbar-none -mb-px">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 overflow-hidden bg-[#e8dec7] border border-stone-300 p-1.5 rounded-2xl shadow-sm">
+          <div className="flex overflow-x-auto lg:flex-wrap gap-1.5 w-full scrollbar-none">
             <button
               onClick={() => navigateTo('/')}
-              className={`inline-flex items-center gap-1.5 flex-shrink-0 px-4 py-2.5 text-xs font-bold rounded-xl border transition-all ${
-                pathname === '/'
-                  ? 'bg-slate-900 border-slate-850 text-indigo-400'
-                  : 'bg-transparent border-transparent text-slate-400 hover:text-slate-200'
-              }`}
+              className={`inline-flex items-center gap-1.5 flex-shrink-0 px-4 py-2 text-xs font-bold rounded-xl border transition-all ${pathname === '/'
+                ? 'bg-white border-stone-300 text-emerald-800 shadow-sm'
+                : 'bg-transparent border-transparent text-stone-700 hover:text-stone-900 hover:bg-stone-50/40'
+                }`}
             >
               <Calendar className="w-4 h-4" /> {t('nav.calendar')}
             </button>
             <button
               onClick={() => navigateTo('/list')}
-              className={`inline-flex items-center gap-1.5 flex-shrink-0 px-4 py-2.5 text-xs font-bold rounded-xl border transition-all ${
-                pathname === '/list'
-                  ? 'bg-slate-900 border-slate-850 text-indigo-400'
-                  : 'bg-transparent border-transparent text-slate-400 hover:text-slate-200'
-              }`}
+              className={`inline-flex items-center gap-1.5 flex-shrink-0 px-4 py-2 text-xs font-bold rounded-xl border transition-all ${pathname === '/list'
+                ? 'bg-white border-stone-300 text-emerald-800 shadow-sm'
+                : 'bg-transparent border-transparent text-stone-700 hover:text-stone-900 hover:bg-stone-50/40'
+                }`}
             >
               <List className="w-4 h-4" /> {t('nav.list')}
             </button>
             {currentUser.role !== 'therapist' && (
               <button
                 onClick={() => navigateTo('/blacklist')}
-                className={`inline-flex items-center gap-1.5 flex-shrink-0 px-4 py-2.5 text-xs font-bold rounded-xl border transition-all ${
-                  pathname === '/blacklist'
-                    ? 'bg-slate-900 border-slate-850 text-indigo-400'
-                    : 'bg-transparent border-transparent text-slate-400 hover:text-slate-200'
-                }`}
+                className={`inline-flex items-center gap-1.5 flex-shrink-0 px-4 py-2 text-xs font-bold rounded-xl border transition-all ${pathname === '/blacklist'
+                  ? 'bg-white border-stone-300 text-emerald-800 shadow-sm'
+                  : 'bg-transparent border-transparent text-stone-700 hover:text-stone-900 hover:bg-stone-50/40'
+                  }`}
               >
                 <ShieldAlert className="w-4 h-4" /> {t('nav.blacklist')}
               </button>
@@ -144,11 +144,10 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
 
             <button
               onClick={() => navigateTo('/schedule')}
-              className={`inline-flex items-center gap-1.5 flex-shrink-0 px-4 py-2.5 text-xs font-bold rounded-xl border transition-all ${
-                pathname === '/schedule'
-                  ? 'bg-slate-900 border-slate-850 text-indigo-400'
-                  : 'bg-transparent border-transparent text-slate-400 hover:text-slate-200'
-              }`}
+              className={`inline-flex items-center gap-1.5 flex-shrink-0 px-4 py-2 text-xs font-bold rounded-xl border transition-all ${pathname === '/schedule'
+                ? 'bg-white border-stone-300 text-emerald-800 shadow-sm'
+                : 'bg-transparent border-transparent text-stone-700 hover:text-stone-900 hover:bg-stone-50/40'
+                }`}
             >
               <Calendar className="w-4 h-4" /> {t('nav.schedule')}
             </button>
@@ -158,41 +157,37 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
               <>
                 <button
                   onClick={() => navigateTo('/therapist')}
-                  className={`inline-flex items-center gap-1.5 flex-shrink-0 px-4 py-2.5 text-xs font-bold rounded-xl border transition-all ${
-                    pathname === '/therapist'
-                      ? 'bg-slate-900 border-slate-850 text-amber-400'
-                      : 'bg-transparent border-transparent text-slate-400 hover:text-slate-200'
-                  }`}
+                  className={`inline-flex items-center gap-1.5 flex-shrink-0 px-4 py-2 text-xs font-bold rounded-xl border transition-all ${pathname === '/therapist'
+                    ? 'bg-white border-stone-300 text-amber-800 shadow-sm'
+                    : 'bg-transparent border-transparent text-stone-700 hover:text-stone-900 hover:bg-stone-50/40'
+                    }`}
                 >
                   <Settings className="w-4 h-4" /> {t('nav.therapist')}
                 </button>
                 <button
                   onClick={() => navigateTo('/employee')}
-                  className={`inline-flex items-center gap-1.5 flex-shrink-0 px-4 py-2.5 text-xs font-bold rounded-xl border transition-all ${
-                    pathname === '/employee'
-                      ? 'bg-slate-900 border-slate-850 text-amber-400'
-                      : 'bg-transparent border-transparent text-slate-400 hover:text-slate-200'
-                  }`}
+                  className={`inline-flex items-center gap-1.5 flex-shrink-0 px-4 py-2 text-xs font-bold rounded-xl border transition-all ${pathname === '/employee'
+                    ? 'bg-white border-stone-300 text-amber-800 shadow-sm'
+                    : 'bg-transparent border-transparent text-stone-700 hover:text-stone-900 hover:bg-stone-50/40'
+                    }`}
                 >
                   <Users className="w-4 h-4" /> {t('nav.employee')}
                 </button>
                 <button
                   onClick={() => navigateTo('/history')}
-                  className={`inline-flex items-center gap-1.5 flex-shrink-0 px-4 py-2.5 text-xs font-bold rounded-xl border transition-all ${
-                    pathname === '/history'
-                      ? 'bg-slate-900 border-slate-850 text-amber-400'
-                      : 'bg-transparent border-transparent text-slate-400 hover:text-slate-200'
-                  }`}
+                  className={`inline-flex items-center gap-1.5 flex-shrink-0 px-4 py-2 text-xs font-bold rounded-xl border transition-all ${pathname === '/history'
+                    ? 'bg-white border-stone-300 text-amber-800 shadow-sm'
+                    : 'bg-transparent border-transparent text-stone-700 hover:text-stone-900 hover:bg-stone-50/40'
+                    }`}
                 >
                   <List className="w-4 h-4" /> {t('nav.history')}
                 </button>
                 <button
                   onClick={() => navigateTo('/stats')}
-                  className={`inline-flex items-center gap-1.5 flex-shrink-0 px-4 py-2.5 text-xs font-bold rounded-xl border transition-all ${
-                    pathname === '/stats'
-                      ? 'bg-slate-900 border-slate-850 text-amber-400'
-                      : 'bg-transparent border-transparent text-slate-400 hover:text-slate-200'
-                  }`}
+                  className={`inline-flex items-center gap-1.5 flex-shrink-0 px-4 py-2 text-xs font-bold rounded-xl border transition-all ${pathname === '/stats'
+                    ? 'bg-white border-stone-300 text-amber-800 shadow-sm'
+                    : 'bg-transparent border-transparent text-stone-700 hover:text-stone-900 hover:bg-stone-50/40'
+                    }`}
                 >
                   <BarChart3 className="w-4 h-4" /> {t('nav.stats')}
                 </button>
@@ -208,8 +203,9 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
       </div>
 
       {/* 푸터 */}
-      <footer className="border-t border-slate-900 p-6 text-center text-[11px] text-slate-600 bg-slate-950 mt-auto">
-        <p>© 2026 {t('app.title')} - Next.js & Supabase & TailwindCSS</p>
+      <footer className="border-t border-stone-300 p-6 text-center text-[11px] text-stone-500 bg-[#e3d7bd]/30 backdrop-blur-md mt-auto relative z-10">
+        <p>© 2026 {t('app.title')} </p>
+        {/* <p>© 2026 {t('app.title')} - Next.js & Supabase & TailwindCSS</p> */}
       </footer>
     </div>
   )

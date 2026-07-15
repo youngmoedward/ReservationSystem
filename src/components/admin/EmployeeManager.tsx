@@ -323,10 +323,10 @@ export default function EmployeeManager({
   return (
     <div className="space-y-6 relative">
       {/* 직원 목록 관리 */}
-      <div className="rounded-2xl border border-slate-800 bg-slate-900/40 p-5">
+      <div className="rounded-2xl border border-stone-200 bg-stone-100/40 p-5">
         <div className="flex items-center justify-between mb-4 flex-wrap gap-2">
-          <h3 className="text-sm font-bold tracking-tight text-slate-200 flex items-center gap-1.5">
-            <Users className="w-4 h-4 text-indigo-500" /> {t('employee.list_title')} ({employees.length}{language === 'ko' ? '명' : ''})
+          <h3 className="text-sm font-bold tracking-tight text-stone-800 flex items-center gap-1.5">
+            <Users className="w-4 h-4 text-emerald-700" /> {t('employee.list_title')} ({employees.length}{language === 'ko' ? '명' : ''})
           </h3>
           <button
             type="button"
@@ -335,16 +335,16 @@ export default function EmployeeManager({
               setSuccessMsg(null)
               setIsAddingEmployee(true)
             }}
-            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-bold transition-all shadow-lg shadow-indigo-950/20"
+            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-emerald-700 hover:bg-emerald-600 text-white text-xs font-bold transition-all shadow-sm"
           >
             <UserPlus className="w-3.5 h-3.5" />
             {t('employee.add')}
           </button>
         </div>
 
-        <div className="overflow-x-auto rounded-lg border border-slate-850 bg-slate-950/20 touch-pan-x" style={{ WebkitOverflowScrolling: 'touch' }}>
-          <table className="min-w-[700px] w-full divide-y divide-slate-850">
-            <thead className="bg-slate-950/50 text-[10px] font-bold text-slate-400 uppercase tracking-wider text-left">
+        <div className="overflow-x-auto rounded-lg border border-stone-200 bg-stone-100/50 touch-pan-x" style={{ WebkitOverflowScrolling: 'touch' }}>
+          <table className="min-w-[700px] w-full divide-y divide-stone-200">
+            <thead className="bg-stone-200/50 text-[10px] font-bold text-stone-600 uppercase tracking-wider text-left">
               <tr>
                 <th className="px-4 py-3">{t('employee.info_label')}</th>
                 <th className="px-4 py-3">{t('employee.email')}</th>
@@ -353,24 +353,24 @@ export default function EmployeeManager({
                 <th className="px-4 py-3 text-right">{t('list.table.actions')}</th>
               </tr>
             </thead>
-            <tbody className="divide-y divide-slate-850 text-xs text-slate-300">
+            <tbody className="divide-y divide-stone-200 text-xs text-stone-700">
               {employees.map((emp) => {
                 const isMe = emp.id === currentUserId
                 return (
-                  <tr key={emp.id} className="hover:bg-slate-900/40 transition-colors">
+                  <tr key={emp.id} className="hover:bg-stone-100 transition-colors">
                     <td className="px-4 py-3">
-                      <div className="font-semibold text-slate-200 flex items-center gap-1.5">
-                        {emp.name} {isMe && <span className="text-[10px] text-indigo-400 font-bold">({language === 'ko' ? '나' : 'Me'})</span>}
+                      <div className="font-semibold text-stone-800 flex items-center gap-1.5">
+                        {emp.name} {isMe && <span className="text-[10px] text-emerald-700 font-bold">({language === 'ko' ? '나' : 'Me'})</span>}
                       </div>
-                      <div className="font-mono text-slate-500 text-[9px] mt-0.5">{emp.id}</div>
+                      <div className="font-mono text-stone-400 text-[9px] mt-0.5">{emp.id}</div>
                     </td>
-                    <td className="px-4 py-3 text-slate-300 font-medium">{emp.email || '-'}</td>
-                    <td className="px-4 py-3 text-slate-300 font-medium">{emp.phone ? formatUSPhone(emp.phone) : '-'}</td>
+                    <td className="px-4 py-3 text-stone-700 font-medium">{emp.email || '-'}</td>
+                    <td className="px-4 py-3 text-stone-700 font-medium">{emp.phone ? formatUSPhone(emp.phone) : '-'}</td>
                     <td className="px-4 py-3">
                       <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-[10px] font-bold uppercase ${
                         emp.role === 'manager'
-                          ? 'bg-amber-500/10 text-amber-400 border border-amber-500/10'
-                          : 'bg-indigo-500/10 text-indigo-400 border border-indigo-500/10'
+                          ? 'bg-amber-50 text-amber-700 border border-amber-200'
+                          : 'bg-emerald-50 text-emerald-700 border border-emerald-200'
                       }`}>
                         {emp.role === 'manager' ? t('user.role.manager') : t('user.role.staff')}
                       </span>
@@ -380,7 +380,7 @@ export default function EmployeeManager({
                         <button
                           type="button"
                           onClick={() => startEdit(emp)}
-                          className="p-1 rounded-lg hover:bg-indigo-500/10 text-slate-500 hover:text-indigo-400 transition-colors"
+                          className="p-1 rounded-lg hover:bg-emerald-50 text-stone-500 hover:text-emerald-750 transition-colors"
                           title={t('employee.edit_tooltip')}
                         >
                           <Edit className="w-4 h-4" />
@@ -388,20 +388,20 @@ export default function EmployeeManager({
                         <button
                           type="button"
                           onClick={() => handleResetPassword(emp.id, emp.name)}
-                          className="p-1 rounded-lg hover:bg-amber-500/10 text-slate-500 hover:text-amber-400 transition-colors"
+                          className="p-1 rounded-lg hover:bg-amber-50 text-stone-500 hover:text-amber-750 transition-colors"
                           title={t('employee.reset_tooltip')}
                         >
                           <Key className="w-4 h-4" />
                         </button>
                         {isMe ? (
-                          <span className="p-1 text-slate-700 cursor-not-allowed" title={t('employee.self_delete_tooltip')}>
+                          <span className="p-1 text-stone-300 cursor-not-allowed" title={t('employee.self_delete_tooltip')}>
                             <Ban className="w-4 h-4" />
                           </span>
                         ) : (
                           <button
                             type="button"
                             onClick={() => handleDeleteEmployee(emp.id, emp.name)}
-                            className="p-1 rounded-lg hover:bg-rose-500/10 text-slate-500 hover:text-rose-400 transition-colors"
+                            className="p-1 rounded-lg hover:bg-rose-50 text-stone-500 hover:text-rose-750 transition-colors"
                             title={t('employee.delete_tooltip')}
                           >
                             <Trash2 className="w-4 h-4" />
@@ -419,77 +419,77 @@ export default function EmployeeManager({
 
       {/* 신규 직원 계정 추가 모달 */}
       {isAddingEmployee && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-          <div className="w-full max-w-md bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl p-6 relative">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-stone-900/30 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+          <div className="w-full max-w-md bg-stone-50 border border-stone-200 rounded-2xl shadow-2xl p-6 relative">
             <button
               onClick={() => {
                 setIsAddingEmployee(false)
                 setErrorMsg(null)
                 setSuccessMsg(null)
               }}
-              className="absolute top-4 right-4 p-2.5 rounded-xl text-slate-500 hover:text-slate-350 transition-colors"
+              className="absolute top-4 right-4 p-2.5 rounded-xl text-stone-500 hover:text-stone-700 transition-colors"
               aria-label="Close"
             >
               <X className="w-5 h-5" />
             </button>
 
-            <h3 className="text-base font-bold text-slate-200 mb-6 flex items-center gap-1.5 uppercase">
-              <UserPlus className="w-4 h-4 text-indigo-500" /> {t('employee.add_title')}
+            <h3 className="text-base font-bold text-stone-800 mb-6 flex items-center gap-1.5 uppercase">
+              <UserPlus className="w-4 h-4 text-emerald-700" /> {t('employee.add_title')}
             </h3>
             
             <form onSubmit={handleAddEmployee} className="space-y-4">
               {errorMsg && (
-                <div className="p-3 text-xs rounded-lg bg-rose-500/10 text-rose-450 border border-rose-500/20">
+                <div className="p-3 text-xs rounded-lg bg-rose-50 text-rose-700 border border-rose-200">
                   ⚠️ {errorMsg}
                 </div>
               )}
 
               {successMsg && (
-                <div className="p-3 text-xs rounded-lg bg-emerald-500/10 text-emerald-450 border border-emerald-500/20">
+                <div className="p-3 text-xs rounded-lg bg-emerald-50 text-emerald-700 border border-emerald-200">
                   {successMsg}
                 </div>
               )}
 
               <div>
-                <label className="block text-xs font-semibold text-slate-400 mb-1.5">{t('employee.name')}</label>
+                <label className="block text-xs font-semibold text-stone-600 mb-1.5">{t('employee.name')}</label>
                 <input
                   type="text"
                   required
                   value={name}
                   onChange={(e) => setName(e.target.value)}
                   placeholder={language === 'ko' ? '예: 홍길동' : 'e.g. John Doe'}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-3 text-sm text-slate-100 placeholder-slate-650 focus:outline-none focus:border-indigo-500/80 transition-colors"
+                  className="w-full bg-white border border-stone-200 rounded-xl px-3.5 py-3 text-sm text-stone-800 placeholder-stone-400 focus:outline-none focus:border-emerald-500/80 transition-colors"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-400 mb-1.5">{t('employee.email')} (ID)</label>
+                <label className="block text-xs font-semibold text-stone-600 mb-1.5">{t('employee.email')} (ID)</label>
                 <input
                   type="email"
                   required
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   placeholder="e.g. staff1@jjimjil.com"
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-3 text-sm text-slate-100 placeholder-slate-650 focus:outline-none focus:border-indigo-500/80 transition-colors"
+                  className="w-full bg-white border border-stone-200 rounded-xl px-3.5 py-3 text-sm text-stone-800 placeholder-stone-400 focus:outline-none focus:border-emerald-500/80 transition-colors"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-400 mb-1.5">{t('employee.phone')}</label>
+                <label className="block text-xs font-semibold text-stone-600 mb-1.5">{t('employee.phone')}</label>
                 <input
                   type="text"
                   value={phone}
                   onChange={(e) => setPhone(formatUSPhone(e.target.value))}
                   placeholder="e.g. 123-456-7890"
                   maxLength={12}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-3 text-sm text-slate-100 placeholder-slate-650 focus:outline-none focus:border-indigo-500/80 transition-colors"
+                  className="w-full bg-white border border-stone-200 rounded-xl px-3.5 py-3 text-sm text-stone-800 placeholder-stone-400 focus:outline-none focus:border-emerald-500/80 transition-colors"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-400 mb-1.5">{t('login.password')}</label>
+                <label className="block text-xs font-semibold text-stone-600 mb-1.5">{t('login.password')}</label>
                 <div className="relative">
-                  <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-slate-600">
+                  <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-stone-400">
                     <Key className="w-4 h-4" />
                   </span>
                   <input
@@ -498,17 +498,17 @@ export default function EmployeeManager({
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     placeholder={language === 'ko' ? '비밀번호 설정' : 'Set password'}
-                    className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-9 pr-3.5 py-3 text-sm text-slate-100 placeholder-slate-650 focus:outline-none focus:border-indigo-500/80 transition-colors"
+                    className="w-full bg-white border border-stone-200 rounded-xl pl-9 pr-3.5 py-3 text-sm text-stone-800 placeholder-stone-400 focus:outline-none focus:border-emerald-500/80 transition-colors"
                   />
                 </div>
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-400 mb-1.5">{t('employee.role')}</label>
+                <label className="block text-xs font-semibold text-stone-600 mb-1.5">{t('employee.role')}</label>
                 <select
                   value={role}
                   onChange={(e) => setRole(e.target.value as 'manager' | 'staff')}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3 py-3 text-sm text-slate-100 focus:outline-none focus:border-indigo-500/80 transition-colors"
+                  className="w-full bg-white border border-stone-200 rounded-xl px-3 py-3 text-sm text-stone-800 focus:outline-none focus:border-emerald-500/80 transition-colors"
                 >
                   <option value="staff">{t('employee.role.staff_desc')}</option>
                   <option value="manager">{t('employee.role.manager_desc')}</option>
@@ -523,14 +523,14 @@ export default function EmployeeManager({
                     setErrorMsg(null)
                     setSuccessMsg(null)
                   }}
-                  className="flex-1 bg-slate-950 border border-slate-800 rounded-xl py-3 text-xs font-bold text-slate-400 hover:text-slate-200 transition-all"
+                  className="flex-1 bg-stone-200 border border-stone-200 rounded-xl py-3 text-xs font-bold text-stone-600 hover:text-stone-800 transition-all"
                 >
                   {language === 'ko' ? '취소' : 'Cancel'}
                 </button>
                 <button
                   type="submit"
                   disabled={loading}
-                  className="flex-1 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white shadow-lg shadow-indigo-950/20 py-3 text-xs font-bold transition-all disabled:opacity-50"
+                  className="flex-1 rounded-xl bg-emerald-700 hover:bg-emerald-600 text-white shadow-sm py-3 text-xs font-bold transition-all disabled:opacity-50"
                 >
                   {loading ? t('employee.creating') : t('employee.add')}
                 </button>
@@ -542,61 +542,61 @@ export default function EmployeeManager({
 
       {/* 직원 정보 수정 모달 */}
       {editingEmployee && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/80 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-          <div className="w-full max-w-md bg-slate-900 border border-slate-800 rounded-2xl shadow-2xl p-6 relative">
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-stone-900/30 backdrop-blur-sm p-4 animate-in fade-in duration-200">
+          <div className="w-full max-w-md bg-stone-50 border border-stone-200 rounded-2xl shadow-2xl p-6 relative">
             <button
               onClick={() => setEditingEmployee(null)}
-              className="absolute top-4 right-4 p-2.5 rounded-xl text-slate-500 hover:text-slate-350 transition-colors"
+              className="absolute top-4 right-4 p-2.5 rounded-xl text-stone-500 hover:text-stone-700 transition-colors"
               aria-label="Close"
             >
               <X className="w-5 h-5" />
             </button>
 
-            <h3 className="text-base font-bold text-slate-200 mb-6 flex items-center gap-1.5">
-              <Edit className="w-4 h-4 text-indigo-400" /> {t('employee.edit_title')}
+            <h3 className="text-base font-bold text-stone-800 mb-6 flex items-center gap-1.5">
+              <Edit className="w-4 h-4 text-emerald-700" /> {t('employee.edit_title')}
             </h3>
 
             <form onSubmit={handleUpdateEmployee} className="space-y-4">
               <div>
-                <label className="block text-xs font-semibold text-slate-400 mb-1.5">{t('employee.name')}</label>
+                <label className="block text-xs font-semibold text-stone-600 mb-1.5">{t('employee.name')}</label>
                 <input
                   type="text"
                   required
                   value={editName}
                   onChange={(e) => setEditName(e.target.value)}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-3 text-sm text-slate-100 focus:outline-none focus:border-indigo-500/80 transition-colors"
+                  className="w-full bg-white border border-stone-200 rounded-xl px-3.5 py-3 text-sm text-stone-800 focus:outline-none focus:border-emerald-500/80 transition-colors"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-400 mb-1.5">{t('employee.email')}</label>
+                <label className="block text-xs font-semibold text-stone-600 mb-1.5">{t('employee.email')}</label>
                 <input
                   type="email"
                   value={editEmail}
                   onChange={(e) => setEditEmail(e.target.value)}
                   placeholder="e.g. staff1@jjimjil.com"
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-3 text-sm text-slate-100 focus:outline-none focus:border-indigo-500/80 transition-colors"
+                  className="w-full bg-white border border-stone-200 rounded-xl px-3.5 py-3 text-sm text-stone-800 focus:outline-none focus:border-emerald-500/80 transition-colors"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-400 mb-1.5">{t('employee.phone')}</label>
+                <label className="block text-xs font-semibold text-stone-600 mb-1.5">{t('employee.phone')}</label>
                 <input
                   type="text"
                   value={editPhone}
                   onChange={(e) => setEditPhone(formatUSPhone(e.target.value))}
                   placeholder="e.g. 123-456-7890"
                   maxLength={12}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-3 text-sm text-slate-100 focus:outline-none focus:border-indigo-500/80 transition-colors"
+                  className="w-full bg-white border border-stone-200 rounded-xl px-3.5 py-3 text-sm text-stone-800 focus:outline-none focus:border-emerald-500/80 transition-colors"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-slate-400 mb-1.5">{t('employee.role')}</label>
+                <label className="block text-xs font-semibold text-stone-600 mb-1.5">{t('employee.role')}</label>
                 <select
                   value={editRole}
                   onChange={(e) => setEditRole(e.target.value as 'manager' | 'staff')}
-                  className="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-3 text-sm text-slate-100 focus:outline-none focus:border-indigo-500/80 transition-colors"
+                  className="w-full bg-white border border-stone-200 rounded-xl px-3.5 py-3 text-sm text-stone-800 focus:outline-none focus:border-emerald-500/80 transition-colors"
                 >
                   <option value="staff">{t('employee.role.staff_desc')}</option>
                   <option value="manager">{t('employee.role.manager_desc')}</option>
@@ -607,14 +607,14 @@ export default function EmployeeManager({
                 <button
                   type="button"
                   onClick={() => setEditingEmployee(null)}
-                  className="flex-1 bg-slate-950 border border-slate-800 rounded-xl py-3 text-xs font-bold text-slate-400 hover:text-slate-200 transition-all"
+                  className="flex-1 bg-stone-200 border border-stone-200 rounded-xl py-3 text-xs font-bold text-stone-600 hover:text-stone-800 transition-all"
                 >
                   {language === 'ko' ? '취소' : 'Cancel'}
                 </button>
                 <button
                   type="submit"
                   disabled={loading}
-                  className="flex-1 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white shadow-lg shadow-indigo-950/20 py-3 text-xs font-bold transition-all disabled:opacity-50"
+                  className="flex-1 rounded-xl bg-emerald-700 hover:bg-emerald-600 text-white shadow-sm py-3 text-xs font-bold transition-all disabled:opacity-50"
                 >
                   {loading ? t('employee.saving') : t('employee.save')}
                 </button>

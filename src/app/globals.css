@@ -4,65 +4,58 @@
 
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
+    --background: 35 30% 98%;      /* 따뜻한 베이지 크림 #fdfbf7 */
+    --foreground: 24 13% 13%;      /* 짙은 브라운 #2e2722 */
 
-    --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
+    --card: 35 20% 96%;            /* 부드러운 샌드 베이지 #f5f2eb */
+    --card-foreground: 24 13% 13%;
 
-    --popover: 0 0% 100%;
-    --popover-foreground: 222.2 84% 4.9%;
+    --popover: 35 30% 98%;
+    --popover-foreground: 24 13% 13%;
 
-    --primary: 222.2 47.4% 11.2%;
-    --primary-foreground: 210 40% 98%;
+    --primary: 154 40% 29%;        /* 포레스트 그린 #2d6a4f */
+    --primary-foreground: 35 30% 98%;
 
-    --secondary: 210 40% 96.1%;
-    --secondary-foreground: 222.2 47.4% 11.2%;
+    --secondary: 35 15% 91%;       /* 황토 베이지 #e8e3d7 */
+    --secondary-foreground: 24 13% 13%;
 
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 215.4 16.3% 46.9%;
+    --muted: 35 15% 91%;
+    --muted-foreground: 22 8% 40%; /* 클레이 브라운 #6e645e */
 
-    --accent: 210 40% 96.1%;
-    --accent-foreground: 222.2 47.4% 11.2%;
+    --accent: 35 15% 91%;
+    --accent-foreground: 24 13% 13%;
 
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 210 40% 98%;
+    --destructive: 13 67% 47%;     /* 테라코타 오렌지 #c94a29 */
+    --destructive-foreground: 35 30% 98%;
 
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --ring: 222.2 84% 4.9%;
+    --border: 35 15% 88%;          /* 연한 경계 실선 */
+    --input: 35 15% 88%;
+    --ring: 154 40% 29%;
 
-    --radius: 0.5rem;
+    --radius: 0.75rem;
   }
 
   .dark {
-    --background: 222.2 84% 4.9%;
-    --foreground: 210 40% 98%;
-
-    --card: 222.2 84% 4.9%;
-    --card-foreground: 210 40% 98%;
-
-    --popover: 222.2 84% 4.9%;
-    --popover-foreground: 210 40% 98%;
-
-    --primary: 210 40% 98%;
-    --primary-foreground: 222.2 47.4% 11.2%;
-
-    --secondary: 217.2 32.6% 17.5%;
-    --secondary-foreground: 210 40% 98%;
-
-    --muted: 217.2 32.6% 17.5%;
-    --muted-foreground: 215 20.2% 65.1%;
-
-    --accent: 217.2 32.6% 17.5%;
-    --accent-foreground: 210 40% 98%;
-
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 210 40% 98%;
-
-    --border: 217.2 32.6% 17.5%;
-    --input: 217.2 32.6% 17.5%;
-    --ring: 212.7 26.8% 83.9%;
+    /* 시스템 기본 다크모드 강제 덮어쓰기 (찜질방 라이트 테마 유지) */
+    --background: 35 30% 98%;
+    --foreground: 24 13% 13%;
+    --card: 35 20% 96%;
+    --card-foreground: 24 13% 13%;
+    --popover: 35 30% 98%;
+    --popover-foreground: 24 13% 13%;
+    --primary: 154 40% 29%;
+    --primary-foreground: 35 30% 98%;
+    --secondary: 35 15% 91%;
+    --secondary-foreground: 24 13% 13%;
+    --muted: 35 15% 91%;
+    --muted-foreground: 22 8% 40%;
+    --accent: 35 15% 91%;
+    --accent-foreground: 24 13% 13%;
+    --destructive: 13 67% 47%;
+    --destructive-foreground: 35 30% 98%;
+    --border: 35 15% 88%;
+    --input: 35 15% 88%;
+    --ring: 154 40% 29%;
   }
 }
 
@@ -72,12 +65,19 @@
   }
   body {
     @apply bg-background text-foreground;
+    /* 따뜻하고 은은한 모래알/도트 무늬 추가 */
+    background-color: #faf7f0;
+    background-image: 
+      radial-gradient(#e6ddc5 1.2px, transparent 1.2px), 
+      radial-gradient(#e6ddc5 1.2px, #faf7f0 1.2px);
+    background-size: 24px 24px;
+    background-position: 0 0, 12px 12px;
   }
 }
 
-/* Date Input Calendar Icon Webkit Override for Dark Mode */
+/* Date Input Calendar Icon Webkit Override for Light Warm Mode */
 input[type="date"]::-webkit-calendar-picker-indicator {
-  filter: invert(1) brightness(0.9) contrast(1.2);
+  filter: sepia(0.6) saturate(1.2) hue-rotate(10deg) brightness(0.6);
   cursor: pointer;
   opacity: 0.8;
   transition: opacity 0.2s, transform 0.1s;
