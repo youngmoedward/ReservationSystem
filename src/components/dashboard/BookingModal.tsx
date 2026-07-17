@@ -42,6 +42,8 @@ export default function BookingModal({
   const [customerName, setCustomerName] = useState('')
   const [customerPhone, setCustomerPhone] = useState('')
   const [price, setPrice] = useState(80) // 기본 $80
+  const [pricingPlans, setPricingPlans] = useState<any[]>([])
+  const [selectedPlanId, setSelectedPlanId] = useState<string>('')
   const [date, setDate] = useState('')
   const [startHour, setStartHour] = useState(9)
   const [startMinute, setStartMinute] = useState(0)
@@ -55,7 +57,7 @@ export default function BookingModal({
   
   // 취소 조작 관련 상태
   const [isCancelling, setIsCancelling] = useState(false)
-  const [selectedCancelType, setSelectedCancelType] = useState<'request' | 'noshow'>('request')
+  const [selectedCancelType, setSelectedCancelType] = useState<'request' | 'noshow' | 'normal'>('normal')
   
   // 마사지사 날짜별 근무 일정 맵핑 상태
   const [daySchedules, setDaySchedules] = useState<Record<number, string | null>>({})
@@ -155,6 +157,59 @@ export default function BookingModal({
     return { endHour: eh, endMinute: em }
   }
 
+  const fetchPricingPlans = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('pricing_plans')
+        .select('*')
+        .order('id', { ascending: true })
+      if (error) throw error
+      if (data) setPricingPlans(data)
+    } catch (err) {
+      console.error('Failed to fetch pricing plans in BookingModal:', err)
+    }
+  }
+
+  const updateEndTimeWithPlan = (h: number, m: number, planIdStr: string) => {
+    const plan = pricingPlans.find(p => p.id.toString() === planIdStr)
+    const duration = plan ? plan.duration_minutes : 60
+    const startTotalMinutes = h * 60 + m
+    const endTotalMinutes = startTotalMinutes + duration
+    let eh = Math.floor(endTotalMinutes / 60)
+    let em = endTotalMinutes % 60
+    if (eh >= 24) {
+      eh = 24
+      em = 0
+    }
+    setEndHour(eh)
+    setEndMinute(em)
+  }
+
+  const handlePlanChange = (planIdStr: string) => {
+    setSelectedPlanId(planIdStr)
+    const plan = pricingPlans.find(p => p.id.toString() === planIdStr)
+    if (plan) {
+      setPrice(Number(plan.price))
+      
+      const startTotalMinutes = startHour * 60 + startMinute
+      const endTotalMinutes = startTotalMinutes + plan.duration_minutes
+      let eh = Math.floor(endTotalMinutes / 60)
+      let em = endTotalMinutes % 60
+      if (eh >= 24) {
+        eh = 24
+        em = 0
+      }
+      setEndHour(eh)
+      setEndMinute(em)
+    }
+  }
+
+  useEffect(() => {
+    if (isOpen) {
+      fetchPricingPlans()
+    }
+  }, [isOpen])
+
   useEffect(() => {
     const roundTo10Minutes = (min: number) => Math.floor(min / 10) * 10
 
@@ -162,13 +217,14 @@ export default function BookingModal({
       setErrorMsg(null)
       setSuccessResult(null) // 매번 모달이 새로 열릴 때 성공 팝업 초기화
       setIsCancelling(false)
-      setSelectedCancelType('request')
+      setSelectedCancelType('normal')
  
       if (isEditMode && selectedReservation) {
         // 수정 모드
         setCustomerName(selectedReservation.customer_name)
         setCustomerPhone(formatUSPhone(selectedReservation.customer_phone || ''))
         setPrice(Number(selectedReservation.price))
+        setSelectedPlanId(selectedReservation.pricing_plan_id?.toString() || '')
         
         const start = new Date(selectedReservation.start_time)
         const end = new Date(selectedReservation.end_time)
@@ -184,6 +240,7 @@ export default function BookingModal({
         setCustomerName('')
         setCustomerPhone('')
         setPrice(80)
+        setSelectedPlanId('')
         setTherapistId(initialTherapistId?.toString() || 'auto')
         
         if (initialTime) {
@@ -205,7 +262,7 @@ export default function BookingModal({
         }
       }
     }
-  }, [isOpen, isEditMode, selectedReservation, initialTime, initialTherapistId])
+  }, [isOpen, isEditMode, selectedReservation, initialTime, initialTherapistId, pricingPlans.length])
 
 
   if (!isOpen) return null
@@ -422,6 +479,7 @@ export default function BookingModal({
             start_time: startTimeISO,
             end_time: endTimeISO,
             price,
+            pricing_plan_id: selectedPlanId ? Number(selectedPlanId) : null,
             therapist_id: assignedId,
             status: 'confirmed'
           })
@@ -446,6 +504,7 @@ export default function BookingModal({
             start_time: startTimeISO,
             end_time: endTimeISO,
             price,
+            pricing_plan_id: selectedPlanId ? Number(selectedPlanId) : null,
             therapist_id: assignedId,
             created_by: validatedUserId,
             status: 'confirmed'
@@ -502,7 +561,11 @@ export default function BookingModal({
         }
       }
 
-      const penaltyPoints = selectedCancelType === 'request' ? 1 : 3
+      const penaltyPoints = selectedCancelType === 'request'
+        ? 1
+        : selectedCancelType === 'noshow'
+          ? 3
+          : 0
 
       const { error } = await supabase
         .from('reservations')
@@ -518,7 +581,9 @@ export default function BookingModal({
       // 이력 로그 기록
       const cancelTypeTransKey = selectedCancelType === 'request'
         ? 'booking.modal.cancel.type_request'
-        : 'booking.modal.cancel.type_noshow'
+        : selectedCancelType === 'noshow'
+          ? 'booking.modal.cancel.type_noshow'
+          : 'booking.modal.cancel.type_normal'
 
       await supabase.from('reservation_logs').insert({
         reservation_id: selectedReservation.id,
@@ -684,6 +749,40 @@ export default function BookingModal({
             </div>
           </div>
 
+          {/* 요금제 및 마사지 코스 선택 (종료시간보다 위에 노출) */}
+          <div>
+            <label className="block text-xs font-bold text-stone-600 mb-1.5 uppercase tracking-wider">
+              {language === 'ko' ? '요금제 및 마사지 코스 선택' : 'Select Pricing Plan & Course'}
+            </label>
+            <div className="relative">
+              <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-stone-400">
+                <DollarSign className="w-4 h-4" />
+              </span>
+              <select
+                disabled={!canModify}
+                value={selectedPlanId}
+                onChange={(e) => handlePlanChange(e.target.value)}
+                className="w-full bg-white border border-stone-200 rounded-xl pl-9 pr-3 py-3 text-sm text-stone-800 focus:outline-none focus:border-emerald-500/80 transition-colors disabled:opacity-50"
+              >
+                <option value="">
+                  {language === 'ko' ? '-- 요금제를 선택해 주세요 --' : '-- Select Pricing Plan --'}
+                </option>
+                {pricingPlans.map(plan => (
+                  <option key={plan.id} value={plan.id}>
+                    {plan.name} (${Number(plan.price).toLocaleString()})
+                  </option>
+                ))}
+              </select>
+            </div>
+            {selectedPlanId && (
+              <p className="text-[10px] text-emerald-700 mt-1.5 font-bold">
+                {language === 'ko' 
+                  ? `✓ 금액: $${price} / 서비스 시간: ${pricingPlans.find(p => p.id.toString() === selectedPlanId)?.duration_minutes}분 (종료시간 자동 설정)`
+                  : `✓ Price: $${price} / Duration: ${pricingPlans.find(p => p.id.toString() === selectedPlanId)?.duration_minutes} mins (End time set automatically)`}
+              </p>
+            )}
+          </div>
+
           {/* 예약 일자 */}
           <div>
             <label className="block text-xs font-bold text-stone-600 mb-1.5 uppercase tracking-wider">
@@ -718,9 +817,7 @@ export default function BookingModal({
                   onChange={(e) => {
                     const newHour = Number(e.target.value)
                     setStartHour(newHour)
-                    const { endHour: eh, endMinute: em } = getDefaultEndTime(newHour, startMinute)
-                    setEndHour(eh)
-                    setEndMinute(em)
+                    updateEndTimeWithPlan(newHour, startMinute, selectedPlanId)
                   }}
                   className="flex-1 bg-white border border-stone-200 rounded-xl px-3 py-3 text-xs text-stone-800 focus:outline-none focus:border-emerald-500/80 transition-colors disabled:opacity-50"
                 >
@@ -736,9 +833,7 @@ export default function BookingModal({
                   onChange={(e) => {
                     const newMinute = Number(e.target.value)
                     setStartMinute(newMinute)
-                    const { endHour: eh, endMinute: em } = getDefaultEndTime(startHour, newMinute)
-                    setEndHour(eh)
-                    setEndMinute(em)
+                    updateEndTimeWithPlan(startHour, newMinute, selectedPlanId)
                   }}
                   className="flex-1 bg-white border border-stone-200 rounded-xl px-3 py-3 text-xs text-stone-800 focus:outline-none focus:border-emerald-500/80 transition-colors disabled:opacity-50"
                 >
@@ -784,32 +879,6 @@ export default function BookingModal({
                 </select>
               </div>
             </div>
-          </div>
-
-          {/* 마사지 금액 */}
-          <div>
-            <label className="block text-xs font-bold text-stone-600 mb-1.5 uppercase tracking-wider">
-              {t('booking.modal.price')}
-            </label>
-            <div className="relative">
-              <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-stone-400">
-                <DollarSign className="w-4 h-4" />
-              </span>
-              <input
-                type="number"
-                disabled={!canModify}
-                value={price}
-                onChange={(e) => setPrice(Number(e.target.value))}
-                step="10"
-                min="10"
-                className="w-full bg-white border border-stone-200 rounded-xl pl-9 pr-3.5 py-3 text-sm text-stone-800 placeholder-stone-400 focus:outline-none focus:border-emerald-500/80 transition-colors disabled:opacity-50"
-              />
-            </div>
-            <p className="text-[10px] text-stone-500 mt-1.5">
-              {language === 'ko' 
-                ? '* $120 이상인 고급 코스는 당일 전담 마사지사(고급 우선)에게 최우선 배정됩니다.' 
-                : '* Premium courses of $120 or more are assigned to designated premium therapists first.'}
-            </p>
           </div>
 
           {/* 마사지사 배정 (수동 지정 및 자동 배정 토글) */}
@@ -884,7 +953,18 @@ export default function BookingModal({
           <div className="p-5 border-t border-stone-200 bg-stone-100 flex flex-col gap-3 w-full animate-in slide-in-from-bottom duration-250">
             <div className="flex flex-col gap-1.5 text-xs">
               <span className="font-bold text-rose-700">⚠️ {t('booking.modal.cancel.type_label')}</span>
-              <div className="grid grid-cols-2 gap-3 mt-1.5">
+              <div className="grid grid-cols-3 gap-3 mt-1.5">
+                <button
+                  type="button"
+                  onClick={() => setSelectedCancelType('normal')}
+                  className={`flex flex-col items-center justify-center rounded-xl p-3 border text-xs font-bold transition-all ${
+                    selectedCancelType === 'normal'
+                      ? 'border-blue-600 bg-blue-50 text-blue-800'
+                      : 'border-stone-200 bg-white hover:bg-stone-100 text-stone-600'
+                  }`}
+                >
+                  <span>{t('booking.modal.cancel.type_normal')}</span>
+                </button>
                 <button
                   type="button"
                   onClick={() => setSelectedCancelType('request')}

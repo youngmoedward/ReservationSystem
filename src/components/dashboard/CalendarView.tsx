@@ -29,6 +29,7 @@ export interface Reservation {
   status: 'confirmed' | 'cancelled'
   cancellation_type?: 'request' | 'noshow' | null
   penalty_points?: number
+  pricing_plan_id?: number | null
   created_at: string
 }
 

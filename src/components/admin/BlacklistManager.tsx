@@ -457,7 +457,11 @@ export default function BlacklistManager({ supabase, currentUserId }: BlacklistM
                                             <Award className="w-3.5 h-3.5 text-emerald-700/50" />
                                             <span>{t('blacklist.detail.cancel_type')}</span>
                                             <span className="font-semibold text-stone-800">
-                                              {res.cancellation_type === 'request' ? t('booking.modal.cancel.type_request') : t('booking.modal.cancel.type_noshow')}
+                                              {res.cancellation_type === 'request' 
+                                                ? t('booking.modal.cancel.type_request') 
+                                                : res.cancellation_type === 'noshow' 
+                                                  ? t('booking.modal.cancel.type_noshow') 
+                                                  : t('booking.modal.cancel.type_normal')}
                                             </span>
                                           </p>
                                           <p className="flex items-center gap-1.5">

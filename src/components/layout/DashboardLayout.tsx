@@ -24,7 +24,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
       return
     }
 
-    const isTherapistRestricted = ['/therapist', '/employee', '/history', '/stats', '/blacklist'].includes(pathname)
+    const isTherapistRestricted = ['/therapist', '/employee', '/history', '/stats', '/blacklist', '/pricing'].includes(pathname)
     if (currentUser.role === 'therapist' && isTherapistRestricted) {
       router.push('/')
     }
@@ -151,6 +151,18 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
             >
               <Calendar className="w-4 h-4" /> {t('nav.schedule')}
             </button>
+
+            {currentUser.role !== 'therapist' && (
+              <button
+                onClick={() => navigateTo('/pricing')}
+                className={`inline-flex items-center gap-1.5 flex-shrink-0 px-4 py-2 text-xs font-bold rounded-xl border transition-all ${pathname === '/pricing'
+                  ? 'bg-white border-stone-300 text-emerald-800 shadow-sm'
+                  : 'bg-transparent border-transparent text-stone-700 hover:text-stone-900 hover:bg-stone-50/40'
+                  }`}
+              >
+                <Settings className="w-4 h-4" /> {t('nav.pricing')}
+              </button>
+            )}
 
             {/* [권한별 분기] Manager인 경우에만 마사지사 관리, 직원 등록 및 이력 탭 노출 */}
             {currentUser.role === 'manager' && (
