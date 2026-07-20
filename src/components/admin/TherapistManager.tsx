@@ -83,7 +83,7 @@ export default function TherapistManager({
         throw new Error(resData.error || (language === 'ko' ? '계정 생성에 실패했습니다.' : 'Failed to create user account.'))
       }
 
-      const newUserId = resData.userId
+      const newUserId = resData.userId || null
 
       // Step B: therapists 테이블에 마사지사 정보 주입
       const { error: dbError } = await supabase

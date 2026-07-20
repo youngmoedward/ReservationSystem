@@ -101,7 +101,7 @@ export default function EmployeeManager({
       })
 
       const resData = await res.json()
-      if (!res.ok) {
+      if (!res.ok || !resData.userId) {
         throw new Error(resData.error || t('employee.uuid_error'))
       }
 

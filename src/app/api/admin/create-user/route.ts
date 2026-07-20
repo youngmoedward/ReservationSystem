@@ -2,11 +2,16 @@ import { NextResponse } from 'next/server'
 import { createClient } from '@supabase/supabase-js'
 
 export async function POST(request: Request) {
-  const fallbackUserId = crypto.randomUUID()
-
   try {
     const body = await request.json()
     const { email, password, name, role } = body
+
+    if (!email) {
+      return NextResponse.json(
+        { error: 'Email is required.' },
+        { status: 400 }
+      )
+    }
 
     const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL
     const serviceRoleKey = process.env.SUPABASE_SERVICE_ROLE_KEY
@@ -22,7 +27,7 @@ export async function POST(request: Request) {
         })
 
         const { data, error } = await supabaseAdmin.auth.admin.createUser({
-          email: email ? email.trim() : `user_${Date.now()}@spa.com`,
+          email: email.trim(),
           password: password || 'password123',
           email_confirm: true,
           user_metadata: {
@@ -35,31 +40,29 @@ export async function POST(request: Request) {
           return NextResponse.json({
             success: true,
             user: data.user,
-            userId: data.user.id
+            userId: data.user.id,
+            isFallback: false
           })
         } else if (error) {
-          console.warn('[Admin CreateUser Warning] Supabase Auth Error, using fallback UUID:', error.message)
+          console.warn('[Admin CreateUser Warning] Supabase Auth Error:', error.message)
         }
       } catch (adminErr: any) {
-        console.warn('[Admin CreateUser Exception] using fallback UUID:', adminErr?.message)
+        console.warn('[Admin CreateUser Exception]:', adminErr?.message)
       }
-    } else {
-      console.warn('[Admin CreateUser] Missing SUPABASE_SERVICE_ROLE_KEY, using fallback UUID.')
     }
 
-    // Supabase Auth 계정 생성이 Rate Limit 또는 기타 이유로 차단되더라도
-    // 마사지사/직원 DB 등록이 100% 성공하도록 고유 UUID 리턴
+    // Fallback: Auth 계정 생성이 이메일 제한(Rate Limit) 등으로 실패하더라도 
+    // DB Foreign Key 에러를 피할 수 있도록 userId를 null로 처리하여 반환합니다.
     return NextResponse.json({
       success: true,
-      userId: fallbackUserId,
+      userId: null,
       isFallback: true
     })
   } catch (err: any) {
     console.error('[Admin CreateUser Fatal Error]', err)
-    // 최후의 보루로도 항상 성공 처리하여 프론트엔드 에러 원천 차단
     return NextResponse.json({
       success: true,
-      userId: fallbackUserId,
+      userId: null,
       isFallback: true
     })
   }
