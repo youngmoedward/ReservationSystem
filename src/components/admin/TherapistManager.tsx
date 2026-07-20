@@ -25,6 +25,7 @@ export default function TherapistManager({
   // 마사지사 등록 상태
   const [newTherapistName, setNewTherapistName] = useState('')
   const [isPremiumTarget, setIsPremiumTarget] = useState(false)
+  const [massageType, setMassageType] = useState<'dry' | 'wet' | 'both'>('both')
   const [isAddingTherapist, setIsAddingTherapist] = useState(false)
   
   // 로그인 연동 상태
@@ -37,6 +38,7 @@ export default function TherapistManager({
   const [editName, setEditName] = useState('')
   const [editPhone, setEditPhone] = useState('')
   const [editEmail, setEditEmail] = useState('')
+  const [editMassageType, setEditMassageType] = useState<'dry' | 'wet' | 'both'>('both')
 
   const [loading, setLoading] = useState(false)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
@@ -92,6 +94,7 @@ export default function TherapistManager({
           name: newTherapistName.trim(),
           is_active: true,
           is_premium_target: isPremiumTarget,
+          massage_type: massageType,
           user_id: newUserId,
           email: email.trim(),
           phone: stripPhone(phone) || null
@@ -123,6 +126,7 @@ export default function TherapistManager({
 
       setNewTherapistName('')
       setIsPremiumTarget(false)
+      setMassageType('both')
       setEmail('')
       setPhone('')
       setPassword('password123')
@@ -331,7 +335,8 @@ export default function TherapistManager({
         .update({
           name: editName.trim(),
           phone: stripPhone(editPhone) || null,
-          email: editEmail.trim() || null
+          email: editEmail.trim() || null,
+          massage_type: editMassageType
         })
         .eq('id', editingTherapist.id)
 
@@ -389,6 +394,7 @@ export default function TherapistManager({
     setEditName(therapist.name || '')
     setEditPhone(formatUSPhone(therapist.phone || ''))
     setEditEmail(therapist.email || '')
+    setEditMassageType((therapist.massage_type as 'dry' | 'wet' | 'both') || 'both')
   }
 
   // 6. 마사지사 삭제 핸들러
@@ -425,6 +431,30 @@ export default function TherapistManager({
     }
   }
 
+  const renderMassageTypeBadge = (type?: string) => {
+    switch (type) {
+      case 'dry':
+        return (
+          <span className="inline-flex items-center gap-1 rounded-md bg-amber-100/80 px-2 py-0.5 text-[10px] font-bold text-amber-900 border border-amber-300/60 shadow-xs">
+            🧘‍♂️ {t('therapist.type.dry')}
+          </span>
+        )
+      case 'wet':
+        return (
+          <span className="inline-flex items-center gap-1 rounded-md bg-sky-100/80 px-2 py-0.5 text-[10px] font-bold text-sky-900 border border-sky-300/60 shadow-xs">
+            🧴 {t('therapist.type.wet')}
+          </span>
+        )
+      case 'both':
+      default:
+        return (
+          <span className="inline-flex items-center gap-1 rounded-md bg-emerald-100/80 px-2 py-0.5 text-[10px] font-bold text-emerald-900 border border-emerald-300/60 shadow-xs">
+            ✨ {t('therapist.type.both')}
+          </span>
+        )
+    }
+  }
+
   return (
     <div className="space-y-6">
       {/* 마사지사 목록 관리 */}
@@ -452,6 +482,7 @@ export default function TherapistManager({
             <thead className="bg-stone-200/50 text-[10px] font-bold text-stone-600 uppercase tracking-wider text-left">
               <tr>
                 <th className="px-4 py-3">{language === 'ko' ? '마사지사 정보' : 'Therapist Info'}</th>
+                <th className="px-4 py-3">{t('therapist.massage_type')}</th>
                 <th className="px-4 py-3">{t('therapist.email')}</th>
                 <th className="px-4 py-3">{t('therapist.phone')}</th>
                 <th className="px-4 py-3">{t('list.table.status')}</th>
@@ -484,6 +515,7 @@ export default function TherapistManager({
                       </div>
                       <div className="font-mono text-stone-400 text-[9px] mt-0.5">ID: {therapist.id}</div>
                     </td>
+                    <td className="px-4 py-3">{renderMassageTypeBadge(therapist.massage_type)}</td>
                     <td className="px-4 py-3 text-stone-700 font-medium">{therapist.email || '-'}</td>
                     <td className="px-4 py-3 text-stone-700 font-medium">{therapist.phone ? formatUSPhone(therapist.phone) : '-'}</td>
                     <td className="px-4 py-3">
@@ -633,6 +665,45 @@ export default function TherapistManager({
               </div>
 
               <div>
+                <label className="block text-xs font-semibold text-stone-600 mb-1.5">{t('therapist.massage_type')}</label>
+                <div className="grid grid-cols-3 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setMassageType('dry')}
+                    className={`py-2 px-3 rounded-xl border text-xs font-bold transition-all ${
+                      massageType === 'dry'
+                        ? 'bg-amber-100/90 border-amber-400 text-amber-900 shadow-xs ring-1 ring-amber-400'
+                        : 'bg-white border-stone-200 text-stone-600 hover:bg-stone-50'
+                    }`}
+                  >
+                    🧘‍♂️ {t('therapist.type.dry')}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setMassageType('wet')}
+                    className={`py-2 px-3 rounded-xl border text-xs font-bold transition-all ${
+                      massageType === 'wet'
+                        ? 'bg-sky-100/90 border-sky-400 text-sky-900 shadow-xs ring-1 ring-sky-400'
+                        : 'bg-white border-stone-200 text-stone-600 hover:bg-stone-50'
+                    }`}
+                  >
+                    🧴 {t('therapist.type.wet')}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setMassageType('both')}
+                    className={`py-2 px-3 rounded-xl border text-xs font-bold transition-all ${
+                      massageType === 'both'
+                        ? 'bg-emerald-100/90 border-emerald-400 text-emerald-900 shadow-xs ring-1 ring-emerald-400'
+                        : 'bg-white border-stone-200 text-stone-600 hover:bg-stone-50'
+                    }`}
+                  >
+                    ✨ {t('therapist.type.both')}
+                  </button>
+                </div>
+              </div>
+
+              <div>
                 <label className="block text-xs font-semibold text-stone-600 mb-1.5">
                   {language === 'ko' ? '이메일 계정 (ID)' : 'Email Account (ID)'}
                 </label>
@@ -725,6 +796,45 @@ export default function TherapistManager({
                   placeholder={language === 'ko' ? '예: therapist1@jjimjil.com' : 'e.g. therapist1@spa.com'}
                   className="w-full bg-white border border-stone-200 rounded-xl px-3.5 py-3 text-sm text-stone-800 focus:outline-none focus:border-emerald-500/80 transition-colors"
                 />
+              </div>
+
+              <div>
+                <label className="block text-xs font-semibold text-stone-600 mb-1.5">{t('therapist.massage_type')}</label>
+                <div className="grid grid-cols-3 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setEditMassageType('dry')}
+                    className={`py-2 px-3 rounded-xl border text-xs font-bold transition-all ${
+                      editMassageType === 'dry'
+                        ? 'bg-amber-100/90 border-amber-400 text-amber-900 shadow-xs ring-1 ring-amber-400'
+                        : 'bg-white border-stone-200 text-stone-600 hover:bg-stone-50'
+                    }`}
+                  >
+                    🧘‍♂️ {t('therapist.type.dry')}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setEditMassageType('wet')}
+                    className={`py-2 px-3 rounded-xl border text-xs font-bold transition-all ${
+                      editMassageType === 'wet'
+                        ? 'bg-sky-100/90 border-sky-400 text-sky-900 shadow-xs ring-1 ring-sky-400'
+                        : 'bg-white border-stone-200 text-stone-600 hover:bg-stone-50'
+                    }`}
+                  >
+                    🧴 {t('therapist.type.wet')}
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setEditMassageType('both')}
+                    className={`py-2 px-3 rounded-xl border text-xs font-bold transition-all ${
+                      editMassageType === 'both'
+                        ? 'bg-emerald-100/90 border-emerald-400 text-emerald-900 shadow-xs ring-1 ring-emerald-400'
+                        : 'bg-white border-stone-200 text-stone-600 hover:bg-stone-50'
+                    }`}
+                  >
+                    ✨ {t('therapist.type.both')}
+                  </button>
+                </div>
               </div>
 
               <div>

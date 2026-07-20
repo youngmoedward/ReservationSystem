@@ -227,3 +227,19 @@ INSERT INTO public.pricing_plans (name, description, price, duration_minutes, we
   ('Luxury Deep Care', '150-minute premium healing spa massage', 150, 150, 1.8),
   ('Royal Healing Therapy', '180-minute master signature deep flow massage', 180, 180, 2.0)
 ON CONFLICT (name) DO NOTHING;
+
+-- H. therapists 테이블에 마사지 속성(massage_type: dry, wet, both) 컬럼 추가
+ALTER TABLE public.therapists 
+  ADD COLUMN IF NOT EXISTS massage_type TEXT DEFAULT 'both';
+
+-- I. pricing_plans 테이블에 마사지 유형(category: dry, wet, combo) 및 습식/건식 세부 요금/시간/가중치 컬럼 추가
+ALTER TABLE public.pricing_plans
+  ADD COLUMN IF NOT EXISTS category TEXT DEFAULT 'combo',
+  ADD COLUMN IF NOT EXISTS bath_price NUMERIC(10,2) DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS bath_duration_minutes INT DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS bath_weight NUMERIC(3,2) DEFAULT 1.0,
+  ADD COLUMN IF NOT EXISTS massage_price NUMERIC(10,2) DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS massage_duration_minutes INT DEFAULT 0,
+  ADD COLUMN IF NOT EXISTS massage_weight NUMERIC(3,2) DEFAULT 1.0;
+
+

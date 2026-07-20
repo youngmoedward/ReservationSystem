@@ -14,6 +14,7 @@ export interface Therapist {
   user_id?: string | null
   email?: string | null
   phone?: string | null
+  massage_type?: 'dry' | 'wet' | 'both' | string
 }
 
 export interface Reservation {

@@ -4,7 +4,7 @@ import React, { useEffect } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
 import { useUserSim } from '@/app/providers'
 import { useLanguage } from '@/app/LanguageContext'
-import { Calendar, List, Settings, Users, LogIn, LogOut, BarChart3, ShieldAlert } from 'lucide-react'
+import { Calendar, List, Settings, Users, LogIn, LogOut, BarChart3, ShieldAlert, Layers } from 'lucide-react'
 
 interface DashboardLayoutProps {
   children: React.ReactNode
@@ -16,9 +16,9 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
   const { currentUser, setCurrentUser, users, logout } = useUserSim()
   const { language, setLanguage, t } = useLanguage()
 
-  // 1. [권한 가드]: 권한별 페이지 접근 제한
+  // 1. [권한 가드]: 권한별 페이지 접근 제한 (Manager 권한 페이지: therapist, employee, history, stats, priority)
   useEffect(() => {
-    const isManagerPage = ['/therapist', '/employee', '/history', '/stats'].includes(pathname)
+    const isManagerPage = ['/therapist', '/employee', '/history', '/stats', '/priority'].includes(pathname)
     if (currentUser.role === 'staff' && isManagerPage) {
       router.push('/')
       return
@@ -161,6 +161,19 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
                   }`}
               >
                 <Settings className="w-4 h-4" /> {t('nav.pricing')}
+              </button>
+            )}
+
+            {/* [권한별 분기] Manager인 경우 요금관리 우측에 우선순위 관리 메뉴 배치 */}
+            {currentUser.role === 'manager' && (
+              <button
+                onClick={() => navigateTo('/priority')}
+                className={`inline-flex items-center gap-1.5 flex-shrink-0 px-4 py-2 text-xs font-bold rounded-xl border transition-all ${pathname === '/priority'
+                  ? 'bg-white border-stone-300 text-purple-900 shadow-sm ring-1 ring-purple-400/40'
+                  : 'bg-transparent border-transparent text-stone-700 hover:text-stone-900 hover:bg-stone-50/40'
+                  }`}
+              >
+                <Layers className="w-4 h-4 text-purple-700" /> {t('nav.priority')}
               </button>
             )}
 
