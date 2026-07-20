@@ -72,7 +72,7 @@ export default function LoginPage() {
       }
 
       if (loggedUser) {
-        setCurrentUser(loggedUser)
+        setCurrentUser(loggedUser as any)
         window.location.href = '/'
         return
       }
@@ -89,7 +89,7 @@ export default function LoginPage() {
           const simUser = {
             id: authData.user.id,
             name: authData.user.email || 'User',
-            role: 'manager'
+            role: 'manager' as const
           }
           setCurrentUser(simUser)
         }

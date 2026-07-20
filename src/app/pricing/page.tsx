@@ -398,25 +398,6 @@ export default function PricingPage() {
   const wetPlansList = plans.filter(p => p.category === 'wet' || (!p.category && p.bath_price && p.bath_price > 0))
   const dryPlansList = plans.filter(p => p.category === 'dry' || (!p.category && p.massage_price && p.massage_price > 0))
 
-  // 권한 확인 (직원 및 매니저만 허용)
-  if (currentUser.role === 'therapist') {
-    return (
-      <DashboardLayout>
-        <div className="p-8 text-center text-rose-700 bg-rose-50 border border-rose-200 rounded-2xl max-w-lg mx-auto mt-10 shadow-sm">
-          <AlertCircle className="w-12 h-12 mx-auto mb-3 animate-bounce" />
-          <h3 className="text-base font-extrabold">
-            {language === 'ko' ? '접근 권한이 없습니다.' : 'Access Denied.'}
-          </h3>
-          <p className="text-xs mt-1 text-rose-600">
-            {language === 'ko'
-              ? '요금관리 메뉴는 매니저 및 직원만 접근 가능합니다.'
-              : 'Pricing management is only accessible for managers and staff.'}
-          </p>
-        </div>
-      </DashboardLayout>
-    )
-  }
-
   return (
     <DashboardLayout>
       <div className="space-y-6">
