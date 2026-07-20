@@ -4,7 +4,7 @@ import React, { useEffect } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
 import { useUserSim } from '@/app/providers'
 import { useLanguage } from '@/app/LanguageContext'
-import { Calendar, List, Settings, Users, LogIn, LogOut, BarChart3, ShieldAlert, Layers } from 'lucide-react'
+import { Calendar, List, Settings, Users, LogIn, LogOut, BarChart3, ShieldAlert, Layers, ShieldCheck } from 'lucide-react'
 
 interface DashboardLayoutProps {
   children: React.ReactNode
@@ -16,10 +16,11 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
   const { currentUser, setCurrentUser, users, logout } = useUserSim()
   const { language, setLanguage, t } = useLanguage()
 
-  // 1. [권한 가드]: 권한별 페이지 접근 제한 (Manager 권한 페이지: therapist, employee, history, stats, priority)
+  // 1. [권한 가드]: 권한별 페이지 접근 제한 (Manager 권한 페이지: therapist, employee, history, stats, priority, role)
+  // Leader는 staff와 동일한 메뉴 접근 권한 적용
   useEffect(() => {
-    const isManagerPage = ['/therapist', '/employee', '/history', '/stats', '/priority'].includes(pathname)
-    if (currentUser.role === 'staff' && isManagerPage) {
+    const isManagerPage = ['/therapist', '/employee', '/history', '/stats', '/priority', '/role'].includes(pathname)
+    if ((currentUser.role === 'staff' || currentUser.role === 'leader') && isManagerPage) {
       router.push('/')
       return
     }
@@ -35,9 +36,12 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
   }
 
   const getRoleText = (role: string) => {
-    if (role === 'manager') return t('user.role.manager')
-    if (role === 'staff') return t('user.role.staff')
-    return t('user.role.therapist')
+    if (role === 'manager') return t('user.role.manager') || '관리자'
+    if (role === 'leader') return t('user.role.leader') || '스태프 리더'
+    if (role === 'staff') return t('user.role.staff') || '직원'
+    if (role === 'msg1') return '건식 마사지사'
+    if (role === 'msg2') return '습식 마사지사'
+    return t('user.role.therapist') || '마사지사'
   }
 
   return (
@@ -51,8 +55,10 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
       {/* 상단 권한 시뮬레이터 및 헤더 */}
       <header className="border-b border-stone-300 bg-[#f3edd7]/90 backdrop-blur-md sticky top-0 z-40 p-4 shadow-sm relative">
         <div className="max-w-7xl mx-auto flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
-          <div className="flex items-center gap-2">
-            <img src="/logo.png" alt="Spa Logo" className="w-10 h-10 object-contain shadow-lg rounded-xl" />
+          <div className="flex items-center gap-3">
+            <div className="w-10 h-10 bg-stone-950 p-1 rounded-xl shadow-md border border-stone-800 flex items-center justify-center">
+              <img src="/logo.png" alt="Riviera Health Spa Logo" className="w-full h-full object-contain" />
+            </div>
             <div>
               <h1 className="text-base font-extrabold tracking-tight text-stone-800">{t('app.title')}</h1>
               <span className="text-[10px] text-stone-500 font-medium font-mono">{t('app.subtitle')}</span>
@@ -84,13 +90,15 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
 
             {/* 로그인한 사용자 정보 표시 */}
             <div className="flex items-center gap-2 bg-[#e3d7bd]/60 border border-stone-300 rounded-xl px-3.5 py-2">
-              <span className={`w-2 h-2 rounded-full ${currentUser.role === 'manager'
-                ? 'bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.5)]'
-                : currentUser.role === 'staff'
+              <span className={`w-2.5 h-2.5 rounded-full ${currentUser.role === 'manager'
+                ? 'bg-purple-600 shadow-[0_0_8px_rgba(147,51,234,0.5)]'
+                : currentUser.role === 'leader'
                   ? 'bg-emerald-600 shadow-[0_0_8px_rgba(5,150,105,0.5)]'
-                  : 'bg-teal-500 shadow-[0_0_8px_rgba(20,184,166,0.5)]'
+                  : currentUser.role === 'staff'
+                    ? 'bg-sky-600 shadow-[0_0_8px_rgba(2,132,199,0.5)]'
+                    : 'bg-amber-600 shadow-[0_0_8px_rgba(217,119,6,0.5)]'
                 }`} />
-              <span className="text-xs font-bold text-stone-700">
+              <span className="text-xs font-black text-stone-800">
                 {currentUser.name} ({getRoleText(currentUser.role)})
               </span>
             </div>
@@ -152,7 +160,21 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
               <Calendar className="w-4 h-4" /> {t('nav.schedule')}
             </button>
 
-            {currentUser.role !== 'therapist' && (
+            {/* [권한별 분기] Manager인 경우 요금관리 좌측에 권한 관리 메뉴 배치 */}
+            {currentUser.role === 'manager' && (
+              <button
+                onClick={() => navigateTo('/role')}
+                className={`inline-flex items-center gap-1.5 flex-shrink-0 px-4 py-2 text-xs font-bold rounded-xl border transition-all ${pathname === '/role'
+                  ? 'bg-white border-stone-300 text-purple-900 shadow-sm ring-1 ring-purple-400/40'
+                  : 'bg-transparent border-transparent text-stone-700 hover:text-stone-900 hover:bg-stone-50/40'
+                  }`}
+              >
+                <ShieldCheck className="w-4 h-4 text-purple-700" /> {t('nav.role')}
+              </button>
+            )}
+
+            {/* 요금 관리 (Manager 전용 메뉴로 수정) */}
+            {currentUser.role === 'manager' && (
               <button
                 onClick={() => navigateTo('/pricing')}
                 className={`inline-flex items-center gap-1.5 flex-shrink-0 px-4 py-2 text-xs font-bold rounded-xl border transition-all ${pathname === '/pricing'

@@ -208,11 +208,6 @@ export default function CalendarView({
                   <div className="col-span-2 pl-4 py-2 border-r border-stone-200">
                     <div className="flex items-center gap-1.5">
                       <span className="font-semibold text-stone-800">{therapist.name}</span>
-                      {therapist.is_premium_target && (
-                        <span className="inline-flex items-center rounded-full bg-amber-500/10 px-2 py-0.5 text-[10px] font-medium text-amber-600 border border-amber-500/20">
-                          {language === 'ko' ? '고급 우선' : 'Premium'}
-                        </span>
-                      )}
                     </div>
                     <span className="text-[11px] text-stone-500">
                       {therapist.is_active ? t('schedule.on_duty') : t('schedule.off_duty')}

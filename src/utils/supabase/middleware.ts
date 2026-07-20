@@ -55,17 +55,20 @@ export const updateSession = async (request: NextRequest) => {
   )
 
   const { data: { user } } = await supabase.auth.getUser()
+  const simUserCookie = request.cookies.get('sim_user')?.value
 
   const isApiSetup = request.nextUrl.pathname.startsWith('/api/setup-users')
   const isLoginPage = request.nextUrl.pathname.startsWith('/login')
+
+  const isAuthenticated = !!user || !!simUserCookie
   
-  if (!user && !isLoginPage && !isApiSetup) {
+  if (!isAuthenticated && !isLoginPage && !isApiSetup) {
     const url = request.nextUrl.clone()
     url.pathname = '/login'
     return NextResponse.redirect(url)
   }
 
-  if (user && isLoginPage) {
+  if (isAuthenticated && isLoginPage) {
     const url = request.nextUrl.clone()
     url.pathname = '/'
     return NextResponse.redirect(url)

@@ -5,9 +5,11 @@ import { X, Calendar, User, Phone, DollarSign, UserCheck, Trash2, Ban } from 'lu
 import { assignTherapist } from '@/utils/booking/assignTherapist'
 import { Reservation, Therapist } from './CalendarView'
 import { SupabaseClient } from '@supabase/supabase-js'
+import { UserSim } from '@/app/providers'
 import { toLocalDateString, toLocalTimeString, toUIDateString } from '@/utils/booking/dateUtils'
 import { useLanguage } from '@/app/LanguageContext'
 import { formatUSPhone, stripPhone } from '@/utils/phoneFormatter'
+import PinAuthModal, { PinAuthResult } from '../common/PinAuthModal'
 
 interface BookingModalProps {
   isOpen: boolean
@@ -17,7 +19,7 @@ interface BookingModalProps {
   therapists: Therapist[]
   reservations: Reservation[]
   currentUserId: string
-  currentUserRole: 'manager' | 'staff' | 'therapist'
+  currentUserRole: UserSim['role']
   
   // 수정 모드일 때 전달받을 예약 정보
   selectedReservation?: Reservation | null
@@ -909,11 +911,9 @@ export default function BookingModal({
                     statusText = avail.reason
                   }
 
-                  let statusSuffix = t.is_premium_target ? (language === 'ko' ? ' - 고급 담당' : ' - Premium') : ''
-
                   return (
                     <option key={t.id} value={t.id} disabled={!isSelectable}>
-                      {t.name} ({statusText}{statusSuffix})
+                      {t.name} ({statusText})
                     </option>
                   )
                 })}

@@ -14,7 +14,7 @@ interface ListViewProps {
   employees: UserSim[]
   onSelectReservation: (r: Reservation) => void
   currentUserId: string
-  currentUserRole: 'manager' | 'staff' | 'therapist'
+  currentUserRole: UserSim['role']
   startDate: string
   endDate: string
   onStartDateChange: (val: string) => void

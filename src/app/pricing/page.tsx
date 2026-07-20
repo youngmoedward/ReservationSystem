@@ -5,7 +5,8 @@ import { createClient } from '@/utils/supabase/client'
 import { useUserSim } from '../providers'
 import { useLanguage } from '@/app/LanguageContext'
 import DashboardLayout from '@/components/layout/DashboardLayout'
-import { Plus, Edit2, Trash2, Clock, Scale, DollarSign, RefreshCw, AlertCircle, X, Sparkles, Layers } from 'lucide-react'
+import { Plus, Edit2, Trash2, Clock, Scale, DollarSign, RefreshCw, AlertCircle, X, Sparkles, Layers, ShieldAlert } from 'lucide-react'
+import PinAuthModal, { PinAuthResult } from '@/components/common/PinAuthModal'
 
 export type ServiceCategory = 'dry' | 'wet' | 'combo'
 
@@ -372,6 +373,25 @@ export default function PricingPage() {
           </span>
         )
     }
+  }
+
+  // Manager 권한 접근 제한
+  if (currentUser.role !== 'manager') {
+    return (
+      <DashboardLayout>
+        <div className="p-8 text-center text-rose-700 bg-rose-50 border border-rose-200 rounded-2xl max-w-lg mx-auto mt-10 shadow-sm">
+          <ShieldAlert className="w-12 h-12 mx-auto mb-3 animate-bounce text-rose-600" />
+          <h3 className="text-base font-extrabold">
+            {language === 'ko' ? '접근 권한이 없습니다.' : 'Access Denied.'}
+          </h3>
+          <p className="text-xs mt-1 text-rose-600">
+            {language === 'ko'
+              ? '요금 관리 메뉴는 Manager(총괄 관리자) 전용 메뉴입니다.'
+              : 'Pricing Management is only accessible for Managers.'}
+          </p>
+        </div>
+      </DashboardLayout>
+    )
   }
 
   // 필터링된 습식/건식 요금제 목록

@@ -6,6 +6,7 @@ import { useUserSim } from '../providers'
 import { useLanguage } from '@/app/LanguageContext'
 import DashboardLayout from '@/components/layout/DashboardLayout'
 import { Layers, Save, RefreshCw, AlertCircle, CheckCircle2, ShieldAlert } from 'lucide-react'
+import PinAuthModal, { PinAuthResult } from '@/components/common/PinAuthModal'
 
 export interface Therapist {
   id: number
@@ -101,8 +102,10 @@ export default function PriorityPage() {
     }))
   }
 
-  // 3. 일괄 저장 핸들러
-  const handleSaveAll = async () => {
+  const [pinModalOpen, setPinModalOpen] = useState(false)
+
+  // 3. 일괄 저장 핸들러 (PIN 인증 후 실행)
+  const executeSaveAll = async (performer: PinAuthResult) => {
     setSaving(true)
     setErrorMsg(null)
     setSuccessMsg(null)
@@ -153,7 +156,21 @@ export default function PriorityPage() {
         throw error
       }
 
-      setSuccessMsg(language === 'ko' ? '요일별 우선순위 설정이 성공적으로 저장되었습니다!' : 'Priorities saved successfully!')
+      // audit log
+      try {
+        await supabase.from('reservation_logs').insert({
+          log_type: 'priority',
+          action: 'update',
+          performed_by: performer.userName,
+          details: '마사지사 요일별 배정 우선순위 matrix 업데이트 완료'
+        })
+      } catch (lErr) {}
+
+      setSuccessMsg(
+        language === 'ko'
+          ? `[${performer.userName}] 님에 의해 요일별 우선순위 설정이 저장되었습니다!`
+          : `Priorities saved by [${performer.userName}]!`
+      )
       setTimeout(() => setSuccessMsg(null), 3000)
     } catch (err: any) {
       console.error('Error saving priorities:', err)
@@ -161,6 +178,10 @@ export default function PriorityPage() {
     } finally {
       setSaving(false)
     }
+  }
+
+  const triggerSave = () => {
+    setPinModalOpen(true)
   }
 
   // 매니저 전용 권한 체크
@@ -213,7 +234,7 @@ export default function PriorityPage() {
               <RefreshCw className={`w-4 h-4 ${loading ? 'animate-spin' : ''}`} />
             </button>
             <button
-              onClick={handleSaveAll}
+              onClick={triggerSave}
               disabled={saving}
               className="inline-flex items-center gap-1.5 rounded-xl bg-purple-700 hover:bg-purple-800 text-white shadow-md px-5 py-2.5 text-xs font-bold transition-all hover:scale-[1.01] active:scale-[0.99] disabled:opacity-50"
             >
@@ -404,6 +425,17 @@ export default function PriorityPage() {
           </div>
         )}
       </div>
+
+      {/* PIN 번호 인증 팝업 */}
+      <PinAuthModal
+        isOpen={pinModalOpen}
+        actionTitle={language === 'ko' ? '우선순위 설정 저장' : 'Save Priorities'}
+        onSuccess={(result) => {
+          setPinModalOpen(false)
+          executeSaveAll(result)
+        }}
+        onCancel={() => setPinModalOpen(false)}
+      />
     </DashboardLayout>
   )
 }

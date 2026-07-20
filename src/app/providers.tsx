@@ -6,7 +6,7 @@ import { createClient } from '@/utils/supabase/client'
 export interface UserSim {
   id: string
   name: string
-  role: 'manager' | 'staff' | 'therapist'
+  role: 'manager' | 'leader' | 'staff' | 'therapist' | 'msg1' | 'msg2'
   therapistId?: number
   phone?: string
   email?: string
@@ -39,6 +39,7 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
   const logout = async () => {
     await supabase.auth.signOut()
     localStorage.removeItem('sim_user')
+    document.cookie = 'sim_user=; path=/; max-age=0'
     window.location.href = '/login'
   }
 
@@ -94,11 +95,21 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
         
         let matchedUser: UserSim | undefined
 
-        // First priority: Real authenticated user
-        if (authUser) {
+        // First priority: Previously simulated user override from localStorage (sim_user)
+        const saved = localStorage.getItem('sim_user')
+        if (saved) {
+          try {
+            const parsed = JSON.parse(saved)
+            matchedUser = dynamicUsers.find(u => u.id === parsed.id) || parsed
+          } catch (e) {
+            console.error(e)
+          }
+        }
+
+        // Second priority: Real authenticated user from Supabase Auth
+        if (!matchedUser && authUser) {
           matchedUser = dynamicUsers.find(u => u.id === authUser.id || u.email === authUser.email)
           
-          // If profile mapping is missing in DB, fallback to an ad-hoc UserSim object based on authUser metadata/email
           if (!matchedUser) {
             let role: 'manager' | 'staff' | 'therapist' = 'therapist'
             if (authUser.email === 'manager@spa.com') {
@@ -112,19 +123,6 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
               name: authUser.user_metadata?.name || authUser.email?.split('@')[0] || '사용자',
               role,
               email: authUser.email
-            }
-          }
-        }
-
-        // Second priority (only if NOT authenticated): Previously simulated user override from localStorage
-        if (!authUser && !matchedUser) {
-          const saved = localStorage.getItem('sim_user')
-          if (saved) {
-            try {
-              const parsed = JSON.parse(saved)
-              matchedUser = dynamicUsers.find(u => u.id === parsed.id)
-            } catch (e) {
-              console.error(e)
             }
           }
         }
@@ -164,6 +162,7 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
   const setCurrentUser = (user: UserSim) => {
     setCurrentUserState(user)
     localStorage.setItem('sim_user', JSON.stringify(user))
+    document.cookie = `sim_user=${encodeURIComponent(JSON.stringify(user))}; path=/; max-age=86400`
   }
 
   return (
