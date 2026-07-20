@@ -66,23 +66,24 @@ export default function TherapistManager({
     setSuccessMsg(null)
 
     try {
-      // Step A: Supabase Auth 회원가입 API 호출
-      const { data: authData, error: authError } = await supabase.auth.signUp({
-        email: email.trim(),
-        password,
-        options: {
-          data: {
-            name: newTherapistName
-          }
-        }
+      // Step A: 관리자 전용 계정 생성 API 호출 (Rate Limit 완전 회피)
+      const res = await fetch('/api/admin/create-user', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: email.trim(),
+          password,
+          name: newTherapistName.trim(),
+          role: 'therapist'
+        })
       })
 
-      if (authError) throw authError
-      if (!authData.user?.id) {
-        throw new Error(language === 'ko' ? '계정 정보(UUID)를 발급받지 못했습니다.' : 'Failed to issue account UUID.')
+      const resData = await res.json()
+      if (!res.ok) {
+        throw new Error(resData.error || (language === 'ko' ? '계정 생성에 실패했습니다.' : 'Failed to create user account.'))
       }
 
-      const newUserId = authData.user.id
+      const newUserId = resData.userId
 
       // Step B: therapists 테이블에 마사지사 정보 주입
       const { error: dbError } = await supabase
@@ -96,7 +97,10 @@ export default function TherapistManager({
           phone: stripPhone(phone) || null
         })
 
-      if (dbError) throw dbError
+      if (dbError) {
+        console.error('Therapist DB insert error:', dbError)
+        throw new Error(`[DB Insert Error] ${dbError.message}`)
+      }
 
       // 변경 이력 추가
       await writeLog(

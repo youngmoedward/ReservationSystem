@@ -88,23 +88,24 @@ export default function EmployeeManager({
     setSuccessMsg(null)
 
     try {
-      // Step A: Supabase Auth 회원가입 API 호출
-      const { data: authData, error: authError } = await supabase.auth.signUp({
-        email,
-        password,
-        options: {
-          data: {
-            name: name
-          }
-        }
+      // Step A: 관리자 전용 계정 생성 API 호출 (Rate Limit 완전 회피)
+      const res = await fetch('/api/admin/create-user', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: email.trim(),
+          password,
+          name: name.trim(),
+          role
+        })
       })
 
-      if (authError) throw authError
-      if (!authData.user?.id) {
-        throw new Error(t('employee.uuid_error'))
+      const resData = await res.json()
+      if (!res.ok) {
+        throw new Error(resData.error || t('employee.uuid_error'))
       }
 
-      const newUserId = authData.user.id
+      const newUserId = resData.userId
 
       // Step B: 가입 완료된 UUID를 외래키로 삼아 employee 테이블에 데이터 주입
       const { error: dbError } = await supabase
