@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { createClient } from '@/utils/supabase/client'
 import { useLanguage } from '@/app/LanguageContext'
 import { Lock, AlertCircle, X, Check } from 'lucide-react'
@@ -29,6 +29,42 @@ export default function PinAuthModal({
   const [pin, setPin] = useState('')
   const [loading, setLoading] = useState(false)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
+
+  const hiddenInputRef = useRef<HTMLInputElement>(null)
+
+  // 1. 모달 열릴 때 포커스 및 초기화
+  useEffect(() => {
+    if (isOpen) {
+      setPin('')
+      setErrorMsg(null)
+      setTimeout(() => {
+        hiddenInputRef.current?.focus()
+      }, 50)
+    }
+  }, [isOpen])
+
+  // 2. Escape / Enter 등 단축키 처리 (중복 입력 방지를 위해 숫자키 입력은 hidden input에만 위임)
+  useEffect(() => {
+    if (!isOpen) return
+
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') {
+        e.preventDefault()
+        onCancel()
+      } else if (e.key === 'Enter') {
+        e.preventDefault()
+        if (pin.length === 4 && !loading) {
+          handlePinSubmit()
+        }
+      }
+    }
+
+    window.addEventListener('keydown', handleKeyDown)
+    return () => {
+      window.removeEventListener('keydown', handleKeyDown)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, pin, loading])
 
   if (!isOpen) return null
 
@@ -98,22 +134,47 @@ export default function PinAuthModal({
     }
   }
 
+  // 화면 키패드 버튼 클릭
   const handleKeyClick = (num: string) => {
     if (pin.length < 4) {
-      const nextPin = pin + num
-      setPin(nextPin)
+      setPin(prev => prev + num)
       setErrorMsg(null)
     }
+    hiddenInputRef.current?.focus()
   }
 
   const handleBackspace = () => {
     setPin(prev => prev.slice(0, -1))
     setErrorMsg(null)
+    hiddenInputRef.current?.focus()
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-stone-950/60 backdrop-blur-md animate-in fade-in duration-200">
-      <div className="w-full max-w-sm bg-white border border-stone-200 rounded-3xl shadow-2xl p-6 text-center space-y-5 relative overflow-hidden">
+    <div
+      className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-stone-950/60 backdrop-blur-md animate-in fade-in duration-200"
+      onClick={() => hiddenInputRef.current?.focus()}
+    >
+      {/* 숨겨진 키보드 입력용 Input (중복 입력 없이 단일 소스로 키보드 입력 수신) */}
+      <input
+        ref={hiddenInputRef}
+        type="text"
+        inputMode="numeric"
+        pattern="[0-9]*"
+        maxLength={4}
+        value={pin}
+        onChange={(e) => {
+          const val = e.target.value.replace(/[^0-9]/g, '').slice(0, 4)
+          setPin(val)
+          setErrorMsg(null)
+        }}
+        className="opacity-0 absolute pointer-events-none w-0 h-0"
+        autoFocus
+      />
+
+      <div
+        className="w-full max-w-sm bg-white border border-stone-200 rounded-3xl shadow-2xl p-6 text-center space-y-5 relative overflow-hidden"
+        onClick={(e) => e.stopPropagation()}
+      >
         {/* 상단 닫기 버튼 */}
         <button
           onClick={onCancel}
@@ -131,12 +192,15 @@ export default function PinAuthModal({
             {actionTitle}
           </h3>
           <p className="text-xs font-semibold text-purple-900 bg-purple-50 px-3 py-1 rounded-full inline-block border border-purple-200/60">
-            🔒 {language === 'ko' ? '본인 확인을 위해 4자리 PIN 번호를 입력하세요' : 'Enter 4-digit PIN for Authorization'}
+            🔒 {language === 'ko' ? '키보드로 입력하거나 화면 숫자를 누르세요' : 'Type on Keyboard or Tap Numbers'}
           </p>
         </div>
 
         {/* PIN 4자리 표시 박스 */}
-        <div className="flex justify-center gap-3 py-2">
+        <div
+          onClick={() => hiddenInputRef.current?.focus()}
+          className="flex justify-center gap-3 py-2 cursor-pointer"
+        >
           {[0, 1, 2, 3].map(idx => (
             <div
               key={idx}
@@ -158,7 +222,7 @@ export default function PinAuthModal({
           </div>
         )}
 
-        {/* 숫자 키패드 3x4 */}
+        {/* 화면 숫자 키패드 3x4 */}
         <div className="grid grid-cols-3 gap-2 pt-1 max-w-[260px] mx-auto">
           {['1', '2', '3', '4', '5', '6', '7', '8', '9'].map(num => (
             <button
@@ -188,7 +252,7 @@ export default function PinAuthModal({
             type="button"
             onClick={() => handlePinSubmit()}
             disabled={pin.length < 4 || loading}
-            className="h-12 rounded-2xl bg-purple-700 hover:bg-purple-800 disabled:opacity-40 text-white font-extrabold text-xs transition-all active:scale-95 shadow-md flex items-center justify-center gap-1"
+            className="h-12 rounded-2xl bg-purple-700 hover:bg-purple-800 disabled:opacity-40 text-white font-extrabold text-xs transition-all active:scale-95 shadow-md flex items-center justify-center gap-1 cursor-pointer"
           >
             <Check className="w-4 h-4" />
             {language === 'ko' ? '확인' : 'OK'}
