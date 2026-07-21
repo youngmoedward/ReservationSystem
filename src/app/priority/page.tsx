@@ -44,6 +44,7 @@ export default function PriorityPage() {
   const [therapists, setTherapists] = useState<Therapist[]>([])
   // priorityMap: key = `${therapistId}_${serviceType}_${dayOfWeek}`, val = priority_val ('1', 'x', etc.)
   const [priorityMap, setPriorityMap] = useState<Record<string, string>>({})
+  const [initialPriorityMap, setInitialPriorityMap] = useState<Record<string, string>>({})
   const [loading, setLoading] = useState(true)
   const [saving, setSaving] = useState(false)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
@@ -81,6 +82,7 @@ export default function PriorityPage() {
       }
 
       setPriorityMap(newMap)
+      setInitialPriorityMap(newMap)
     } catch (err: any) {
       console.warn('Failed to load therapist priorities:', err)
       // 테이블이 미생성된 상태라도 기본 UI는 작동되도록 처리
@@ -160,15 +162,50 @@ export default function PriorityPage() {
       // 4주간 근무여부 데이터 자동 동기화/재생성
       await sync4WeeksScheduleFromPriorities(supabase)
 
-      // audit log
+      // 상세 변경 내역 추출 및 audit log 저장
       try {
-        await supabase.from('reservation_logs').insert({
+        const changesText: string[] = []
+        payload.forEach(item => {
+          const key = `${item.therapist_id}_${item.service_type}_${item.day_of_week}`
+          const oldVal = initialPriorityMap[key] || 'x'
+          const newVal = item.priority_val || 'x'
+          if (oldVal.toLowerCase() !== newVal.toLowerCase()) {
+            const th = therapists.find(t => t.id === item.therapist_id)
+            const thName = th ? th.name : `ID:${item.therapist_id}`
+            const dayLabel = DAYS_OF_WEEK.find(d => d.key === item.day_of_week)?.full || `${item.day_of_week}요일`
+            const sTypeLabel = item.service_type === 'wet' ? '습식' : '건식'
+            changesText.push(`${thName}(${sTypeLabel}) ${dayLabel}: ${oldVal.toUpperCase()} -> ${newVal.toUpperCase()}`)
+          }
+        })
+
+        const detailsStr = changesText.length > 0
+          ? `[우선순위 변경] ${changesText.slice(0, 5).join(', ')}${changesText.length > 5 ? ` 외 ${changesText.length - 5}건` : ''}`
+          : '우선순위 저장 (변경사항 없음)'
+
+        const { error: logError } = await supabase.from('reservation_logs').insert({
           log_type: 'priority',
           action: 'update',
           performed_by: performer.userName,
-          details: '마사지사 요일별 배정 우선순위 matrix 및 4주간 근무여부 자동 재생성 완료'
+          details: detailsStr
         })
-      } catch (lErr) {}
+
+        if (logError) {
+          console.warn('Primary audit log insert failed, trying fallback:', logError.message)
+          // performed_by가 UUID 타입일 수 있으므로 null로 넣고 details에 수행자 추가
+          const { error: fbErr } = await supabase.from('reservation_logs').insert({
+            log_type: 'priority',
+            action: 'update',
+            performed_by: null,
+            details: `[수행자: ${performer.userName}] ${detailsStr}`
+          })
+          if (fbErr) console.error('Fallback audit log failed:', fbErr.message)
+        }
+
+        // 초기 지도 업데이트
+        setInitialPriorityMap({ ...priorityMap })
+      } catch (lErr) {
+        console.error('Audit log error:', lErr)
+      }
 
       setSuccessMsg(
         language === 'ko'

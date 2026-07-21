@@ -16,7 +16,7 @@ interface LogItem {
   action: string
   performed_at: string
   details: string
-  log_type: 'reservation' | 'schedule' | 'therapist' | 'employee'
+  log_type: 'reservation' | 'schedule' | 'therapist' | 'employee' | 'priority'
   employee?: { name: string } | null
   reservations?: { customer_name: string; start_time: string } | null
 }
@@ -70,6 +70,7 @@ export default function HistoryManager({ supabase }: HistoryManagerProps) {
           reservation_id,
           action,
           performed_at,
+          performed_by,
           details,
           log_type,
           employee:performed_by (
@@ -89,9 +90,29 @@ export default function HistoryManager({ supabase }: HistoryManagerProps) {
         query = query.eq('log_type', logTypeFilter)
       }
 
-      const { data, error, count } = await query
+      let { data, error, count } = await query
 
-      if (error) throw error
+      // 조인 관계 오류 시 단순 쿼리로 2차 Fallback
+      if (error) {
+        console.warn('Primary log query failed, falling back to simple select:', error.message)
+        let fallbackQuery = supabase
+          .from('reservation_logs')
+          .select('id, reservation_id, action, performed_at, performed_by, details, log_type', { count: 'exact' })
+          .gte('performed_at', `${fromDateFilter}T00:00:00.000Z`)
+          .lte('performed_at', `${toDateFilter}T23:59:59.999Z`)
+          .order('performed_at', { ascending: false })
+          .range((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage - 1)
+
+        if (logTypeFilter !== 'all') {
+          fallbackQuery = fallbackQuery.eq('log_type', logTypeFilter)
+        }
+
+        const res2 = await fallbackQuery
+        if (res2.error) throw res2.error
+        data = res2.data as any
+        count = res2.count
+      }
+
       if (data) {
         setLogs(data as unknown as LogItem[])
       }
@@ -241,6 +262,7 @@ export default function HistoryManager({ supabase }: HistoryManagerProps) {
             <option value="schedule">{t('history.filter.schedule')}</option>
             <option value="therapist">{t('history.filter.therapist')}</option>
             <option value="employee">{t('history.filter.employee')}</option>
+            <option value="priority">{language === 'ko' ? '우선순위 관리' : 'Priority'}</option>
           </select>
         </div>
 
@@ -312,11 +334,12 @@ export default function HistoryManager({ supabase }: HistoryManagerProps) {
               <tbody className="divide-y divide-stone-200 text-stone-700">
                 {logs.map((log) => {
                   // 이력 종류별 뱃지
-                  const logTypeLabels = {
+                  const logTypeLabels: Record<string, { text: string; class: string }> = {
                     reservation: { text: t('history.type.reservation'), class: 'bg-emerald-50 text-emerald-700 border border-emerald-200 font-bold' },
                     schedule: { text: t('history.type.schedule'), class: 'bg-amber-50 text-amber-700 border border-amber-200 font-bold' },
                     therapist: { text: t('history.type.therapist'), class: 'bg-stone-100 text-stone-700 border border-stone-300 font-bold' },
-                    employee: { text: t('history.type.employee'), class: 'bg-stone-200 text-stone-600 border border-stone-300 font-bold' }
+                    employee: { text: t('history.type.employee'), class: 'bg-stone-200 text-stone-600 border border-stone-300 font-bold' },
+                    priority: { text: language === 'ko' ? '우선순위' : 'Priority', class: 'bg-purple-50 text-purple-700 border border-purple-200 font-bold' }
                   }
 
                   // 액션 뱃지
@@ -330,7 +353,18 @@ export default function HistoryManager({ supabase }: HistoryManagerProps) {
                   const logTypeData = logTypeLabels[log.log_type] || { text: t('history.type.other'), class: 'bg-stone-100 text-stone-500 border-stone-300' }
                   const actionData = actionLabels[log.action] || { text: log.action, class: 'bg-stone-100 text-stone-700 border border-stone-300' }
 
-                  const performerName = log.employee?.name || t('history.system')
+                  const getPerformerName = () => {
+                    if (log.employee?.name) return log.employee.name
+                    if ((log as any).performed_by && typeof (log as any).performed_by === 'string') {
+                      return (log as any).performed_by
+                    }
+                    if (log.details && log.details.includes('[수행자:')) {
+                      const match = log.details.match(/\[수행자:\s*([^\]]+)\]/)
+                      if (match) return match[1]
+                    }
+                    return t('history.system')
+                  }
+                  const performerName = getPerformerName()
 
                   return (
                     <tr key={log.id} className="hover:bg-stone-100 transition-colors">
@@ -365,6 +399,8 @@ export default function HistoryManager({ supabase }: HistoryManagerProps) {
                           <span className="text-stone-400 font-medium">{t('history.type.therapist')}</span>
                         ) : log.log_type === 'employee' ? (
                           <span className="text-stone-400 font-medium">{t('history.type.employee')}</span>
+                        ) : log.log_type === 'priority' ? (
+                          <span className="text-stone-400 font-medium">{language === 'ko' ? '우선순위 관리' : 'Priorities'}</span>
                         ) : (
                           <span className="text-stone-400 font-medium">{t('history.type.other')}</span>
                         )}
