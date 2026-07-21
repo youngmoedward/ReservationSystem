@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useState, useEffect } from 'react'
+import React, { useState, useEffect, useRef } from 'react'
 import { X, Calendar, User, Phone, DollarSign, UserCheck, Trash2, Ban } from 'lucide-react'
 import { assignTherapist } from '@/utils/booking/assignTherapist'
 import { Reservation, Therapist } from './CalendarView'
@@ -64,6 +64,247 @@ export default function BookingModal({
   // 마사지사 날짜별 근무 일정 맵핑 상태
   const [daySchedules, setDaySchedules] = useState<Record<number, string | null>>({})
 
+  // 실시간 고객 검색 / 자동완성 관련 상태
+  interface CustomerSuggestion {
+    name: string
+    phone: string
+    totalCount: number
+    cancelCount: number
+    isBlacklisted: boolean
+    blacklistReason?: string
+  }
+  const [suggestions, setSuggestions] = useState<CustomerSuggestion[]>([])
+  const [showSuggestions, setShowSuggestions] = useState(false)
+  const [activeInput, setActiveInput] = useState<'name' | 'phone' | null>(null)
+  const [selectedFromSuggestion, setSelectedFromSuggestion] = useState(false)
+
+  useEffect(() => {
+    if (selectedFromSuggestion) {
+      setShowSuggestions(false)
+      return
+    }
+
+    const queryValue = activeInput === 'name' ? customerName : customerPhone
+    const cleanQuery = queryValue ? queryValue.trim() : ''
+
+    console.log('[Autocomplete] Triggered. activeInput:', activeInput, 'queryValue:', queryValue, 'cleanQuery:', cleanQuery)
+
+    if (cleanQuery.length < 1) {
+      setSuggestions([])
+      setShowSuggestions(false)
+      return
+    }
+
+    const delayDebounceFn = setTimeout(async () => {
+      try {
+        console.log('[Autocomplete] Fetching DB for:', cleanQuery)
+        // 1. reservations 테이블에서 검색
+        let dbQuery = supabase.from('reservations').select('customer_name, customer_phone, status')
+        if (activeInput === 'name') {
+          dbQuery = dbQuery.ilike('customer_name', `%${cleanQuery}%`)
+        } else {
+          const stripped = stripPhone(cleanQuery)
+          dbQuery = dbQuery.ilike('customer_phone', `%${stripped}%`)
+        }
+
+        const { data: resData, error: resErr } = await dbQuery.limit(80)
+        if (resErr) {
+          console.error('[Autocomplete] Reservations error:', resErr)
+          throw resErr
+        }
+        console.log('[Autocomplete] Reservations fetch success. Count:', resData?.length)
+
+        // 2. blacklists 테이블에서 전체 조회 (에러 나더라도 전체 흐름 차단 방지)
+        let blData: any[] = []
+        try {
+          const { data, error } = await supabase
+            .from('blacklists')
+            .select('name, phone, reason')
+          if (error) {
+            console.warn('[Autocomplete] Blacklist check warning:', error.message)
+          } else if (data) {
+            blData = data
+          }
+        } catch (blCatchErr) {
+          console.warn('[Autocomplete] Blacklist catch warning:', blCatchErr)
+        }
+
+        // 예약 데이터를 활용하여 고객별 통계 집계
+        const clientMap = new Map<string, { name: string; phone: string; total: number; cancel: number }>()
+
+        if (resData) {
+          resData.forEach((item: any) => {
+            const rawPhone = item.customer_phone || ''
+            const formattedPhone = formatUSPhone(rawPhone)
+            const key = `${item.customer_name}_${formattedPhone}`
+
+            if (!clientMap.has(key)) {
+              clientMap.set(key, {
+                name: item.customer_name || '',
+                phone: formattedPhone,
+                total: 0,
+                cancel: 0
+              })
+            }
+            const current = clientMap.get(key)!
+            current.total += 1
+            if (item.status === 'cancelled') {
+              current.cancel += 1
+            }
+          })
+        }
+
+        const blacklistNameMap = new Set(blData.map(b => b.name?.trim().toLowerCase()))
+        const blacklistPhoneMap = new Set(blData.map(b => stripPhone(b.phone || '')))
+
+        // 최종 제안 데이터 구성
+        const list: CustomerSuggestion[] = Array.from(clientMap.values()).map(c => {
+          const nameLower = c.name.trim().toLowerCase()
+          const phoneStripped = stripPhone(c.phone)
+          const isBl = blacklistNameMap.has(nameLower) || blacklistPhoneMap.has(phoneStripped)
+          const blItem = blData.find(b => b.name?.trim().toLowerCase() === nameLower || stripPhone(b.phone || '') === phoneStripped)
+          return {
+            name: c.name,
+            phone: c.phone,
+            totalCount: c.total,
+            cancelCount: c.cancel,
+            isBlacklisted: isBl,
+            blacklistReason: blItem?.reason || undefined
+          }
+        })
+
+        // 검색 결과가 없는 경우, 블랙리스트 여부 실시간 확인 가능하도록 처리
+        if (list.length === 0) {
+          const matchedBl = blData.find(b => {
+            if (activeInput === 'name') {
+              return b.name?.toLowerCase().includes(cleanQuery.toLowerCase())
+            } else {
+              return stripPhone(b.phone || '').includes(stripPhone(cleanQuery))
+            }
+          })
+          if (matchedBl) {
+            list.push({
+              name: matchedBl.name || cleanQuery,
+              phone: formatUSPhone(matchedBl.phone || ''),
+              totalCount: 0,
+              cancelCount: 0,
+              isBlacklisted: true,
+              blacklistReason: matchedBl.reason || undefined
+            })
+          }
+        }
+
+        console.log('[Autocomplete] Final suggestions count:', list.length)
+        setSuggestions(list)
+        setShowSuggestions(list.length > 0)
+      } catch (err) {
+        console.error('[Autocomplete] Fatal search error:', err)
+      }
+    }, 200)
+
+    return () => clearTimeout(delayDebounceFn)
+  }, [customerName, customerPhone, activeInput, selectedFromSuggestion])
+
+  const [blacklistRecords, setBlacklistRecords] = useState<any[]>([])
+
+  const fetchBlacklists = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('blacklists')
+        .select('name, phone, reason')
+      if (!error && data) {
+        setBlacklistRecords(data)
+      }
+    } catch (err) {
+      console.warn('Failed to pre-fetch blacklists:', err)
+    }
+  }
+
+  useEffect(() => {
+    if (isOpen) {
+      fetchBlacklists()
+    }
+  }, [isOpen])
+
+  // 입력 완료된 이름 / 번호 기준 고객 실시간 통계 및 블랙리스트 판별
+  const getClientStats = () => {
+    if (!customerName.trim() && !customerPhone.trim()) return null
+
+    const nameQuery = customerName.trim().toLowerCase()
+    const phoneQuery = stripPhone(customerPhone)
+
+    if (nameQuery.length < 1 && phoneQuery.length < 1) return null
+
+    // 1. 예약 내역 매칭
+    let matched = reservations || []
+    if (nameQuery && phoneQuery) {
+      matched = matched.filter(
+        r =>
+          r.customer_name?.trim().toLowerCase() === nameQuery &&
+          stripPhone(r.customer_phone || '') === phoneQuery
+      )
+    } else if (nameQuery) {
+      matched = matched.filter(
+        r => r.customer_name?.trim().toLowerCase() === nameQuery
+      )
+    } else if (phoneQuery) {
+      matched = matched.filter(
+        r => stripPhone(r.customer_phone || '') === phoneQuery
+      )
+    }
+
+    // 2. 블랙리스트 매칭
+    const blItem = blacklistRecords.find(b => {
+      const bName = b.name?.trim().toLowerCase()
+      const bPhone = stripPhone(b.phone || '')
+      if (nameQuery && phoneQuery) {
+        return bName === nameQuery || bPhone === phoneQuery
+      } else if (nameQuery) {
+        return bName === nameQuery
+      } else {
+        return bPhone === phoneQuery
+      }
+    })
+
+    // 매칭된 정보도 없고 블랙리스트도 아니면 노출 안함
+    if (matched.length === 0 && !blItem) return null
+
+    let totalCount = matched.length
+    let cancelCount = 0
+    let penaltyPoints = 0
+
+    matched.forEach(r => {
+      if (r.status === 'cancelled') {
+        cancelCount += 1
+        penaltyPoints += Number(r.penalty_points || 0)
+      }
+    })
+
+    // 등급 정의: 페널티 점수 혹은 블랙리스트 여부
+    let level: 'normal' | 'warning' | 'danger' = 'normal'
+    if (blItem || penaltyPoints >= 5) {
+      level = 'danger'
+    } else if (penaltyPoints >= 3) {
+      level = 'warning'
+    }
+
+    const repName = matched.length > 0 ? matched[0].customer_name : (blItem?.name || customerName)
+    const repPhone = matched.length > 0 ? formatUSPhone(matched[0].customer_phone || '') : formatUSPhone(blItem?.phone || customerPhone)
+
+    return {
+      name: repName,
+      phone: repPhone,
+      totalCount,
+      cancelCount,
+      penaltyPoints,
+      level,
+      blacklistReason: blItem?.reason || undefined
+    }
+  }
+
+  const clientStats = getClientStats()
+
+
   const fetchDaySchedules = async (targetDate: string) => {
     if (!targetDate) return
     try {
@@ -92,6 +333,30 @@ export default function BookingModal({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [isOpen, date])
+
+  const suggestionsContainerRef = useRef<HTMLDivElement>(null)
+  const nameInputRef = useRef<HTMLInputElement>(null)
+  const phoneInputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      const target = event.target as Node
+      if (
+        suggestionsContainerRef.current && 
+        !suggestionsContainerRef.current.contains(target) &&
+        nameInputRef.current && 
+        !nameInputRef.current.contains(target) &&
+        phoneInputRef.current && 
+        !phoneInputRef.current.contains(target)
+      ) {
+        setShowSuggestions(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside)
+    }
+  }, [])
 
   const checkTherapistAvailability = (tId: number) => {
     const type = daySchedules[tId]
@@ -715,41 +980,209 @@ export default function BookingModal({
           )}
 
           {/* 고객명 */}
-          <div>
+          <div className={`relative ${activeInput === 'name' && showSuggestions && suggestions.length > 0 ? 'z-30' : 'z-10'}`}>
             <label className="block text-xs font-bold text-stone-600 mb-1.5 uppercase tracking-wider">{t('booking.modal.client_name')}</label>
             <div className="relative">
               <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-stone-400">
                 <User className="w-4 h-4" />
               </span>
               <input
+                ref={nameInputRef}
                 type="text"
                 disabled={!canModify}
                 value={customerName}
-                onChange={(e) => setCustomerName(e.target.value)}
+                onChange={(e) => {
+                  setCustomerName(e.target.value)
+                  setActiveInput('name')
+                  setSelectedFromSuggestion(false)
+                }}
+                onFocus={() => {
+                  setActiveInput('name')
+                  if (suggestions.length > 0) setShowSuggestions(true)
+                }}
                 placeholder={language === 'ko' ? '고객 성함을 기입해 주세요' : 'Enter client name'}
                 className="w-full bg-white border border-stone-200 rounded-xl pl-9 pr-3.5 py-3 text-sm text-stone-800 placeholder-stone-400 focus:outline-none focus:border-emerald-500/80 transition-colors disabled:opacity-50"
               />
             </div>
+
+            {/* 이름 기준 검색 결과 제안 */}
+            {activeInput === 'name' && showSuggestions && suggestions.length > 0 && (
+              <div 
+                ref={suggestionsContainerRef}
+                className="absolute left-0 right-0 z-50 mt-1 bg-white border border-stone-200 rounded-xl shadow-xl max-h-48 overflow-y-auto divide-y divide-stone-100"
+              >
+                {suggestions.map((item, idx) => (
+                  <button
+                    key={idx}
+                    type="button"
+                    onMouseDown={(e) => {
+                      e.preventDefault() // prevent input from losing focus immediately
+                      setCustomerName(item.name)
+                      setCustomerPhone(item.phone)
+                      setSelectedFromSuggestion(true)
+                      setShowSuggestions(false)
+                    }}
+                    className="w-full text-left px-4 py-2.5 hover:bg-stone-50 transition-colors flex items-center justify-between text-xs cursor-pointer"
+                  >
+                    <div>
+                      <div className="font-bold text-stone-800 flex items-center gap-1.5">
+                        <span>{item.name}</span>
+                        {item.isBlacklisted && (
+                          <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md text-[9px] font-bold bg-rose-100 text-rose-700 border border-rose-200">
+                            <Ban className="w-2.5 h-2.5 text-rose-600" />
+                            {language === 'ko' ? '블랙리스트' : 'Blacklist'}
+                          </span>
+                        )}
+                      </div>
+                      <div className="text-[10px] text-stone-400 mt-0.5">{item.phone}</div>
+                    </div>
+                    <div className="text-right text-[10px] text-stone-500">
+                      <div>
+                        {language === 'ko' ? '예약' : 'Booked'}: <span className="font-semibold text-emerald-600">{item.totalCount}회</span>
+                      </div>
+                      {item.cancelCount > 0 && (
+                        <div className="mt-0.5">
+                          {language === 'ko' ? '취소' : 'Cancelled'}: <span className="font-semibold text-rose-500">{item.cancelCount}회</span>
+                        </div>
+                      )}
+                      {item.isBlacklisted && item.blacklistReason && (
+                        <div className="text-rose-500 font-medium text-[9px] mt-0.5 truncate max-w-[120px]" title={item.blacklistReason}>
+                          {item.blacklistReason}
+                        </div>
+                      )}
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
 
           {/* 연락처 */}
-          <div>
+          <div className={`relative ${activeInput === 'phone' && showSuggestions && suggestions.length > 0 ? 'z-30' : 'z-10'}`}>
             <label className="block text-xs font-bold text-stone-600 mb-1.5 uppercase tracking-wider">{t('list.table.phone')}</label>
             <div className="relative">
               <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-stone-400">
                 <Phone className="w-4 h-4" />
               </span>
               <input
+                ref={phoneInputRef}
                 type="text"
                 disabled={!canModify}
                 value={customerPhone}
-                onChange={(e) => setCustomerPhone(formatUSPhone(e.target.value))}
+                onChange={(e) => {
+                  setCustomerPhone(formatUSPhone(e.target.value))
+                  setActiveInput('phone')
+                  setSelectedFromSuggestion(false)
+                }}
+                onFocus={() => {
+                  setActiveInput('phone')
+                  if (suggestions.length > 0) setShowSuggestions(true)
+                }}
                 placeholder={language === 'ko' ? '예: 123-456-7890' : 'e.g. 123-456-7890'}
                 maxLength={12} // US 포맷 123-456-7890 총 12자 제한
                 className="w-full bg-white border border-stone-200 rounded-xl pl-9 pr-3.5 py-3 text-sm text-stone-800 placeholder-stone-400 focus:outline-none focus:border-emerald-500/80 transition-colors disabled:opacity-50"
               />
             </div>
+
+            {/* 전화번호 기준 검색 결과 제안 */}
+            {activeInput === 'phone' && showSuggestions && suggestions.length > 0 && (
+              <div 
+                ref={suggestionsContainerRef}
+                className="absolute left-0 right-0 z-50 mt-1 bg-white border border-stone-200 rounded-xl shadow-xl max-h-48 overflow-y-auto divide-y divide-stone-100"
+              >
+                {suggestions.map((item, idx) => (
+                  <button
+                    key={idx}
+                    type="button"
+                    onMouseDown={(e) => {
+                      e.preventDefault() // prevent input from losing focus immediately
+                      setCustomerName(item.name)
+                      setCustomerPhone(item.phone)
+                      setSelectedFromSuggestion(true)
+                      setShowSuggestions(false)
+                    }}
+                    className="w-full text-left px-4 py-2.5 hover:bg-stone-50 transition-colors flex items-center justify-between text-xs cursor-pointer"
+                  >
+                    <div>
+                      <div className="font-bold text-stone-800 flex items-center gap-1.5">
+                        <span>{item.name}</span>
+                        {item.isBlacklisted && (
+                          <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-md text-[9px] font-bold bg-rose-100 text-rose-700 border border-rose-200">
+                            <Ban className="w-2.5 h-2.5 text-rose-600" />
+                            {language === 'ko' ? '블랙리스트' : 'Blacklist'}
+                          </span>
+                        )}
+                      </div>
+                      <div className="text-[10px] text-stone-400 mt-0.5">{item.phone}</div>
+                    </div>
+                    <div className="text-right text-[10px] text-stone-500">
+                      <div>
+                        {language === 'ko' ? '예약' : 'Booked'}: <span className="font-semibold text-emerald-600">{item.totalCount}회</span>
+                      </div>
+                      {item.cancelCount > 0 && (
+                        <div className="mt-0.5">
+                          {language === 'ko' ? '취소' : 'Cancelled'}: <span className="font-semibold text-rose-500">{item.cancelCount}회</span>
+                        </div>
+                      )}
+                      {item.isBlacklisted && item.blacklistReason && (
+                        <div className="text-rose-500 font-medium text-[9px] mt-0.5 truncate max-w-[120px]" title={item.blacklistReason}>
+                          {item.blacklistReason}
+                        </div>
+                      )}
+                    </div>
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
+
+          {/* 고객 통계 및 주의 대상 실시간 표시 */}
+          {clientStats && (
+            <div className={`p-3.5 rounded-xl border text-xs flex flex-col gap-1.5 transition-all ${
+              clientStats.level === 'danger' 
+                ? 'bg-rose-50 border-rose-200 text-rose-800' 
+                : clientStats.level === 'warning'
+                ? 'bg-amber-50 border-amber-200 text-amber-800'
+                : 'bg-emerald-50/50 border-emerald-200/60 text-emerald-800'
+            }`}>
+              <div className="flex items-center justify-between font-bold">
+                <span className="flex items-center gap-1.5">
+                  <span className="text-stone-700">👤 {clientStats.name} ({clientStats.phone || '-'})</span>
+                  {clientStats.level === 'danger' && (
+                    <span className="px-1.5 py-0.5 rounded bg-rose-100 text-rose-700 text-[10px] font-extrabold animate-pulse">
+                      🚨 {language === 'ko' ? '경고 (블랙리스트)' : 'Danger (Blacklist)'}
+                    </span>
+                  )}
+                  {clientStats.level === 'warning' && (
+                    <span className="px-1.5 py-0.5 rounded bg-amber-100 text-amber-700 text-[10px] font-bold">
+                      ⚠️ {language === 'ko' ? '주의 대상' : 'Warning'}
+                    </span>
+                  )}
+                  {clientStats.level === 'normal' && (
+                    <span className="px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-700 text-[10px]">
+                      ✓ {language === 'ko' ? '일반 고객' : 'Regular'}
+                    </span>
+                  )}
+                </span>
+                <span className="font-mono text-[10px] text-stone-500">
+                  {language === 'ko' ? `누적 페널티: ${clientStats.penaltyPoints}점` : `Penalty: ${clientStats.penaltyPoints} pts`}
+                </span>
+              </div>
+              <div className="text-[11px] text-stone-500 flex gap-4 mt-0.5 border-t border-stone-200/60 pt-1.5">
+                <span>
+                  {language === 'ko' ? '총 예약 횟수' : 'Total Booked'}: <strong className="text-stone-700 font-semibold">{clientStats.totalCount}회</strong>
+                </span>
+                <span>
+                  {language === 'ko' ? '취소 횟수' : 'Cancelled'}: <strong className="text-rose-600 font-semibold">{clientStats.cancelCount}회</strong>
+                </span>
+                {clientStats.blacklistReason && (
+                  <span className="text-rose-500 font-medium truncate max-w-[200px]" title={clientStats.blacklistReason}>
+                    {language === 'ko' ? `사유: ${clientStats.blacklistReason}` : `Reason: ${clientStats.blacklistReason}`}
+                  </span>
+                )}
+              </div>
+            </div>
+          )}
 
           {/* 요금제 및 마사지 코스 선택 (종료시간보다 위에 노출) */}
           <div>
