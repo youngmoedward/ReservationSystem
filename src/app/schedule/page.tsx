@@ -4,10 +4,11 @@ import React, { useState, useEffect } from 'react'
 import { createClient } from '@/utils/supabase/client'
 import { useUserSim } from '@/app/providers'
 import DashboardLayout from '@/components/layout/DashboardLayout'
-import { ChevronLeft, ChevronRight, Calendar, User, Search, RefreshCw, X, AlertTriangle } from 'lucide-react'
+import { ChevronLeft, ChevronRight, Calendar, User, Search, RefreshCw, X, AlertTriangle, Sparkles } from 'lucide-react'
 import { toLocalDateString, toUIDateString } from '@/utils/booking/dateUtils'
 import { Therapist } from '@/components/dashboard/CalendarView'
 import { useLanguage } from '@/app/LanguageContext'
+import { sync4WeeksScheduleFromPriorities } from '@/utils/booking/scheduleAutoGenerator'
 
 interface ScheduleRecord {
   therapist_id: number
@@ -24,11 +25,30 @@ export default function SchedulePage() {
   const [viewMode, setViewMode] = useState<'week' | 'month'>('month')
   const [currentDate, setCurrentDate] = useState<Date>(new Date())
 
-  
   const [therapists, setTherapists] = useState<Therapist[]>([])
   const [schedules, setSchedules] = useState<ScheduleRecord[]>([])
   const [selectedTherapistId, setSelectedTherapistId] = useState<string>('all')
   const [loading, setLoading] = useState(true)
+  const [syncing, setSyncing] = useState(false)
+
+  // 4주간 근무일정 동기화 처리
+  const handleSync4Weeks = async () => {
+    setSyncing(true)
+    try {
+      const result = await sync4WeeksScheduleFromPriorities(supabase)
+      if (result.success) {
+        alert(language === 'ko' ? `우선순위 마스터 기준으로 오늘부터 4주간의 마사지사 근무여부가 재생성되었습니다.` : `Successfully synced 4-weeks schedule!`)
+        await fetchData()
+      } else {
+        alert(result.error || 'Sync failed.')
+      }
+    } catch (err: any) {
+      console.error('Sync error:', err)
+      alert(err.message || 'Error syncing schedule.')
+    } finally {
+      setSyncing(false)
+    }
+  }
 
   // 2. 모달 관련 상태
   const [isModalOpen, setIsModalOpen] = useState(false)
@@ -649,6 +669,18 @@ export default function SchedulePage() {
                 ))}
               </select>
             </div>
+
+            {/* 우선순위 마스터 기준 4주 일정 동기화 버튼 */}
+            {!isTherapistRole && (
+              <button
+                onClick={handleSync4Weeks}
+                disabled={syncing}
+                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl bg-purple-50 hover:bg-purple-100 text-purple-700 font-extrabold text-xs border border-purple-200 shadow-2xs transition-all active:scale-95 disabled:opacity-50"
+              >
+                <Sparkles className={`w-3.5 h-3.5 ${syncing ? 'animate-spin' : ''}`} />
+                {language === 'ko' ? '우선순위 기준 4주 일정 동기화' : 'Sync 4-Weeks Schedule'}
+              </button>
+            )}
 
             <button
               onClick={fetchData}

@@ -7,6 +7,7 @@ import { useLanguage } from '@/app/LanguageContext'
 import DashboardLayout from '@/components/layout/DashboardLayout'
 import { Layers, Save, RefreshCw, AlertCircle, CheckCircle2, ShieldAlert } from 'lucide-react'
 import PinAuthModal, { PinAuthResult } from '@/components/common/PinAuthModal'
+import { sync4WeeksScheduleFromPriorities } from '@/utils/booking/scheduleAutoGenerator'
 
 export interface Therapist {
   id: number
@@ -156,13 +157,16 @@ export default function PriorityPage() {
         throw error
       }
 
+      // 4주간 근무여부 데이터 자동 동기화/재생성
+      await sync4WeeksScheduleFromPriorities(supabase)
+
       // audit log
       try {
         await supabase.from('reservation_logs').insert({
           log_type: 'priority',
           action: 'update',
           performed_by: performer.userName,
-          details: '마사지사 요일별 배정 우선순위 matrix 업데이트 완료'
+          details: '마사지사 요일별 배정 우선순위 matrix 및 4주간 근무여부 자동 재생성 완료'
         })
       } catch (lErr) {}
 
