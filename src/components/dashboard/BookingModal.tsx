@@ -52,6 +52,7 @@ export default function BookingModal({
   const [endHour, setEndHour] = useState(10)
   const [endMinute, setEndMinute] = useState(0)
   const [therapistId, setTherapistId] = useState<string>('auto') // 'auto' 또는 마사지사 ID
+  const [secondaryTherapistId, setSecondaryTherapistId] = useState<string>('auto') // 'auto' 또는 보조 마사지사 ID
 
   const [loading, setLoading] = useState(false)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
@@ -358,7 +359,19 @@ export default function BookingModal({
     }
   }, [])
 
-  const checkTherapistAvailability = (tId: number) => {
+  const isTherapistOverlapping = (tId: number, startISO: string, endISO: string) => {
+    const overlapping = reservations.filter(res => {
+      const isMain = res.therapist_id === tId
+      const isSub = (res as any).secondary_therapist_id === tId
+      if (!isMain && !isSub) return false
+      if (res.status !== 'confirmed') return false
+      if (isEditMode && selectedReservation && res.id === selectedReservation.id) return false
+      return res.start_time < endISO && res.end_time > startISO
+    })
+    return overlapping.length > 0
+  }
+
+  const checkTherapistAvailability = (tId: number, specificStartISO?: string, specificEndISO?: string) => {
     const type = daySchedules[tId]
     
     // 기본은 미정(null), 미정일 때는 가용하지 않음
@@ -369,28 +382,44 @@ export default function BookingModal({
       return { available: false, reason: t('schedule.off_duty') }
     }
     
-    const startMinutes = startHour * 60 + startMinute
-    const endMinutes = endHour * 60 + endMinute
+    let checkStartISO = specificStartISO
+    let checkEndISO = specificEndISO
+
+    if (!checkStartISO || !checkEndISO) {
+      const { startTimeISO, endTimeISO } = getISODateStrings()
+      checkStartISO = startTimeISO
+      checkEndISO = endTimeISO
+    }
+
+    const startDate = new Date(checkStartISO)
+    const endDate = new Date(checkEndISO)
+
+    const startMinutes = startDate.getHours() * 60 + startDate.getMinutes()
+    const endMinutes = endDate.getHours() * 60 + endDate.getMinutes()
     const boundary = 16 * 60 + 30 // 16:30
     
     if (type === 'am_half') {
-      const ok = startMinutes >= boundary
-      return { 
-        available: ok, 
-        reason: ok 
-          ? (language === 'ko' ? '오전반차' : 'AM Off') 
-          : (language === 'ko' ? '오전반차 (반차휴무)' : 'AM Off (Half-day)') 
+      if (startMinutes < boundary) {
+        return { 
+          available: false, 
+          reason: language === 'ko' ? '오전반차 (반차휴무)' : 'AM Off (Half-day)' 
+        }
       }
     }
     
     if (type === 'pm_half') {
-      const ok = endMinutes <= boundary
-      return { 
-        available: ok, 
-        reason: ok 
-          ? (language === 'ko' ? '오후반차' : 'PM Off') 
-          : (language === 'ko' ? '오후반차 (반차휴무)' : 'PM Off (Half-day)') 
+      if (endMinutes > boundary) {
+        return { 
+          available: false, 
+          reason: language === 'ko' ? '오후반차 (반차휴무)' : 'PM Off (Half-day)' 
+        }
       }
+    }
+
+    // 기존 예약 겹침 확인
+    const isBusy = isTherapistOverlapping(tId, checkStartISO, checkEndISO)
+    if (isBusy) {
+      return { available: false, reason: language === 'ko' ? '시간 중복' : 'Time Conflict' }
     }
     
     return { available: true, reason: t('schedule.on_duty') }
@@ -439,7 +468,8 @@ export default function BookingModal({
 
   const updateEndTimeWithPlan = (h: number, m: number, planIdStr: string) => {
     const plan = pricingPlans.find(p => p.id.toString() === planIdStr)
-    const duration = plan ? plan.duration_minutes : 60
+    const isPlanCombo = plan?.category === 'combo'
+    const duration = plan ? plan.duration_minutes + (isPlanCombo ? 30 : 0) : 60
     const startTotalMinutes = h * 60 + m
     const endTotalMinutes = startTotalMinutes + duration
     let eh = Math.floor(endTotalMinutes / 60)
@@ -454,12 +484,17 @@ export default function BookingModal({
 
   const handlePlanChange = (planIdStr: string) => {
     setSelectedPlanId(planIdStr)
+    setTherapistId('auto')
+    setSecondaryTherapistId('auto')
     const plan = pricingPlans.find(p => p.id.toString() === planIdStr)
     if (plan) {
       setPrice(Number(plan.price))
       
+      const isPlanCombo = plan.category === 'combo'
+      const duration = plan.duration_minutes + (isPlanCombo ? 30 : 0)
+      
       const startTotalMinutes = startHour * 60 + startMinute
-      const endTotalMinutes = startTotalMinutes + plan.duration_minutes
+      const endTotalMinutes = startTotalMinutes + duration
       let eh = Math.floor(endTotalMinutes / 60)
       let em = endTotalMinutes % 60
       if (eh >= 24) {
@@ -502,6 +537,7 @@ export default function BookingModal({
         setEndHour(end.getHours())
         setEndMinute(roundTo10Minutes(end.getMinutes()))
         setTherapistId(selectedReservation.therapist_id?.toString() || 'auto')
+        setSecondaryTherapistId((selectedReservation as any).secondary_therapist_id?.toString() || 'auto')
       } else {
         // 신규 등록 모드
         setCustomerName('')
@@ -509,6 +545,7 @@ export default function BookingModal({
         setPrice(80)
         setSelectedPlanId('')
         setTherapistId(initialTherapistId?.toString() || 'auto')
+        setSecondaryTherapistId('auto')
         
         if (initialTime) {
           const sh = initialTime.getHours()
@@ -534,6 +571,32 @@ export default function BookingModal({
 
   if (!isOpen) return null
 
+  // 요금제 정보 및 카테고리 도출
+  const selectedPlan = pricingPlans.find(p => p.id.toString() === selectedPlanId)
+  const planCategory = selectedPlan?.category || 'dry'
+  const isCombo = planCategory === 'combo'
+
+  // 콤보 마사지 시작/종료 세그먼트 시간대 계산
+  const comboTimes = (() => {
+    if (!selectedPlan || selectedPlan.category !== 'combo') return null
+    const bathDur = selectedPlan.bath_duration_minutes || 60
+    const massageDur = selectedPlan.massage_duration_minutes || 60
+    const [y, m, d] = date.split('-').map(Number)
+    
+    const bathStart = new Date(y, m - 1, d, startHour, startMinute, 0, 0)
+    const bathEnd = new Date(bathStart.getTime() + bathDur * 60000)
+    
+    const dryStart = new Date(bathEnd.getTime() + 30 * 60000) // 예비시간 30분
+    const dryEnd = new Date(dryStart.getTime() + massageDur * 60000)
+    
+    return {
+      bathStartISO: bathStart.toISOString(),
+      bathEndISO: bathEnd.toISOString(),
+      dryStartISO: dryStart.toISOString(),
+      dryEndISO: dryEnd.toISOString()
+    }
+  })()
+
   // 2. 권한 검사 (모든 가입된 직원 상호 수정 허용)
   const isOwner = selectedReservation?.created_by === currentUserId
   const isManager = currentUserRole === 'manager'
@@ -541,19 +604,16 @@ export default function BookingModal({
   const canModify = isManager || isStaff
 
   // 선택된 마사지사의 오늘자 예약 범위 리스트 반환
-  const getTherapistScheduleList = () => {
-    if (therapistId === 'auto' || !date) return []
+  const getTherapistScheduleList = (targetId: string, roleType: 'wet' | 'dry') => {
+    if (targetId === 'auto' || !date) return []
  
-    const selectedTherapistId = Number(therapistId)
+    const selectedTherapistId = Number(targetId)
     
     // 이 날짜의 이 마사지사의 확정된 예약들 필터링
     const selectedDayRes = reservations.filter(res => {
-      if (res.therapist_id !== selectedTherapistId || res.status !== 'confirmed') return false
-      
-      // 만약 수정 모드인 경우, 자기 자신의 현재 예약은 제외
-      if (isEditMode && selectedReservation && res.id === selectedReservation.id) {
-        return false
-      }
+      const isMain = res.therapist_id === selectedTherapistId
+      const isSub = (res as any).secondary_therapist_id === selectedTherapistId
+      if ((!isMain && !isSub) || res.status !== 'confirmed') return false
       
       const resDateStr = toLocalDateString(new Date(res.start_time))
       return resDateStr === date
@@ -561,18 +621,38 @@ export default function BookingModal({
  
     return selectedDayRes
       .map(res => {
-        const start = new Date(res.start_time)
-        const end = new Date(res.end_time)
+        let start = new Date(res.start_time)
+        let end = new Date(res.end_time)
+
+        // 콤보 요금제일 경우, 습식/건식 역할에 부합하는 타임 세그먼트로 보정
+        const resPlan = pricingPlans.find(p => p.id === res.pricing_plan_id)
+        if (resPlan && resPlan.category === 'combo') {
+          const bathDur = resPlan.bath_duration_minutes || 60
+          const massageDur = resPlan.massage_duration_minutes || 60
+          
+          if (roleType === 'wet' && (res as any).secondary_therapist_id === selectedTherapistId) {
+            // 습식 타임세그먼트: 시작 시점 ~ 시작 + 습식시간
+            end = new Date(start.getTime() + bathDur * 60000)
+          } else if (roleType === 'dry' && res.therapist_id === selectedTherapistId) {
+            // 건식 타임세그먼트: 시작 + 습식시간 + 30분 대기 ~ 시작 + 습식시간 + 30분 + 건식시간
+            start = new Date(start.getTime() + (bathDur + 30) * 60000)
+            end = new Date(start.getTime() + massageDur * 60000)
+          }
+        }
+
+        const isSelf = selectedReservation && res.id === selectedReservation.id
+        const labelSuffix = isSelf ? (language === 'ko' ? ' (현재 예약)' : ' (Current)') : ''
         return {
           id: res.id,
-          customerName: res.customer_name,
-          timeStr: `${toLocalTimeString(start)} ~ ${toLocalTimeString(end)}`
+          customerName: `${res.customer_name}${labelSuffix}`,
+          timeStr: `${toLocalTimeString(start)} ~ ${toLocalTimeString(end)}`,
+          isSelf
         }
       })
       .sort((a, b) => a.timeStr.localeCompare(b.timeStr))
   }
  
-  const scheduleList = getTherapistScheduleList()
+  const scheduleList = getTherapistScheduleList(therapistId, planCategory === 'wet' ? 'wet' : 'dry')
 
   // 3. 시간 포맷 도우미 (ISO String 변환)
   const getISODateStrings = () => {
@@ -591,6 +671,10 @@ export default function BookingModal({
     e.preventDefault()
     if (!customerName.trim()) {
       setErrorMsg(language === 'ko' ? '고객 이름을 입력해 주세요.' : 'Please enter client name.')
+      return
+    }
+    if (!selectedPlanId) {
+      setErrorMsg(language === 'ko' ? '요금제 및 마사지 코스를 선택해 주세요.' : 'Please select a pricing plan.')
       return
     }
     if (startHour >= endHour) {
@@ -633,6 +717,8 @@ export default function BookingModal({
 
       let assignedId: number | null = null
       let assignedName = ''
+      let assignedSecondaryId: number | null = null
+      let assignedSecondaryName = ''
 
       // 변경 여부 확인 (수정 모드일 때만 작동, 신규 등록 시에는 무조건 변경된 것으로 간주하여 validation 진행)
       let isValidationRequired = true
@@ -646,20 +732,34 @@ export default function BookingModal({
             ? selectedReservation.therapist_id !== null
             : Number(therapistId) !== selectedReservation.therapist_id
 
-        isValidationRequired = isTimeChanged || isTherapistChanged
+        const isSecondaryTherapistChanged =
+          secondaryTherapistId === 'auto'
+            ? (selectedReservation as any).secondary_therapist_id !== null
+            : Number(secondaryTherapistId) !== (selectedReservation as any).secondary_therapist_id
+
+        isValidationRequired = isTimeChanged || isTherapistChanged || isSecondaryTherapistChanged
       }
 
       if (isValidationRequired) {
         // [자동 배정 / 수동 검증 단계]
+        // 1. 마사지사 배정 시간대 설정 (콤보일 때 분할)
+        const dryStart = (isCombo && comboTimes) ? comboTimes.dryStartISO : startTimeISO
+        const dryEnd = (isCombo && comboTimes) ? comboTimes.dryEndISO : endTimeISO
+        const bathStart = (isCombo && comboTimes) ? comboTimes.bathStartISO : startTimeISO
+        const bathEnd = (isCombo && comboTimes) ? comboTimes.bathEndISO : endTimeISO
+
+        // 2. 건식 담당 마사지사 배정 (또는 단일 마사지사)
         const reqTherapistId = therapistId === 'auto' ? undefined : Number(therapistId)
+        const mainCategory = isCombo ? 'dry' : planCategory
 
         const assignResult = await assignTherapist({
           supabase,
-          startTime: startTimeISO,
-          endTime: endTimeISO,
+          startTime: dryStart,
+          endTime: dryEnd,
           price,
           therapistId: reqTherapistId,
-          excludeReservationId: selectedReservation?.id
+          excludeReservationId: selectedReservation?.id,
+          category: mainCategory
         })
 
         if (!assignResult.success || !assignResult.therapistId) {
@@ -670,10 +770,37 @@ export default function BookingModal({
 
         assignedId = assignResult.therapistId
         assignedName = assignResult.therapistName || ''
+
+        // 3. 콤보 요금제일 경우, 습식 담당 마사지사(secondary_therapist_id) 추가 배정
+        if (isCombo) {
+          const reqSecondaryId = secondaryTherapistId === 'auto' ? undefined : Number(secondaryTherapistId)
+
+          const assignSecondaryResult = await assignTherapist({
+            supabase,
+            startTime: bathStart,
+            endTime: bathEnd,
+            price,
+            therapistId: reqSecondaryId,
+            excludeReservationId: selectedReservation?.id,
+            category: 'wet',
+            excludeTherapistIds: [assignedId] // 겹침 방지: 이미 배정된 건식 마사지사는 제외
+          })
+
+          if (!assignSecondaryResult.success || !assignSecondaryResult.therapistId) {
+            setErrorMsg(assignSecondaryResult.error || (language === 'ko' ? '습식 담당 마사지사 배정에 실패했습니다.' : 'Failed to assign wet therapist.'))
+            setLoading(false)
+            return
+          }
+
+          assignedSecondaryId = assignSecondaryResult.therapistId
+          assignedSecondaryName = assignSecondaryResult.therapistName || ''
+        }
       } else {
         // therapist, date, time이 모두 변경되지 않은 경우 (단순 이름, 연락처, 금액 등의 변경)
         assignedId = selectedReservation!.therapist_id
         assignedName = therapists.find(t => t.id === assignedId)?.name || ''
+        assignedSecondaryId = (selectedReservation as any).secondary_therapist_id || null
+        assignedSecondaryName = therapists.find(t => t.id === assignedSecondaryId)?.name || ''
       }
 
       if (isEditMode && selectedReservation) {
@@ -748,6 +875,7 @@ export default function BookingModal({
             price,
             pricing_plan_id: selectedPlanId ? Number(selectedPlanId) : null,
             therapist_id: assignedId,
+            secondary_therapist_id: assignedSecondaryId,
             status: 'confirmed'
           })
           .eq('id', selectedReservation.id)
@@ -773,6 +901,7 @@ export default function BookingModal({
             price,
             pricing_plan_id: selectedPlanId ? Number(selectedPlanId) : null,
             therapist_id: assignedId,
+            secondary_therapist_id: assignedSecondaryId,
             created_by: validatedUserId,
             status: 'confirmed'
           })
@@ -786,7 +915,7 @@ export default function BookingModal({
       // 즉시 닫지 않고 성공 팝업 정보를 세팅합니다.
       setSuccessResult({
         customerName,
-        therapistName: assignedName,
+        therapistName: isCombo ? `${assignedName} & ${assignedSecondaryName}` : assignedName,
         date,
         startTime: startHour,
         startMinute: startMinute,
@@ -1282,99 +1411,317 @@ export default function BookingModal({
             </div>
             <div>
               <label className="block text-xs font-bold text-stone-600 mb-1.5 uppercase tracking-wider">
-                {language === 'ko' ? '종료 시간' : 'End Time'}
+                {language === 'ko' ? '종료 시간 (자동 계산)' : 'End Time (Auto)'}
               </label>
               <div className="flex gap-2">
                 <select
-                  disabled={!canModify}
+                  disabled={true}
                   value={endHour}
-                  onChange={(e) => setEndHour(Number(e.target.value))}
-                  className="flex-1 bg-white border border-stone-200 rounded-xl px-3 py-3 text-xs text-stone-800 focus:outline-none focus:border-emerald-500/80 transition-colors disabled:opacity-50"
+                  className="flex-1 bg-stone-50 border border-stone-200 rounded-xl px-3 py-3 text-xs text-stone-500 cursor-not-allowed focus:outline-none"
                 >
                   {Array.from({ length: 16 }, (_, i) => i + 9).map(h => (
-                    <option key={h} value={h} disabled={h < startHour}>
+                    <option key={h} value={h}>
                       {language === 'ko' ? `${h}시` : `${String(h).padStart(2, '0')}:00`}
                     </option>
                   ))}
                 </select>
                 <select
-                  disabled={!canModify}
+                  disabled={true}
                   value={endMinute}
-                  onChange={(e) => setEndMinute(Number(e.target.value))}
-                  className="flex-1 bg-white border border-stone-200 rounded-xl px-3 py-3 text-xs text-stone-800 focus:outline-none focus:border-emerald-500/80 transition-colors disabled:opacity-50"
+                  className="flex-1 bg-stone-50 border border-stone-200 rounded-xl px-3 py-3 text-xs text-stone-500 cursor-not-allowed focus:outline-none"
                 >
-                  {[0, 10, 20, 30, 40, 50].map(m => {
-                    const isDisabled = startHour === endHour && m <= startMinute
-                    return (
-                      <option key={m} value={m} disabled={isDisabled}>
-                        {language === 'ko' ? `${m}분` : `${String(m).padStart(2, '0')} min`}
-                      </option>
-                    )
-                  })}
+                  {[0, 10, 20, 30, 40, 50].map(m => (
+                    <option key={m} value={m}>
+                      {language === 'ko' ? `${m}분` : `${String(m).padStart(2, '0')} min`}
+                    </option>
+                  ))}
                 </select>
               </div>
             </div>
           </div>
 
-          {/* 마사지사 배정 (수동 지정 및 자동 배정 토글) */}
-          <div>
-            <label className="block text-xs font-bold text-stone-600 mb-1.5 uppercase tracking-wider">{t('booking.modal.therapist')}</label>
-            <div className="relative">
-              <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-stone-400">
-                <UserCheck className="w-4 h-4" />
-              </span>
-              <select
-                disabled={!canModify}
-                value={therapistId}
-                onChange={(e) => setTherapistId(e.target.value)}
-                className="w-full bg-white border border-stone-200 rounded-xl pl-9 pr-3 py-3 text-sm text-stone-800 focus:outline-none focus:border-emerald-500/80 transition-colors disabled:opacity-50"
-              >
-                <option value="auto">
-                  {language === 'ko' ? '✨ 시스템 자동 지정 (가장 비어 있는 마사지사 매핑)' : '✨ Auto-Assign (Map most available therapist)'}
-                </option>
-                {therapists.map(t => {
-                  const avail = checkTherapistAvailability(t.id)
-                  const isDbActive = t.is_active
-                  const isSelectable = isDbActive && avail.available
+          {/* 마사지사 배정 (버튼 리스트 형태) */}
+          <div className="space-y-3">
+            <label className="block text-xs font-bold text-stone-600 mb-1.5 uppercase tracking-wider">
+              {t('booking.modal.therapist')}
+            </label>
 
-                  let statusText = ''
-                  if (!isDbActive) {
-                    statusText = language === 'ko' ? '비활성' : 'Inactive'
-                  } else {
-                    statusText = avail.reason
-                  }
+            {!selectedPlanId ? (
+              <div className="rounded-xl border border-dashed border-stone-200 bg-stone-100/40 p-5 text-center">
+                <p className="text-xs text-stone-500 font-extrabold flex items-center justify-center gap-1.5">
+                  ⚠️ {language === 'ko' ? '요금제 및 마사지 코스를 먼저 선택해 주세요.' : 'Please select a course first.'}
+                </p>
+              </div>
+            ) : planCategory !== 'combo' ? (
+              // 1. 단일 서비스 (건식 또는 습식)
+              <div className="space-y-2">
+                <span className="text-[10px] font-bold text-stone-400 uppercase">
+                  {planCategory === 'dry' ? '🧘‍♂️ 건식 마사지사 목록' : '🧴 습식 마사지사 목록'}
+                </span>
+                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                  {/* 자동 선택 버튼 */}
+                  <button
+                    type="button"
+                    disabled={!canModify}
+                    onClick={() => setTherapistId('auto')}
+                    className={`px-3 py-2.5 rounded-xl border text-xs font-extrabold text-center transition-all ${
+                      therapistId === 'auto'
+                        ? 'bg-emerald-50 border-emerald-500 text-emerald-700 shadow-xs'
+                        : 'bg-white border-stone-200 text-stone-600 hover:bg-stone-50'
+                    }`}
+                  >
+                    ✨ {language === 'ko' ? '자동 선택' : 'Auto Assign'}
+                  </button>
 
-                  return (
-                    <option key={t.id} value={t.id} disabled={!isSelectable}>
-                      {t.name} ({statusText})
-                    </option>
-                  )
-                })}
-              </select>
-            </div>
+                  {/* 마사지사 리스트 */}
+                  {(planCategory === 'dry'
+                    ? therapists.filter(t => t.massage_type === 'dry' || t.massage_type === 'both')
+                    : therapists.filter(t => t.massage_type === 'wet' || t.massage_type === 'both')
+                  ).map(t => {
+                    const avail = checkTherapistAvailability(t.id)
+                    const isDbActive = t.is_active
+                    const isSelectable = isDbActive && avail.available
+                    const isSelected = therapistId === t.id.toString()
+
+                    let statusText = ''
+                    if (!isDbActive) statusText = language === 'ko' ? '비활성' : 'Inactive'
+                    else if (!avail.available) statusText = avail.reason
+
+                    return (
+                      <button
+                        key={t.id}
+                        type="button"
+                        disabled={!canModify || !isSelectable}
+                        onClick={() => setTherapistId(t.id.toString())}
+                        className={`px-3 py-2.5 rounded-xl border text-xs font-bold text-center transition-all relative ${
+                          isSelected
+                            ? 'bg-emerald-50 border-emerald-500 text-emerald-700 shadow-xs'
+                            : !isSelectable
+                            ? 'bg-stone-100 border-stone-200 text-stone-400 cursor-not-allowed line-through'
+                            : 'bg-white border-stone-200 text-stone-700 hover:bg-stone-50'
+                        }`}
+                      >
+                        <div>{t.name}</div>
+                        {statusText && (
+                          <div className="text-[8px] font-medium opacity-80 mt-0.5">
+                            {statusText}
+                          </div>
+                        )}
+                      </button>
+                    )
+                  })}
+                </div>
+              </div>
+            ) : (
+              // 2. 콤보 서비스 (습식 + 건식 구분 선택)
+              <div className="space-y-4 border border-stone-200 bg-stone-100/40 p-4 rounded-2xl">
+                {/* 습식 마사지사 선택 섹션 */}
+                <div className="space-y-2">
+                  <span className="text-[10px] font-extrabold text-sky-800 uppercase flex items-center gap-1">
+                    🧴 {language === 'ko' ? '습식 담당 마사지사 선택' : 'Select Wet Therapist'}
+                  </span>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                    {/* 습식 자동 선택 */}
+                    <button
+                      type="button"
+                      disabled={!canModify}
+                      onClick={() => setSecondaryTherapistId('auto')}
+                      className={`px-3 py-2.5 rounded-xl border text-xs font-extrabold text-center transition-all ${
+                        secondaryTherapistId === 'auto'
+                          ? 'bg-sky-50 border-sky-500 text-sky-700 shadow-xs'
+                          : 'bg-white border-stone-200 text-stone-600 hover:bg-stone-50'
+                      }`}
+                    >
+                      ✨ {language === 'ko' ? '습식 자동 선택' : 'Wet Auto'}
+                    </button>
+
+                    {therapists.filter(t => t.massage_type === 'wet' || t.massage_type === 'both').map(t => {
+                      const avail = checkTherapistAvailability(t.id, comboTimes?.bathStartISO, comboTimes?.bathEndISO)
+                      const isDbActive = t.is_active
+                      const isAssignedToOther = therapistId === t.id.toString()
+                      const isSelectable = isDbActive && avail.available && !isAssignedToOther
+                      const isSelected = secondaryTherapistId === t.id.toString()
+
+                      let statusText = ''
+                      if (!isDbActive) statusText = language === 'ko' ? '비활성' : 'Inactive'
+                      else if (isAssignedToOther) statusText = language === 'ko' ? '건식에 지정됨' : 'Assigned in Dry'
+                      else if (!avail.available) statusText = avail.reason
+
+                      return (
+                        <button
+                          key={t.id}
+                          type="button"
+                          disabled={!canModify || !isSelectable}
+                          onClick={() => setSecondaryTherapistId(t.id.toString())}
+                          className={`px-3 py-2.5 rounded-xl border text-xs font-bold text-center transition-all relative ${
+                            isSelected
+                              ? 'bg-sky-50 border-sky-500 text-sky-700 shadow-xs'
+                              : !isSelectable
+                              ? 'bg-stone-100 border-stone-200 text-stone-400 cursor-not-allowed line-through'
+                              : 'bg-white border-stone-200 text-sky-700 hover:bg-stone-50'
+                          }`}
+                        >
+                          <div>{t.name}</div>
+                          {statusText && (
+                            <div className="text-[8px] font-medium opacity-80 mt-0.5">
+                              {statusText}
+                            </div>
+                          )}
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+
+                {/* 건식 마사지사 선택 섹션 */}
+                <div className="space-y-2 pt-3 border-t border-stone-200">
+                  <span className="text-[10px] font-extrabold text-amber-800 uppercase flex items-center gap-1">
+                    🧘‍♂️ {language === 'ko' ? '건식 담당 마사지사 선택' : 'Select Dry Therapist'}
+                  </span>
+                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                    {/* 건식 자동 선택 */}
+                    <button
+                      type="button"
+                      disabled={!canModify}
+                      onClick={() => setTherapistId('auto')}
+                      className={`px-3 py-2.5 rounded-xl border text-xs font-extrabold text-center transition-all ${
+                        therapistId === 'auto'
+                          ? 'bg-amber-50 border-amber-500 text-amber-700 shadow-xs'
+                          : 'bg-white border-stone-200 text-stone-600 hover:bg-stone-50'
+                      }`}
+                    >
+                      ✨ {language === 'ko' ? '건식 자동 선택' : 'Dry Auto'}
+                    </button>
+
+                    {therapists.filter(t => t.massage_type === 'dry' || t.massage_type === 'both').map(t => {
+                      const avail = checkTherapistAvailability(t.id, comboTimes?.dryStartISO, comboTimes?.dryEndISO)
+                      const isDbActive = t.is_active
+                      const isAssignedToOther = secondaryTherapistId === t.id.toString()
+                      const isSelectable = isDbActive && avail.available && !isAssignedToOther
+                      const isSelected = therapistId === t.id.toString()
+
+                      let statusText = ''
+                      if (!isDbActive) statusText = language === 'ko' ? '비활성' : 'Inactive'
+                      else if (isAssignedToOther) statusText = language === 'ko' ? '습식에 지정됨' : 'Assigned in Wet'
+                      else if (!avail.available) statusText = avail.reason
+
+                      return (
+                        <button
+                          key={t.id}
+                          type="button"
+                          disabled={!canModify || !isSelectable}
+                          onClick={() => setTherapistId(t.id.toString())}
+                          className={`px-3 py-2.5 rounded-xl border text-xs font-bold text-center transition-all relative ${
+                            isSelected
+                              ? 'bg-amber-50 border-amber-500 text-amber-700 shadow-xs'
+                              : !isSelectable
+                              ? 'bg-stone-100 border-stone-200 text-stone-400 cursor-not-allowed line-through'
+                              : 'bg-white border-stone-200 text-stone-700 hover:bg-stone-50'
+                          }`}
+                        >
+                          <div>{t.name}</div>
+                          {statusText && (
+                            <div className="text-[8px] font-medium opacity-80 mt-0.5">
+                              {statusText}
+                            </div>
+                          )}
+                        </button>
+                      )
+                    })}
+                  </div>
+                </div>
+              </div>
+            )}
           </div>
 
           {/* 선택한 마사지사의 오늘자 예약 현황 (리스트) */}
-          {therapistId !== 'auto' && (
-            <div className="rounded-xl border border-stone-200 bg-stone-100 p-4 space-y-2">
-              <span className="block text-[10px] font-bold text-stone-500 uppercase tracking-wider">
-                {language === 'ko' ? '선택한 마사지사의 오늘 예약 선점 현황' : 'Current Bookings of Chosen Therapist Today'}
-              </span>
-              {scheduleList.length === 0 ? (
-                <p className="text-xs text-emerald-400 font-medium">
-                  {language === 'ko' ? '✓ 오늘 비어있는 상태입니다. (자유롭게 예약 가능)' : '✓ Fully available today.'}
-                </p>
-              ) : (
-                <div className="space-y-1.5 max-h-36 overflow-y-auto scrollbar-thin">
-                  {scheduleList.map(item => (
-                    <div
-                      key={item.id}
-                      className="flex items-center justify-between text-xs rounded-lg bg-rose-50 border border-rose-200 text-rose-700 p-2 font-medium"
-                    >
-                      <span>{language === 'ko' ? `👤 ${item.customerName} 고객님` : `👤 Client ${item.customerName}`}</span>
-                      <span className="font-mono text-[11px] font-semibold">{item.timeStr}</span>
+          {planCategory !== 'combo' ? (
+            therapistId !== 'auto' && (
+              <div className="rounded-xl border border-stone-200 bg-stone-100 p-4 space-y-2">
+                <span className="block text-[10px] font-bold text-stone-500 uppercase tracking-wider">
+                  {language === 'ko' ? '선택한 마사지사의 오늘 예약 선점 현황' : 'Current Bookings of Chosen Therapist Today'}
+                </span>
+                {getTherapistScheduleList(therapistId, planCategory === 'wet' ? 'wet' : 'dry').length === 0 ? (
+                  <p className="text-xs text-emerald-600 font-medium">
+                    {language === 'ko' ? '✓ 오늘 비어있는 상태입니다. (자유롭게 예약 가능)' : '✓ Fully available today.'}
+                  </p>
+                ) : (
+                  <div className="space-y-1.5 max-h-36 overflow-y-auto scrollbar-thin">
+                    {getTherapistScheduleList(therapistId, planCategory === 'wet' ? 'wet' : 'dry').map(item => (
+                      <div
+                        key={item.id}
+                        className={`flex items-center justify-between text-xs rounded-lg p-2 font-medium border ${
+                          item.isSelf
+                            ? 'bg-emerald-50 border-emerald-200 text-emerald-700 font-bold'
+                            : 'bg-rose-50 border border-rose-200 text-rose-700'
+                        }`}
+                      >
+                        <span>{language === 'ko' ? `👤 ${item.customerName} 고객님` : `👤 Client ${item.customerName}`}</span>
+                        <span className="font-mono text-[11px] font-semibold">{item.timeStr}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )
+          ) : (
+            // 콤보일 때 습식 & 건식 마사지사 스케줄을 각각 렌더링
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {secondaryTherapistId !== 'auto' && (
+                <div className="rounded-xl border border-stone-200 bg-stone-100 p-3 space-y-2">
+                  <span className="block text-[9px] font-extrabold text-sky-800 uppercase tracking-wider">
+                    {language === 'ko' ? '🧴 습식 담당 오늘 예약 선점 현황' : 'Wet Therapist Bookings Today'}
+                  </span>
+                  {getTherapistScheduleList(secondaryTherapistId, 'wet').length === 0 ? (
+                    <p className="text-[11px] text-emerald-600 font-medium">
+                      {language === 'ko' ? '✓ 오늘 비어있는 상태입니다.' : '✓ Fully available.'}
+                    </p>
+                  ) : (
+                    <div className="space-y-1 max-h-24 overflow-y-auto scrollbar-thin">
+                      {getTherapistScheduleList(secondaryTherapistId, 'wet').map(item => (
+                        <div
+                          key={item.id}
+                          className={`flex items-center justify-between text-[11px] rounded-lg p-1.5 font-medium border ${
+                            item.isSelf
+                              ? 'bg-emerald-50 border-emerald-200 text-emerald-700 font-bold'
+                              : 'bg-rose-50/75 border-rose-200 text-rose-700'
+                          }`}
+                        >
+                          <span>{item.customerName}</span>
+                          <span className="font-mono text-[10px]">{item.timeStr}</span>
+                        </div>
+                      ))}
                     </div>
-                  ))}
+                  )}
+                </div>
+              )}
+
+              {therapistId !== 'auto' && (
+                <div className="rounded-xl border border-stone-200 bg-stone-100 p-3 space-y-2">
+                  <span className="block text-[9px] font-extrabold text-amber-800 uppercase tracking-wider">
+                    {language === 'ko' ? '🧘‍♂️ 건식 담당 오늘 예약 선점 현황' : 'Dry Therapist Bookings Today'}
+                  </span>
+                  {getTherapistScheduleList(therapistId, 'dry').length === 0 ? (
+                    <p className="text-[11px] text-emerald-600 font-medium">
+                      {language === 'ko' ? '✓ 오늘 비어있는 상태입니다.' : '✓ Fully available.'}
+                    </p>
+                  ) : (
+                    <div className="space-y-1 max-h-24 overflow-y-auto scrollbar-thin">
+                      {getTherapistScheduleList(therapistId, 'dry').map(item => (
+                        <div
+                          key={item.id}
+                          className={`flex items-center justify-between text-[11px] rounded-lg p-1.5 font-medium border ${
+                            item.isSelf
+                              ? 'bg-emerald-50 border-emerald-200 text-emerald-700 font-bold'
+                              : 'bg-rose-50/75 border-rose-200 text-rose-700'
+                          }`}
+                        >
+                          <span>{item.customerName}</span>
+                          <span className="font-mono text-[10px]">{item.timeStr}</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               )}
             </div>

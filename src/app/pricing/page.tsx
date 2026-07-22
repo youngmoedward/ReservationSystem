@@ -252,10 +252,10 @@ export default function PricingPage() {
     setFormLoading(true)
     setErrorMsg(null)
 
-    // category 별 적용 요금, 시간, 가중치 최종 결정
+    // category 별 적용 요금, 시간, 가중치 최종 결정 (콤보는 가중치 0 처리)
     const finalPrice = category === 'dry' ? Number(massagePrice) : category === 'wet' ? Number(bathPrice) : Number(totalPrice)
     const finalDuration = category === 'dry' ? Number(massageDuration) : category === 'wet' ? Number(bathDuration) : Number(totalDuration)
-    const finalWeight = category === 'dry' ? Number(massageWeight) : category === 'wet' ? Number(bathWeight) : Number(totalWeight)
+    const finalWeight = category === 'dry' ? Number(massageWeight) : category === 'wet' ? Number(bathWeight) : 0
 
     const payload = {
       name: name.trim(),
@@ -864,7 +864,7 @@ export default function PricingPage() {
                       </span>
                     </div>
 
-                    <div className="grid grid-cols-3 gap-2.5">
+                    <div className="grid grid-cols-2 gap-2.5">
                       <div>
                         <label className="block text-[9px] font-bold text-emerald-800 mb-1 uppercase tracking-wider">
                           {t('pricing.total_applied_price')}
@@ -897,25 +897,6 @@ export default function PricingPage() {
                             onChange={(e) => setTotalDuration(Number(e.target.value))}
                             className="w-full bg-white border border-emerald-300 text-emerald-950 rounded-xl pl-7 pr-2 py-2 text-xs font-extrabold focus:outline-none focus:ring-2 focus:ring-emerald-500 shadow-xs"
                             min="1"
-                          />
-                        </div>
-                      </div>
-
-                      <div>
-                        <label className="block text-[9px] font-bold text-emerald-800 mb-1 uppercase tracking-wider">
-                          {language === 'ko' ? '전체 가중치' : 'Total Weight'}
-                        </label>
-                        <div className="relative">
-                          <span className="absolute left-2.5 top-2.5 text-emerald-700">
-                            <Scale className="w-3.5 h-3.5" />
-                          </span>
-                          <input
-                            type="number"
-                            value={totalWeight}
-                            onChange={(e) => setTotalWeight(Number(e.target.value))}
-                            className="w-full bg-white border border-emerald-300 text-emerald-950 rounded-xl pl-7 pr-2 py-2 text-xs font-extrabold focus:outline-none focus:ring-2 focus:ring-emerald-500 shadow-xs"
-                            min="0.1"
-                            step="0.1"
                           />
                         </div>
                       </div>

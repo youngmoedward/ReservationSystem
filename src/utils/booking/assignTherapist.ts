@@ -8,6 +8,8 @@ export interface AssignTherapistParams {
   price: number
   therapistId?: number // 수동 지정 시 전달
   excludeReservationId?: number // 수정 시 본인 예약 제외용
+  category?: 'dry' | 'wet' | 'combo' | string // 서비스 종류 (필터용)
+  excludeTherapistIds?: number[] // 콤보 배정 시 겹침 방지용
 }
 
 export interface AssignTherapistResult {
@@ -26,13 +28,15 @@ export async function assignTherapist({
   endTime,
   price,
   therapistId,
-  excludeReservationId
+  excludeReservationId,
+  category,
+  excludeTherapistIds = []
 }: AssignTherapistParams): Promise<AssignTherapistResult> {
   try {
     // 1. 활성화 상태인 모든 마사지사 목록 조회
     const { data: therapists, error: therapistsError } = await supabase
       .from('therapists')
-      .select('id, name, is_premium_target')
+      .select('id, name, is_premium_target, massage_type')
       .eq('is_active', true)
 
     if (therapistsError || !therapists) {
@@ -74,6 +78,18 @@ export async function assignTherapist({
 
     // 4. 활성 마사지사 중 해당 예약 시간대에 근무 가능한 마사지사 필터링
     const activeAndAvailableTherapists = therapists.filter(t => {
+      // 콤보 배정 등에서 겹침 방지 제외 대상
+      if (excludeTherapistIds.includes(t.id)) {
+        return false
+      }
+
+      // 서비스 종류에 맞는 마사지사 타입 필터링
+      if (category === 'dry') {
+        if (t.massage_type !== 'dry' && t.massage_type !== 'both') return false
+      } else if (category === 'wet') {
+        if (t.massage_type !== 'wet' && t.massage_type !== 'both') return false
+      }
+
       const type = scheduleMap.get(t.id)
 
       // 'full' (근무): 무조건 근무 가능 (09:00 ~ 24:00)

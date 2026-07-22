@@ -1,10 +1,11 @@
 'use client'
 
-import React, { useState } from 'react'
+import React, { useState, useEffect } from 'react'
 import { ChevronLeft, ChevronRight, Plus, X } from 'lucide-react'
 import { toLocalDateString, toLocalTimeString, toUIDateString } from '@/utils/booking/dateUtils'
 import { useUserSim } from '@/app/providers'
 import { useLanguage } from '@/app/LanguageContext'
+import { createClient } from '@/utils/supabase/client'
 
 export interface Therapist {
   id: number
@@ -57,6 +58,21 @@ export default function CalendarView({
   const { language, t } = useLanguage()
   const [popoverDate, setPopoverDate] = useState<string | null>(null)
   const hours = Array.from({ length: 16 }, (_, i) => i + 9) // 09:00 ~ 24:00
+
+  const supabase = createClient()
+  const [pricingPlans, setPricingPlans] = useState<any[]>([])
+
+  useEffect(() => {
+    const fetchPricingPlans = async () => {
+      try {
+        const { data } = await supabase.from('pricing_plans').select('*')
+        if (data) setPricingPlans(data)
+      } catch (err) {
+        console.error('CalendarView pricing plans fetch error:', err)
+      }
+    }
+    fetchPricingPlans()
+  }, [])
 
   // 1. 날짜 이동 핸들러
   const handlePrev = () => {
@@ -141,7 +157,47 @@ export default function CalendarView({
 
           <div className="divide-y divide-stone-200">
             {therapists.map(therapist => {
-              const therapistResList = dayReservations.filter(r => r.therapist_id === therapist.id)
+              const therapistResList = dayReservations.map(r => {
+                const isMain = r.therapist_id === therapist.id
+                const isSub = (r as any).secondary_therapist_id === therapist.id
+                if (!isMain && !isSub) return null
+
+                const plan = r.pricing_plan_id ? pricingPlans.find(p => p.id === r.pricing_plan_id) : null
+                const isCombo = plan?.category === 'combo'
+
+                if (isCombo) {
+                  const bathDur = plan?.bath_duration_minutes || 60
+                  const massageDur = plan?.massage_duration_minutes || 60
+                  const baseStart = new Date(r.start_time)
+
+                  if (isSub) {
+                    // 습식 담당: [시작시간] ~ [시작시간 + bathDur]
+                    const startTime = baseStart
+                    const endTime = new Date(baseStart.getTime() + bathDur * 60000)
+                    return {
+                      ...r,
+                      start_time: startTime.toISOString(),
+                      end_time: endTime.toISOString(),
+                      display_name: `${r.customer_name} (Combo-Wet)`
+                    }
+                  } else {
+                    // 건식 담당: [시작시간 + bathDur + 30] ~ [시작시간 + bathDur + 30 + massageDur]
+                    const startTime = new Date(baseStart.getTime() + (bathDur + 30) * 60000)
+                    const endTime = new Date(startTime.getTime() + massageDur * 60000)
+                    return {
+                      ...r,
+                      start_time: startTime.toISOString(),
+                      end_time: endTime.toISOString(),
+                      display_name: `${r.customer_name} (Combo-Dry)`
+                    }
+                  }
+                }
+
+                return {
+                  ...r,
+                  display_name: r.customer_name
+                }
+              }).filter((r): r is NonNullable<typeof r> => r !== null)
 
               const segments: {
                 type: 'empty' | 'reservation'
@@ -252,7 +308,7 @@ export default function CalendarView({
                             }}
                           >
                             <span className="truncate">
-                              {res.customer_name} ({toLocalTimeString(new Date(res.start_time))}~{toLocalTimeString(new Date(res.end_time))})
+                              {(res as any).display_name || res.customer_name} ({toLocalTimeString(new Date(res.start_time))}~{toLocalTimeString(new Date(res.end_time))})
                             </span>
                             <span className="text-[9px] opacity-80">
                               ${res.price.toLocaleString()}
