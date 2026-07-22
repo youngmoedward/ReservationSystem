@@ -8,6 +8,7 @@ import CalendarView, { Reservation, Therapist } from '@/components/dashboard/Cal
 import BookingModal from '@/components/dashboard/BookingModal'
 import DashboardLayout from '@/components/layout/DashboardLayout'
 import { Plus } from 'lucide-react'
+import { toLocalDateString } from '@/utils/booking/dateUtils'
 
 export default function Home() {
   const supabase = createClient()
@@ -163,6 +164,7 @@ export default function Home() {
         selectedReservation={selectedRes}
         initialTime={initialTime}
         initialTherapistId={initialTherapistId}
+        defaultDate={toLocalDateString(currentDate)}
       />
     </DashboardLayout>
   )

@@ -9,6 +9,7 @@ const translations: Record<Language, Record<string, string>> = {
     // App & Layout
     'app.title': 'Riviera Health Spa 예약 관리',
     'app.subtitle': 'Riviera Health Spa Booking System',
+    'nav.today_schedule': '오늘의 근무현황',
     'nav.calendar': '예약 현황판 (달력)',
     'nav.list': '예약 목록 (리스트)',
     'nav.blacklist': '취소자 블랙리스트',
@@ -369,6 +370,7 @@ const translations: Record<Language, Record<string, string>> = {
     // App & Layout
     'app.title': 'Riviera Health Spa Booking',
     'app.subtitle': 'Riviera Health Spa Booking System',
+    'nav.today_schedule': "Today's Work schedule",
     'nav.calendar': 'Booking Board (Calendar)',
     'nav.list': 'Booking List',
     'nav.blacklist': 'Cancellation Blacklist',

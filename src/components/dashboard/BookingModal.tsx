@@ -26,6 +26,7 @@ interface BookingModalProps {
   // 신규 등록 시 미리 클릭한 시간/마사지사 정보
   initialTime?: Date | null
   initialTherapistId?: number | null
+  defaultDate?: string
 }
 
 export default function BookingModal({
@@ -39,7 +40,8 @@ export default function BookingModal({
   currentUserRole,
   selectedReservation,
   initialTime,
-  initialTherapistId
+  initialTherapistId,
+  defaultDate
 }: BookingModalProps) {
   const [customerName, setCustomerName] = useState('')
   const [customerPhone, setCustomerPhone] = useState('')
@@ -360,13 +362,38 @@ export default function BookingModal({
   }, [])
 
   const isTherapistOverlapping = (tId: number, startISO: string, endISO: string) => {
+    const targetStartMs = new Date(startISO).getTime()
+    const targetEndMs = new Date(endISO).getTime()
+
     const overlapping = reservations.filter(res => {
       const isMain = res.therapist_id === tId
       const isSub = (res as any).secondary_therapist_id === tId
       if (!isMain && !isSub) return false
       if (res.status !== 'confirmed') return false
       if (isEditMode && selectedReservation && res.id === selectedReservation.id) return false
-      return res.start_time < endISO && res.end_time > startISO
+      
+      const plan = res.pricing_plan_id ? pricingPlans.find(p => p.id === res.pricing_plan_id) : null
+      const isCombo = plan?.category === 'combo'
+
+      let resStartMs = new Date(res.start_time).getTime()
+      let resEndMs = new Date(res.end_time).getTime()
+
+      if (isCombo) {
+        const bathDur = plan?.bath_duration_minutes || 60
+        const baseStart = new Date(res.start_time)
+        
+        if (isSub) {
+          // 습식 담당 마사지사는 콤보 시작부터 bath_duration 까지만 바쁨
+          resStartMs = baseStart.getTime()
+          resEndMs = baseStart.getTime() + bathDur * 60000
+        } else {
+          // 건식 담당 마사지사는 콤보 시작 + bath_duration + 30분 지연시간 이후부터 바쁨
+          resStartMs = baseStart.getTime() + (bathDur + 30) * 60000
+          resEndMs = new Date(res.end_time).getTime()
+        }
+      }
+      
+      return resStartMs < targetEndMs && resEndMs > targetStartMs
     })
     return overlapping.length > 0
   }
@@ -558,7 +585,7 @@ export default function BookingModal({
           setEndHour(eh)
           setEndMinute(em)
         } else {
-          setDate(toLocalDateString(new Date()))
+          setDate(defaultDate || toLocalDateString(new Date()))
           setStartHour(9)
           setStartMinute(0)
           setEndHour(10)
@@ -566,7 +593,7 @@ export default function BookingModal({
         }
       }
     }
-  }, [isOpen, isEditMode, selectedReservation, initialTime, initialTherapistId, pricingPlans.length])
+  }, [isOpen, isEditMode, selectedReservation, initialTime, initialTherapistId, pricingPlans.length, defaultDate])
 
 
   if (!isOpen) return null
@@ -677,14 +704,14 @@ export default function BookingModal({
       setErrorMsg(language === 'ko' ? '요금제 및 마사지 코스를 선택해 주세요.' : 'Please select a pricing plan.')
       return
     }
-    if (startHour >= endHour) {
+    if (startHour * 60 + startMinute >= endHour * 60 + endMinute) {
       setErrorMsg(language === 'ko' ? '종료 시간은 시작 시간보다 늦어야 합니다.' : 'End time must be later than start time.')
       return
     }
 
     // [과거 시간 예약 제한 검증]
     const [y, m, d] = date.split('-').map(Number)
-    const bookingStart = new Date(y, m - 1, d, startHour, 0, 0, 0)
+    const bookingStart = new Date(y, m - 1, d, startHour, startMinute, 0, 0)
     const now = new Date()
     const isTimeChanged = !selectedReservation || new Date(selectedReservation.start_time).getTime() !== bookingStart.getTime()
 

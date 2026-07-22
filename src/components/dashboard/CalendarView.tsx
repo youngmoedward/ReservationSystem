@@ -140,205 +140,255 @@ export default function CalendarView({
       return resDateStr === todayStr && res.status === 'confirmed'
     })
 
-    return (
-      <div className="overflow-x-auto rounded-lg border border-stone-200 bg-stone-100/70 backdrop-blur-md touch-pan-x" style={{ WebkitOverflowScrolling: 'touch' }}>
-        <div className="min-w-[900px]">
-          <div 
-            className="grid border-b border-stone-200 bg-stone-200/50 p-3 text-xs font-semibold text-stone-600"
-            style={{ gridTemplateColumns: 'repeat(18, minmax(0, 1fr))' }}
-          >
-            <div className="col-span-2 text-left pl-2 text-stone-700">
-              {language === 'ko' ? '마사지사 (오늘)' : 'Therapist (Today)'}
+    const wetList = therapists.filter(t => t.massage_type === 'wet' || t.massage_type === 'both' || !t.massage_type)
+    const dryList = therapists.filter(t => t.massage_type === 'dry' || t.massage_type === 'both' || !t.massage_type)
+
+    // 마사지사 개별 행 렌더링 헬퍼 함수
+    const renderTherapistRow = (therapist: Therapist, type: 'wet' | 'dry') => {
+      const therapistResList = dayReservations.map(r => {
+        const isMain = r.therapist_id === therapist.id
+        const isSub = (r as any).secondary_therapist_id === therapist.id
+        if (!isMain && !isSub) return null
+
+        const plan = r.pricing_plan_id ? pricingPlans.find(p => p.id === r.pricing_plan_id) : null
+        const isCombo = plan?.category === 'combo'
+
+        if (isCombo) {
+          const bathDur = plan?.bath_duration_minutes || 60
+          const massageDur = plan?.massage_duration_minutes || 60
+          const baseStart = new Date(r.start_time)
+
+          if (isSub) {
+            // 습식 담당: [시작시간] ~ [시작시간 + bathDur]
+            const startTime = baseStart
+            const endTime = new Date(baseStart.getTime() + bathDur * 60000)
+            return {
+              ...r,
+              start_time: startTime.toISOString(),
+              end_time: endTime.toISOString(),
+              display_name: `${r.customer_name} (Combo-Wet)`
+            }
+          } else {
+            // 건식 담당: [시작시간 + bathDur + 30] ~ [시작시간 + bathDur + 30 + massageDur]
+            const startTime = new Date(baseStart.getTime() + (bathDur + 30) * 60000)
+            const endTime = new Date(startTime.getTime() + massageDur * 60000)
+            return {
+              ...r,
+              start_time: startTime.toISOString(),
+              end_time: endTime.toISOString(),
+              display_name: `${r.customer_name} (Combo-Dry)`
+            }
+          }
+        }
+
+        return {
+          ...r,
+          display_name: r.customer_name
+        }
+      }).filter((r): r is NonNullable<typeof r> => r !== null)
+
+      const segments: {
+        type: 'empty' | 'reservation'
+        hour: number
+        colSpan: number
+        reservation?: Reservation
+      }[] = []
+
+      for (let i = 0; i < hours.length; i++) {
+        const hour = hours[i]
+        
+        const res = therapistResList.find(r => {
+          const resStart = new Date(r.start_time).getTime()
+          const resEnd = new Date(r.end_time).getTime()
+          
+          const slotStart = new Date(currentDate)
+          slotStart.setHours(hour, 0, 0, 0)
+          const slotEnd = new Date(currentDate)
+          slotEnd.setHours(hour + 1, 0, 0, 0)
+          
+          return resStart < slotEnd.getTime() && resEnd > slotStart.getTime()
+        })
+
+        if (res) {
+          const alreadyProcessed = segments.find(seg => seg.type === 'reservation' && seg.reservation?.id === res.id)
+          
+          if (!alreadyProcessed) {
+            const startTime = new Date(res.start_time)
+            const endTime = new Date(res.end_time)
+            
+            const startHourSlot = Math.max(9, Math.min(24, startTime.getHours()))
+            let endHourSlot = endTime.getHours()
+            if (endTime.getMinutes() === 0) {
+              endHourSlot = endHourSlot - 1
+            }
+            endHourSlot = Math.max(9, Math.min(24, endHourSlot))
+            
+            const colSpan = Math.max(1, endHourSlot - startHourSlot + 1)
+            
+            segments.push({
+              type: 'reservation',
+              hour,
+              colSpan,
+              reservation: res
+            })
+            
+            i += colSpan - 1
+          }
+        } else {
+          segments.push({
+            type: 'empty',
+            hour,
+            colSpan: 1
+          })
+        }
+      }
+
+      return (
+        <div 
+          key={`${therapist.id}-${type}`} 
+          className="grid min-h-[64px] items-center hover:bg-stone-100 transition-colors"
+          style={{ gridTemplateColumns: 'repeat(18, minmax(0, 1fr))' }}
+        >
+          <div className="col-span-2 pl-4 py-2 border-r border-stone-200">
+            <div className="flex items-center gap-1.5">
+              <span className="font-semibold text-stone-850">{therapist.name}</span>
             </div>
-            {hours.map(hour => (
-              <div key={hour} className="text-center">{hour}:00</div>
-            ))}
+            <span className="text-[11px] text-stone-500">
+              {therapist.is_active ? t('schedule.on_duty') : t('schedule.off_duty')}
+            </span>
           </div>
 
-          <div className="divide-y divide-stone-200">
-            {therapists.map(therapist => {
-              const therapistResList = dayReservations.map(r => {
-                const isMain = r.therapist_id === therapist.id
-                const isSub = (r as any).secondary_therapist_id === therapist.id
-                if (!isMain && !isSub) return null
-
-                const plan = r.pricing_plan_id ? pricingPlans.find(p => p.id === r.pricing_plan_id) : null
-                const isCombo = plan?.category === 'combo'
-
-                if (isCombo) {
-                  const bathDur = plan?.bath_duration_minutes || 60
-                  const massageDur = plan?.massage_duration_minutes || 60
-                  const baseStart = new Date(r.start_time)
-
-                  if (isSub) {
-                    // 습식 담당: [시작시간] ~ [시작시간 + bathDur]
-                    const startTime = baseStart
-                    const endTime = new Date(baseStart.getTime() + bathDur * 60000)
-                    return {
-                      ...r,
-                      start_time: startTime.toISOString(),
-                      end_time: endTime.toISOString(),
-                      display_name: `${r.customer_name} (Combo-Wet)`
-                    }
-                  } else {
-                    // 건식 담당: [시작시간 + bathDur + 30] ~ [시작시간 + bathDur + 30 + massageDur]
-                    const startTime = new Date(baseStart.getTime() + (bathDur + 30) * 60000)
-                    const endTime = new Date(startTime.getTime() + massageDur * 60000)
-                    return {
-                      ...r,
-                      start_time: startTime.toISOString(),
-                      end_time: endTime.toISOString(),
-                      display_name: `${r.customer_name} (Combo-Dry)`
-                    }
-                  }
-                }
-
-                return {
-                  ...r,
-                  display_name: r.customer_name
-                }
-              }).filter((r): r is NonNullable<typeof r> => r !== null)
-
-              const segments: {
-                type: 'empty' | 'reservation'
-                hour: number
-                colSpan: number
-                reservation?: Reservation
-              }[] = []
-
-              for (let i = 0; i < hours.length; i++) {
-                const hour = hours[i]
-                
-                const res = therapistResList.find(r => {
-                  const resStart = new Date(r.start_time).getTime()
-                  const resEnd = new Date(r.end_time).getTime()
-                  
-                  const slotStart = new Date(currentDate)
-                  slotStart.setHours(hour, 0, 0, 0)
-                  const slotEnd = new Date(currentDate)
-                  slotEnd.setHours(hour + 1, 0, 0, 0)
-                  
-                  return resStart < slotEnd.getTime() && resEnd > slotStart.getTime()
-                })
-
-                if (res) {
-                  const alreadyProcessed = segments.find(seg => seg.type === 'reservation' && seg.reservation?.id === res.id)
-                  
-                  if (!alreadyProcessed) {
-                    const startTime = new Date(res.start_time)
-                    const endTime = new Date(res.end_time)
-                    
-                    const startHourSlot = Math.max(9, Math.min(24, startTime.getHours()))
-                    let endHourSlot = endTime.getHours()
-                    if (endTime.getMinutes() === 0) {
-                      endHourSlot = endHourSlot - 1
-                    }
-                    endHourSlot = Math.max(9, Math.min(24, endHourSlot))
-                    
-                    const colSpan = Math.max(1, endHourSlot - startHourSlot + 1)
-                    
-                    segments.push({
-                      type: 'reservation',
-                      hour,
-                      colSpan,
-                      reservation: res
-                    })
-                    
-                    i += colSpan - 1
-                  }
-                } else {
-                  segments.push({
-                    type: 'empty',
-                    hour,
-                    colSpan: 1
-                  })
-                }
+          {segments.map((seg, idx) => {
+            if (seg.type === 'reservation' && seg.reservation) {
+              const res = seg.reservation
+              
+              const plan = res.pricing_plan_id ? pricingPlans.find(p => p.id === res.pricing_plan_id) : null
+              const isCombo = plan?.category === 'combo'
+              
+              let isWetPart = false
+              if (isCombo) {
+                const isSub = (res as any).secondary_therapist_id === therapist.id
+                isWetPart = isSub
+              } else {
+                isWetPart = plan?.category === 'wet'
               }
 
+              const colorClass = isWetPart
+                ? 'bg-gradient-to-r from-sky-600 to-blue-700 text-white shadow-sm shadow-blue-900/10 hover:from-sky-550 hover:to-blue-650'
+                : 'bg-gradient-to-r from-amber-600 to-orange-700 text-white shadow-sm shadow-amber-900/10 hover:from-amber-550 hover:to-orange-650'
+              
+              const segmentStart = new Date(currentDate)
+              segmentStart.setHours(seg.hour, 0, 0, 0)
+              const segmentEnd = new Date(currentDate)
+              segmentEnd.setHours(seg.hour + seg.colSpan, 0, 0, 0)
+              
+              const resStart = new Date(res.start_time).getTime()
+              const resEnd = new Date(res.end_time).getTime()
+              
+              const clippedStart = Math.max(segmentStart.getTime(), resStart)
+              const clippedEnd = Math.min(segmentEnd.getTime(), resEnd)
+              
+              const totalMs = segmentEnd.getTime() - segmentStart.getTime()
+              const leftOffsetPercent = totalMs > 0 ? ((clippedStart - segmentStart.getTime()) / totalMs) * 100 : 0
+              const widthPercent = totalMs > 0 ? ((clippedEnd - clippedStart) / totalMs) * 100 : 100
+
               return (
-                <div 
-                  key={therapist.id} 
-                  className="grid min-h-[64px] items-center hover:bg-stone-100 transition-colors"
-                  style={{ gridTemplateColumns: 'repeat(18, minmax(0, 1fr))' }}
+                <div
+                  key={`res-${res.id}-${idx}`}
+                  onClick={() => onSelectReservation(res)}
+                  className="h-full border-r border-stone-200/60 relative flex items-center p-1 cursor-pointer transition-all"
+                  style={{ gridColumn: `span ${seg.colSpan} / span ${seg.colSpan}` }}
                 >
-                  <div className="col-span-2 pl-4 py-2 border-r border-stone-200">
-                    <div className="flex items-center gap-1.5">
-                      <span className="font-semibold text-stone-800">{therapist.name}</span>
-                    </div>
-                    <span className="text-[11px] text-stone-500">
-                      {therapist.is_active ? t('schedule.on_duty') : t('schedule.off_duty')}
+                  <div
+                    className={`h-full rounded flex flex-col justify-center px-2 py-1 text-[11px] font-medium transition-transform active:scale-[0.98] ${colorClass}`}
+                    style={{
+                      width: `${widthPercent}%`,
+                      marginLeft: `${leftOffsetPercent}%`
+                    }}
+                  >
+                    <span className="truncate">
+                      {(res as any).display_name || res.customer_name} ({toLocalTimeString(new Date(res.start_time))}~{toLocalTimeString(new Date(res.end_time))})
+                    </span>
+                    <span className="text-[9px] opacity-80">
+                      ${res.price.toLocaleString()}
                     </span>
                   </div>
-
-                  {segments.map((seg, idx) => {
-                    if (seg.type === 'reservation' && seg.reservation) {
-                      const res = seg.reservation
-                      
-                      const segmentStart = new Date(currentDate)
-                      segmentStart.setHours(seg.hour, 0, 0, 0)
-                      const segmentEnd = new Date(currentDate)
-                      segmentEnd.setHours(seg.hour + seg.colSpan, 0, 0, 0)
-                      
-                      const resStart = new Date(res.start_time).getTime()
-                      const resEnd = new Date(res.end_time).getTime()
-                      
-                      const clippedStart = Math.max(segmentStart.getTime(), resStart)
-                      const clippedEnd = Math.min(segmentEnd.getTime(), resEnd)
-                      
-                      const totalMs = segmentEnd.getTime() - segmentStart.getTime()
-                      const leftOffsetPercent = totalMs > 0 ? ((clippedStart - segmentStart.getTime()) / totalMs) * 100 : 0
-                      const widthPercent = totalMs > 0 ? ((clippedEnd - clippedStart) / totalMs) * 100 : 100
-
-                      return (
-                        <div
-                          key={`res-${res.id}-${idx}`}
-                          onClick={() => onSelectReservation(res)}
-                          className="h-full border-r border-stone-200/60 relative flex items-center p-1 cursor-pointer transition-all"
-                          style={{ gridColumn: `span ${seg.colSpan} / span ${seg.colSpan}` }}
-                        >
-                          <div
-                            className={`h-full rounded flex flex-col justify-center px-2 py-1 text-[11px] font-medium transition-transform active:scale-[0.98] ${
-                              res.is_premium
-                                ? 'bg-gradient-to-r from-amber-600 to-orange-700 text-white shadow-sm shadow-amber-900/10'
-                                : 'bg-emerald-700 hover:bg-emerald-600 text-white shadow-sm shadow-emerald-900/10'
-                            }`}
-                            style={{
-                              width: `${widthPercent}%`,
-                              marginLeft: `${leftOffsetPercent}%`
-                            }}
-                          >
-                            <span className="truncate">
-                              {(res as any).display_name || res.customer_name} ({toLocalTimeString(new Date(res.start_time))}~{toLocalTimeString(new Date(res.end_time))})
-                            </span>
-                            <span className="text-[9px] opacity-80">
-                              ${res.price.toLocaleString()}
-                            </span>
-                          </div>
-                        </div>
-                      )
-                    } else {
-                      return (
-                        <div
-                          key={`empty-${seg.hour}-${idx}`}
-                          onClick={() => {
-                            if (currentUser.role === 'therapist') return
-                            const bookingTime = new Date(currentDate)
-                            bookingTime.setHours(seg.hour, 0, 0, 0)
-                            onAddReservationAt(bookingTime, therapist.id)
-                          }}
-                          className="h-full border-r border-stone-200/60 relative flex items-center justify-center p-1 cursor-pointer transition-all hover:bg-stone-200/50"
-                          style={{ gridColumn: 'span 1 / span 1' }}
-                        >
-                          {currentUser.role !== 'therapist' && (
-                            <Plus className="w-3.5 h-3.5 text-stone-400 opacity-0 hover:opacity-100 transition-opacity" />
-                          )}
-                        </div>
-                      )
-                    }
-                  })}
                 </div>
               )
-            })}
+            } else {
+              return (
+                <div
+                  key={`empty-${seg.hour}-${idx}`}
+                  onClick={() => {
+                    if (currentUser.role === 'therapist') return
+                    const bookingTime = new Date(currentDate)
+                    bookingTime.setHours(seg.hour, 0, 0, 0)
+                    onAddReservationAt(bookingTime, therapist.id)
+                  }}
+                  className="h-full border-r border-stone-200/60 relative flex items-center justify-center p-1 cursor-pointer transition-all hover:bg-stone-200/50"
+                  style={{ gridColumn: 'span 1 / span 1' }}
+                >
+                  {currentUser.role !== 'therapist' && (
+                    <Plus className="w-3.5 h-3.5 text-stone-400 opacity-0 hover:opacity-100 transition-opacity" />
+                  )}
+                </div>
+              )
+            }
+          })}
+        </div>
+      )
+    }
+
+    return (
+      <div className="overflow-x-auto rounded-lg border border-stone-200 bg-stone-100/70 backdrop-blur-md touch-pan-x" style={{ WebkitOverflowScrolling: 'touch' }}>
+        <div className="min-w-[980px]">
+          <div className="flex border-b border-stone-250 bg-stone-200/50">
+            {/* 왼쪽 공백 여백 */}
+            <div className="w-20 flex-shrink-0 border-r border-stone-250 bg-stone-100/50"></div>
+            {/* 나머지 18열 헤더 */}
+            <div 
+              className="flex-1 grid p-3 text-xs font-semibold text-stone-600"
+              style={{ gridTemplateColumns: 'repeat(18, minmax(0, 1fr))' }}
+            >
+              <div className="col-span-2 text-left pl-2 text-stone-700">
+                {language === 'ko' ? '마사지사 (오늘)' : 'Therapist (Today)'}
+              </div>
+              {hours.map(hour => (
+                <div key={hour} className="text-center">{hour}:00</div>
+              ))}
+            </div>
+          </div>
+
+          <div className="divide-y divide-stone-200 bg-white">
+            {/* 1F 습식 마사지사 영역 */}
+            {wetList.length > 0 && (
+              <div className="flex border-b border-stone-200">
+                <div className="w-20 flex-shrink-0 bg-sky-50/50 border-r border-stone-250 flex items-center justify-center p-2 text-center select-none">
+                  <div className="font-extrabold text-[10px] tracking-widest text-sky-850 uppercase flex flex-col items-center gap-1.5">
+                    <span className="bg-sky-600 text-white font-extrabold text-[8px] px-1.5 py-0.5 rounded shadow-sm">1F</span>
+                    <span className="text-[9px] font-black text-sky-700">{language === 'ko' ? '습식' : 'WET'}</span>
+                  </div>
+                </div>
+                <div className="flex-1 divide-y divide-stone-150">
+                  {wetList.map(therapist => renderTherapistRow(therapist, 'wet'))}
+                </div>
+              </div>
+            )}
+
+            {/* 2F 건식 마사지사 영역 */}
+            {dryList.length > 0 && (
+              <div className="flex">
+                <div className="w-20 flex-shrink-0 bg-amber-50/50 border-r border-stone-250 flex items-center justify-center p-2 text-center select-none">
+                  <div className="font-extrabold text-[10px] tracking-widest text-amber-850 uppercase flex flex-col items-center gap-1.5">
+                    <span className="bg-amber-600 text-white font-extrabold text-[8px] px-1.5 py-0.5 rounded shadow-sm">2F</span>
+                    <span className="text-[9px] font-black text-amber-700">{language === 'ko' ? '건식' : 'DRY'}</span>
+                  </div>
+                </div>
+                <div className="flex-1 divide-y divide-stone-150">
+                  {dryList.map(therapist => renderTherapistRow(therapist, 'dry'))}
+                </div>
+              </div>
+            )}
           </div>
 
         </div>

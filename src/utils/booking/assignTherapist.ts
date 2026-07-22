@@ -167,30 +167,106 @@ export async function assignTherapist({
       return { success: false, error: '예약 불가: 해당 시간대에 배정 가능한 마사지사가 없습니다.' }
     }
 
-    // [조건 A] 고급 마사지 (예약 금액 $120 이상)
-    const isPremium = price >= 120
-    if (isPremium) {
-      // 오늘 고급 마사지 타겟(is_premium_target = true)인 마사지사 중 예약 가능한 직원 확인
-      const premiumTargets = availableTherapists.filter(t => t.is_premium_target)
-      
-      if (premiumTargets.length > 0) {
-        // 가능한 고급 타겟 마사지사 중 무작위 배정
-        const randomIndex = Math.floor(Math.random() * premiumTargets.length)
-        const selected = premiumTargets[randomIndex]
-        return {
-          success: true,
-          therapistId: selected.id,
-          therapistName: selected.name
-        }
-      }
+    // A. 요일 구하기: 0(월요일) ~ 6(일요일)
+    const jsDay = startDate.getDay()
+    const dbDayOfWeek = jsDay === 0 ? 6 : jsDay - 1
+
+    // B. 가용 마사지사들의 일별 포인트 실시간 계산 (가중치 자체 카운트 방식)
+    const startOfDay = `${bookingDateStr}T00:00:00`
+    const endOfDay = `${bookingDateStr}T23:59:59`
+    const therapistIds = availableTherapists.map(t => t.id)
+
+    // 해당 날짜의 확정된 전체 예약 목록 조회
+    const { data: dayReservations, error: dayResError } = await supabase
+      .from('reservations')
+      .select('id, therapist_id, secondary_therapist_id, pricing_plan_id, status')
+      .eq('status', 'confirmed')
+      .gte('start_time', startOfDay)
+      .lte('start_time', endOfDay)
+
+    if (dayResError) {
+      console.error('Reservations fetch error in assignTherapist points calculation:', dayResError)
     }
 
-    // [조건 B] 일반 배정
-    // - 금액이 $120 미만이거나
-    // - $120 이상이지만 고급 마사지 타겟 직원들이 모두 예약이 차 있는 경우
-    // 비어 있는 다른 마사지사 중 무작위 배정
-    const randomIndex = Math.floor(Math.random() * availableTherapists.length)
-    const selected = availableTherapists[randomIndex]
+    // 전체 요금제 정보 조회
+    const { data: plans, error: plansError } = await supabase
+      .from('pricing_plans')
+      .select('id, category, weight, massage_weight, bath_weight')
+
+    if (plansError) {
+      console.error('Pricing plans fetch error in assignTherapist points calculation:', plansError)
+    }
+
+    const pointsMap = new Map<number, number>()
+    
+    // 가용 마사지사들의 ID로 0점 기본값 초기화
+    therapistIds.forEach(id => pointsMap.set(id, 0))
+
+    if (dayReservations && plans) {
+      dayReservations.forEach((res: any) => {
+        const plan = plans.find(p => p.id === res.pricing_plan_id)
+        if (!plan) return
+
+        // 콤보 요금제 분기
+        if (plan.category === 'combo') {
+          if (res.therapist_id && pointsMap.has(res.therapist_id)) {
+            const current = pointsMap.get(res.therapist_id) || 0
+            pointsMap.set(res.therapist_id, current + (plan.massage_weight || 1.0))
+          }
+          if (res.secondary_therapist_id && pointsMap.has(res.secondary_therapist_id)) {
+            const current = pointsMap.get(res.secondary_therapist_id) || 0
+            pointsMap.set(res.secondary_therapist_id, current + (plan.bath_weight || 1.0))
+          }
+        } else {
+          // 단일 요금제 분기
+          if (res.therapist_id && pointsMap.has(res.therapist_id)) {
+            const current = pointsMap.get(res.therapist_id) || 0
+            pointsMap.set(res.therapist_id, current + (plan.weight || 1.0))
+          }
+        }
+      })
+    }
+
+    // C. 가용 마사지사들의 요일별 우선순위 조회
+    const serviceType = category === 'wet' ? 'wet' : 'dry'
+    const { data: priorities, error: prioritiesError } = await supabase
+      .from('therapist_priorities')
+      .select('therapist_id, priority_val')
+      .eq('day_of_week', dbDayOfWeek)
+      .eq('service_type', serviceType)
+      .in('therapist_id', therapistIds)
+
+    if (prioritiesError) {
+      console.error('Priorities fetch error in assignTherapist:', prioritiesError)
+    }
+
+    const priorityMap = new Map<number, number>()
+    if (priorities) {
+      priorities.forEach((p: any) => {
+        const val = p.priority_val
+        const parsed = parseInt(val, 10)
+        if (!isNaN(parsed)) {
+          priorityMap.set(p.therapist_id, parsed)
+        } else {
+          priorityMap.set(p.therapist_id, Infinity)
+        }
+      })
+    }
+
+    // D. 정렬 수행: 1순위 포인트 오름차순(낮은 순), 2순위 우선순위 오름차순(높은 순)
+    availableTherapists.sort((a, b) => {
+      const ptA = pointsMap.get(a.id) || 0
+      const ptB = pointsMap.get(b.id) || 0
+      if (ptA !== ptB) {
+        return ptA - ptB
+      }
+
+      const prA = priorityMap.get(a.id) ?? Infinity
+      const prB = priorityMap.get(b.id) ?? Infinity
+      return prA - prB
+    })
+
+    const selected = availableTherapists[0]
     
     return {
       success: true,

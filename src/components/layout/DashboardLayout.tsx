@@ -121,6 +121,15 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 overflow-hidden bg-[#e8dec7] border border-stone-300 p-1.5 rounded-2xl shadow-sm">
           <div className="flex overflow-x-auto lg:flex-wrap gap-1.5 w-full scrollbar-none">
             <button
+              onClick={() => navigateTo('/today-schedule')}
+              className={`inline-flex items-center gap-1.5 flex-shrink-0 px-4 py-2 text-xs font-bold rounded-xl border transition-all ${pathname === '/today-schedule'
+                ? 'bg-white border-stone-300 text-emerald-800 shadow-sm'
+                : 'bg-transparent border-transparent text-stone-700 hover:text-stone-900 hover:bg-stone-50/40'
+                }`}
+            >
+              <Layers className="w-4 h-4" /> {t('nav.today_schedule')}
+            </button>
+            <button
               onClick={() => navigateTo('/')}
               className={`inline-flex items-center gap-1.5 flex-shrink-0 px-4 py-2 text-xs font-bold rounded-xl border transition-all ${pathname === '/'
                 ? 'bg-white border-stone-300 text-emerald-800 shadow-sm'
