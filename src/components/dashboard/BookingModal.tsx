@@ -1340,6 +1340,29 @@ export default function BookingModal({
             </div>
           )}
 
+          {/* 예약 일자 */}
+          <div>
+            <label className="block text-xs font-bold text-stone-600 mb-1.5 uppercase tracking-wider">
+              {language === 'ko' ? '예약 날짜' : 'Booking Date'}
+            </label>
+            <div className="relative">
+              <input
+                type="date"
+                disabled={!canModify}
+                value={date}
+                onChange={(e) => setDate(e.target.value)}
+                onClick={(e) => e.currentTarget.showPicker?.()}
+                className="absolute inset-0 w-full h-full opacity-0 z-10 cursor-pointer disabled:cursor-not-allowed"
+              />
+              <div className={`w-full bg-white border border-stone-200 rounded-xl pl-9 pr-3.5 py-2.5 text-sm text-stone-800 flex justify-between items-center pointer-events-none min-h-[42px] font-medium ${!canModify ? 'opacity-50' : ''}`}>
+                <span className="absolute left-3 text-emerald-700">
+                  <Calendar className="w-4 h-4" />
+                </span>
+                <span>{date ? toUIDateString(date) : (language === 'ko' ? '날짜 선택' : 'Select Date')}</span>
+              </div>
+            </div>
+          </div>
+
           {/* 요금제 및 마사지 코스 선택 (종료시간보다 위에 노출) */}
           <div>
             <label className="block text-xs font-bold text-stone-600 mb-1.5 uppercase tracking-wider">
@@ -1372,29 +1395,6 @@ export default function BookingModal({
                   : `✓ Price: $${price} / Duration: ${pricingPlans.find(p => p.id.toString() === selectedPlanId)?.duration_minutes} mins (End time set automatically)`}
               </p>
             )}
-          </div>
-
-          {/* 예약 일자 */}
-          <div>
-            <label className="block text-xs font-bold text-stone-600 mb-1.5 uppercase tracking-wider">
-              {language === 'ko' ? '예약 날짜' : 'Booking Date'}
-            </label>
-            <div className="relative">
-              <input
-                type="date"
-                disabled={!canModify}
-                value={date}
-                onChange={(e) => setDate(e.target.value)}
-                onClick={(e) => e.currentTarget.showPicker?.()}
-                className="absolute inset-0 w-full h-full opacity-0 z-10 cursor-pointer disabled:cursor-not-allowed"
-              />
-              <div className={`w-full bg-white border border-stone-200 rounded-xl pl-9 pr-3.5 py-2.5 text-sm text-stone-800 flex justify-between items-center pointer-events-none min-h-[42px] font-medium ${!canModify ? 'opacity-50' : ''}`}>
-                <span className="absolute left-3 text-emerald-700">
-                  <Calendar className="w-4 h-4" />
-                </span>
-                <span>{date ? toUIDateString(date) : (language === 'ko' ? '날짜 선택' : 'Select Date')}</span>
-              </div>
-            </div>
           </div>
 
           {/* 예약 시간 */}
