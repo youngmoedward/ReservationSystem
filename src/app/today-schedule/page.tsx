@@ -124,9 +124,14 @@ export default function TodaySchedulePage() {
           }
         }
 
-        // 3. 오늘 예약 조회 (선택된 날짜 기준, 확정 예약만)
-        const startOfDay = `${selectedDate}T00:00:00`
-        const endOfDay = `${selectedDate}T23:59:59`
+        // 브라우저 로컬 오프셋 계산
+        const tzo = -new Date().getTimezoneOffset()
+        const dif = tzo >= 0 ? '+' : '-'
+        const pad = (num: number) => String(Math.floor(Math.abs(num))).padStart(2, '0')
+        const offset = `${dif}${pad(tzo / 60)}:${pad(tzo % 60)}`
+
+        const startOfDay = `${selectedDate}T00:00:00${offset}`
+        const endOfDay = `${selectedDate}T23:59:59${offset}`
         
         const { data: resData } = await supabase
           .from('reservations')
@@ -416,37 +421,37 @@ export default function TodaySchedulePage() {
                       <div className="overflow-hidden border border-stone-150 rounded-xl">
                         <table className="w-full text-left border-collapse">
                           <thead>
-                            <tr className="bg-stone-50 text-[9px] font-black text-stone-400 uppercase tracking-wider border-b border-stone-150">
-                              <th className="p-1 w-6 text-center border-r border-stone-150"></th>
-                              <th className="p-1 w-10 text-center border-r border-stone-150">Time</th>
-                              <th className="p-1 border-r border-stone-150 text-center">Price</th>
-                              <th className="p-1 w-8 text-center">Pt</th>
+                            <tr className="bg-stone-50 text-[11px] font-black text-stone-400 uppercase tracking-wider border-b border-stone-150">
+                              <th className="p-1.5 w-6 text-center border-r border-stone-150"></th>
+                              <th className="p-1.5 w-14 text-center border-r border-stone-150">Time</th>
+                              <th className="p-1.5 border-r border-stone-150 text-center">Price</th>
+                              <th className="p-1.5 w-10 text-center">Pt</th>
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-stone-100">
                             {items.length === 0 ? (
                               <tr>
-                                <td colSpan={4} className="p-3 text-center text-[10px] text-stone-400 font-bold bg-stone-50/30">
+                                <td colSpan={4} className="p-3 text-center text-[11px] text-stone-400 font-bold bg-stone-50/30">
                                   {isOff ? (language === 'ko' ? '휴무' : 'Off') : (language === 'ko' ? '비어있음' : 'Empty')}
                                 </td>
                               </tr>
                             ) : (
                               items.map(item => (
                                 <tr key={item.id} className="hover:bg-sky-50/30 transition-all">
-                                  <td className="p-1 text-center border-r border-stone-100">
+                                  <td className="p-1.5 text-center border-r border-stone-100">
                                     <input
                                       type="text"
                                       disabled
                                       className="w-4 h-4 bg-stone-100/50 border border-stone-250 rounded cursor-not-allowed"
                                     />
                                   </td>
-                                  <td className="p-1 text-center font-mono text-[9px] font-black text-sky-800 border-r border-stone-100">
+                                  <td className="p-1.5 text-center font-mono text-[12px] font-black text-sky-800 border-r border-stone-100">
                                     {item.timeStr}
                                   </td>
-                                  <td className="p-1 text-center font-mono text-[9px] font-extrabold text-stone-750 border-r border-stone-100">
+                                  <td className="p-1.5 text-center font-mono text-[12px] font-extrabold text-stone-750 border-r border-stone-100">
                                     {item.priceStr}
                                   </td>
-                                  <td className="p-1 text-center font-mono text-[9px] font-bold text-sky-600 bg-sky-50/10">
+                                  <td className="p-1.5 text-center font-mono text-[12px] font-bold text-sky-600 bg-sky-50/10">
                                     {item.point}
                                   </td>
                                 </tr>
@@ -510,37 +515,37 @@ export default function TodaySchedulePage() {
                       <div className="overflow-hidden border border-stone-150 rounded-xl">
                         <table className="w-full text-left border-collapse">
                           <thead>
-                            <tr className="bg-stone-50 text-[9px] font-black text-stone-400 uppercase tracking-wider border-b border-stone-150">
-                              <th className="p-1 w-6 text-center border-r border-stone-150"></th>
-                              <th className="p-1 w-10 text-center border-r border-stone-150">Time</th>
-                              <th className="p-1 border-r border-stone-150 text-center">Price</th>
-                              <th className="p-1 w-8 text-center">Pt</th>
+                            <tr className="bg-stone-50 text-[11px] font-black text-stone-400 uppercase tracking-wider border-b border-stone-150">
+                              <th className="p-1.5 w-6 text-center border-r border-stone-150"></th>
+                              <th className="p-1.5 w-14 text-center border-r border-stone-150">Time</th>
+                              <th className="p-1.5 border-r border-stone-150 text-center">Price</th>
+                              <th className="p-1.5 w-10 text-center">Pt</th>
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-stone-100">
                             {items.length === 0 ? (
                               <tr>
-                                <td colSpan={4} className="p-3 text-center text-[10px] text-stone-400 font-bold bg-stone-50/30">
+                                <td colSpan={4} className="p-3 text-center text-[11px] text-stone-400 font-bold bg-stone-50/30">
                                   {isOff ? (language === 'ko' ? '휴무' : 'Off') : (language === 'ko' ? '비어있음' : 'Empty')}
                                 </td>
                               </tr>
                             ) : (
                               items.map(item => (
                                 <tr key={item.id} className="hover:bg-amber-50/30 transition-all">
-                                  <td className="p-1 text-center border-r border-stone-100">
+                                  <td className="p-1.5 text-center border-r border-stone-100">
                                     <input
                                       type="text"
                                       disabled
                                       className="w-4 h-4 bg-stone-100/50 border border-stone-250 rounded cursor-not-allowed"
                                     />
                                   </td>
-                                  <td className="p-1 text-center font-mono text-[9px] font-black text-amber-850 border-r border-stone-100">
+                                  <td className="p-1.5 text-center font-mono text-[12px] font-black text-amber-850 border-r border-stone-100">
                                     {item.timeStr}
                                   </td>
-                                  <td className="p-1 text-center font-mono text-[9px] font-extrabold text-stone-750 border-r border-stone-100">
+                                  <td className="p-1.5 text-center font-mono text-[12px] font-extrabold text-stone-750 border-r border-stone-100">
                                     {item.priceStr}
                                   </td>
-                                  <td className="p-1 text-center font-mono text-[9px] font-bold text-amber-600 bg-amber-50/10">
+                                  <td className="p-1.5 text-center font-mono text-[12px] font-bold text-amber-600 bg-amber-50/10">
                                     {item.point}
                                   </td>
                                 </tr>

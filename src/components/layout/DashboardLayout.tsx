@@ -45,12 +45,14 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
   }
 
   return (
-    <div
-      className="min-h-screen text-stone-800 flex flex-col relative bg-cover bg-center bg-no-repeat bg-fixed"
-      style={{ backgroundImage: 'url("/dashboard_massage_bg.png")' }}
-    >
-      {/* 은은하게 마사지/스파 힐링 분위기를 백그라운드로 스며들게 하는 크림 마스크 overlay */}
-      <div className="absolute inset-0 bg-[#faf7f0]/80 backdrop-blur-[1px] pointer-events-none z-0" />
+    <div className="min-h-screen text-stone-800 flex flex-col relative bg-[#faf7f0]">
+      {/* 1. 배경 이미지 전용 fixed 레이어 (z-[-2]) - bg-fixed 뷰포트 버그 방지 */}
+      <div 
+        className="fixed inset-0 bg-cover bg-center bg-no-repeat z-[-2] pointer-events-none"
+        style={{ backgroundImage: 'url("/dashboard_massage_bg.png")' }}
+      />
+      {/* 2. 은은하게 덮어주는 크림색 투명 마스크 레이어 (z-[-1]) */}
+      <div className="fixed inset-0 bg-[#faf7f0]/80 backdrop-blur-[1px] pointer-events-none z-[-1]" />
 
       {/* 상단 권한 시뮬레이터 및 헤더 */}
       <header className="border-b border-stone-300 bg-[#f3edd7]/90 backdrop-blur-md sticky top-0 z-40 p-4 shadow-sm relative">

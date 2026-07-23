@@ -48,10 +48,12 @@ export async function assignTherapist({
       return { success: false, error: '예약 불가: 현재 근무 중(활성 상태)인 마사지사가 없습니다.' }
     }
 
-    // 2. 예약 날짜 및 시/분 추출 (로컬 타임 기준 분 단위 계산)
+    // 2. 예약 날짜 및 시/분 추출 (UTC 기준 분 단위 계산 - 브라우저 로컬 시차 오차 배제)
     const startDate = new Date(startTime)
     const endDate = new Date(endTime)
-    const bookingDateStr = toLocalDateString(startDate)
+    
+    // startTime은 YYYY-MM-DDTHH:mm:00.000Z 형식으로 구성되어 있으므로 안전하게 날짜 직접 분할
+    const bookingDateStr = startTime.split('T')[0]
 
     const startMinutes = startDate.getHours() * 60 + startDate.getMinutes()
     const endMinutes = endDate.getHours() * 60 + endDate.getMinutes()
@@ -111,14 +113,23 @@ export async function assignTherapist({
       return false
     })
 
-    // 5. 예약하려는 시간대(startTime ~ endTime)와 겹치며 확정(confirmed)된 기존 예약 목록 조회
+    // 전체 요금제 정보 조회 (겹침 세그먼트 분석을 위해 위로 호이스팅)
+    const { data: plans, error: plansError } = await supabase
+      .from('pricing_plans')
+      .select('id, category, weight, massage_weight, bath_weight, duration_minutes, bath_duration_minutes, massage_duration_minutes')
+
+    if (plansError || !plans) {
+      console.error('Pricing plans fetch error in assignTherapist:', plansError)
+      return { success: false, error: '요금제 정보를 불러오는 데 실패했습니다.' }
+    }
+
+    // 5. 예약하려는 시간대(startTime ~ endTime)와 겹치며 확정(confirmed)된 기존 예약 목록 조회 (건식 및 습식 동시 대조)
     let overlappingQuery = supabase
       .from('reservations')
-      .select('therapist_id')
+      .select('therapist_id, secondary_therapist_id, start_time, end_time, pricing_plan_id')
       .eq('status', 'confirmed')
       .lt('start_time', endTime)
       .gt('end_time', startTime)
-      .not('therapist_id', 'is', null)
 
     if (excludeReservationId !== undefined && excludeReservationId !== null) {
       overlappingQuery = overlappingQuery.neq('id', excludeReservationId)
@@ -131,9 +142,40 @@ export async function assignTherapist({
       return { success: false, error: '기존 예약 내역을 조회하는 데 실패했습니다.' }
     }
 
-    const busyTherapistIds = new Set<number>(
-      overlappingReservations.map((res: any) => res.therapist_id)
-    )
+    const busyTherapistIds = new Set<number>()
+    const testStartMs = new Date(startTime).getTime()
+    const testEndMs = new Date(endTime).getTime()
+
+    overlappingReservations.forEach((res: any) => {
+      const plan = res.pricing_plan_id ? plans.find(p => p.id === res.pricing_plan_id) : null
+      const isCombo = plan?.category === 'combo'
+
+      const resStartMs = new Date(res.start_time).getTime()
+      const resEndMs = new Date(res.end_time).getTime()
+
+      if (isCombo && plan) {
+        const resBathDur = plan.bath_duration_minutes || 60
+        // A. 습식 담당자 겹침 대조: resStartMs ~ resStartMs + bathDur
+        const wetStartMs = resStartMs
+        const wetEndMs = resStartMs + resBathDur * 60000
+        if (wetStartMs < testEndMs && wetEndMs > testStartMs) {
+          if (res.secondary_therapist_id) busyTherapistIds.add(Number(res.secondary_therapist_id))
+        }
+
+        // B. 건식 담당자 겹침 대조: resStartMs + bathDur + 30 ~ resEndMs
+        const dryStartMs = resStartMs + (resBathDur + 30) * 60000
+        const dryEndMs = resEndMs
+        if (dryStartMs < testEndMs && dryEndMs > testStartMs) {
+          if (res.therapist_id) busyTherapistIds.add(Number(res.therapist_id))
+        }
+      } else {
+        // 단일 요금제는 전체 예약 범위 대조
+        if (resStartMs < testEndMs && resEndMs > testStartMs) {
+          if (res.therapist_id) busyTherapistIds.add(Number(res.therapist_id))
+          if (res.secondary_therapist_id) busyTherapistIds.add(Number(res.secondary_therapist_id))
+        }
+      }
+    })
 
     // 6. 프론트 직원이 마사지사를 수동으로 지정한 경우
     if (therapistId !== undefined && therapistId !== null) {
@@ -167,13 +209,18 @@ export async function assignTherapist({
       return { success: false, error: '예약 불가: 해당 시간대에 배정 가능한 마사지사가 없습니다.' }
     }
 
-    // A. 요일 구하기: 0(월요일) ~ 6(일요일)
+    // A. 요일 구하기 (로컬 요일 적용 - 브라우저 로컬 시차 오차 배제): 0(월요일) ~ 6(일요일)
     const jsDay = startDate.getDay()
     const dbDayOfWeek = jsDay === 0 ? 6 : jsDay - 1
 
     // B. 가용 마사지사들의 일별 포인트 실시간 계산 (가중치 자체 카운트 방식)
-    const startOfDay = `${bookingDateStr}T00:00:00`
-    const endOfDay = `${bookingDateStr}T23:59:59`
+    const tzo = -new Date().getTimezoneOffset()
+    const dif = tzo >= 0 ? '+' : '-'
+    const pad = (num: number) => String(Math.floor(Math.abs(num))).padStart(2, '0')
+    const offset = `${dif}${pad(tzo / 60)}:${pad(tzo % 60)}`
+
+    const startOfDay = `${bookingDateStr}T00:00:00${offset}`
+    const endOfDay = `${bookingDateStr}T23:59:59${offset}`
     const therapistIds = availableTherapists.map(t => t.id)
 
     // 해당 날짜의 확정된 전체 예약 목록 조회
@@ -188,14 +235,7 @@ export async function assignTherapist({
       console.error('Reservations fetch error in assignTherapist points calculation:', dayResError)
     }
 
-    // 전체 요금제 정보 조회
-    const { data: plans, error: plansError } = await supabase
-      .from('pricing_plans')
-      .select('id, category, weight, massage_weight, bath_weight')
 
-    if (plansError) {
-      console.error('Pricing plans fetch error in assignTherapist points calculation:', plansError)
-    }
 
     const pointsMap = new Map<number, number>()
     

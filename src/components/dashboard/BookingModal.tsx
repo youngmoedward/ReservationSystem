@@ -56,6 +56,537 @@ export default function BookingModal({
   const [therapistId, setTherapistId] = useState<string>('auto') // 'auto' 또는 마사지사 ID
   const [secondaryTherapistId, setSecondaryTherapistId] = useState<string>('auto') // 'auto' 또는 보조 마사지사 ID
 
+  // 동반인 동시 예약용 상태 추가
+  const [personCount, setPersonCount] = useState(1)
+  const [activeTab, setActiveTab] = useState(0)
+  const [companions, setCompanions] = useState<{
+    planId: string
+    price: number
+    startHour: number
+    startMinute: number
+    endHour: number
+    endMinute: number
+    therapistId: string
+    secondaryTherapistId: string
+  }[]>([
+    { planId: '', price: 80, startHour: 9, startMinute: 0, endHour: 10, endMinute: 0, therapistId: 'auto', secondaryTherapistId: 'auto' }
+  ])
+  const [isSamePlanApplied, setIsSamePlanApplied] = useState(true)
+  const [isSameTimeApplied, setIsSameTimeApplied] = useState(true)
+
+  interface GuestProposal {
+    name: string
+    status: 'wet_failed' | 'dry_failed' | 'all_failed' | 'success'
+    proposals: { hour: number; minute: number; timeStr: string }[]
+  }
+
+  interface TimeProposal {
+    guests: GuestProposal[]
+  }
+  const [pendingProposal, setPendingProposal] = useState<TimeProposal | null>(null)
+
+  const getLocalTimezoneOffsetString = () => {
+    const tzo = -new Date().getTimezoneOffset()
+    const dif = tzo >= 0 ? '+' : '-'
+    const pad = (num: number) => String(Math.floor(Math.abs(num))).padStart(2, '0')
+    return `${dif}${pad(tzo / 60)}:${pad(tzo % 60)}`
+  }
+
+  const getISOStringFromLocal = (targetHour: number, targetMinute: number) => {
+    const hStr = String(targetHour).padStart(2, '0')
+    const mStr = String(targetMinute).padStart(2, '0')
+    const offset = getLocalTimezoneOffsetString()
+    return `${date}T${hStr}:${mStr}:00${offset}`
+  }
+
+  const simulateGroupAssignment = (slotH: number, slotMin: number): boolean => {
+    const therapistTimelines = new Map<number, { startMs: number; endMs: number }[]>()
+    therapists.forEach(t => therapistTimelines.set(t.id, []))
+
+    for (const res of reservations) {
+      if (res.status !== 'confirmed') continue
+      if (isEditMode && selectedReservation && res.id === selectedReservation.id) continue
+      
+      const resStartObj = new Date(res.start_time)
+      const resDateStr = toLocalDateString(resStartObj)
+      if (resDateStr !== date) continue
+
+      const plan = res.pricing_plan_id ? pricingPlans.find(p => p.id === res.pricing_plan_id) : null
+      const isCombo = plan?.category === 'combo'
+
+      const resStartMs = resStartObj.getTime()
+      const resEndMs = new Date(res.end_time).getTime()
+
+      if (isCombo && plan) {
+        const bathDur = plan.bath_duration_minutes || 60
+        const massageDur = plan.massage_duration_minutes || 60
+        if (res.secondary_therapist_id) {
+          const subId = Number(res.secondary_therapist_id)
+          const wetSegments = therapistTimelines.get(subId) || []
+          wetSegments.push({ startMs: resStartMs, endMs: resStartMs + bathDur * 60000 })
+          therapistTimelines.set(subId, wetSegments)
+        }
+        if (res.therapist_id) {
+          const mainId = Number(res.therapist_id)
+          const drySegments = therapistTimelines.get(mainId) || []
+          const dryStart = resStartMs + (bathDur + 30) * 60000
+          drySegments.push({ startMs: dryStart, endMs: dryStart + massageDur * 60000 })
+          therapistTimelines.set(mainId, drySegments)
+        }
+      } else {
+        if (res.therapist_id) {
+          const mainId = Number(res.therapist_id)
+          const segments = therapistTimelines.get(mainId) || []
+          segments.push({ startMs: resStartMs, endMs: resEndMs })
+          therapistTimelines.set(mainId, segments)
+        }
+      }
+    }
+
+    const scanStartISO = getISOStringFromLocal(slotH, slotMin)
+    const scanStartMs = new Date(scanStartISO).getTime()
+
+    interface AssignmentTask {
+      guestIdx: number
+      role: 'wet' | 'dry'
+      startMs: number
+      endMs: number
+    }
+    const tasks: AssignmentTask[] = []
+
+    for (let i = 0; i < personCount; i++) {
+      const comp = companions[i]
+      const compPlan = pricingPlans.find(p => p.id.toString() === comp.planId)
+      if (!compPlan) return false
+
+      const compIsCombo = compPlan.category === 'combo'
+      const bathDur = compPlan.bath_duration_minutes || 60
+      const massageDur = compPlan.massage_duration_minutes || 60
+      const duration = compPlan.duration_minutes + (compIsCombo ? 30 : 0)
+
+      if (compIsCombo) {
+        tasks.push({
+          guestIdx: i,
+          role: 'wet',
+          startMs: scanStartMs,
+          endMs: scanStartMs + bathDur * 60000
+        })
+        tasks.push({
+          guestIdx: i,
+          role: 'dry',
+          startMs: scanStartMs + (bathDur + 30) * 60000,
+          endMs: scanStartMs + (bathDur + 30) * 60000 + massageDur * 60000
+        })
+      } else {
+        tasks.push({
+          guestIdx: i,
+          role: compPlan.category === 'wet' ? 'wet' : 'dry',
+          startMs: scanStartMs,
+          endMs: scanStartMs + duration * 60000
+        })
+      }
+    }
+
+    // 콤보의 상호 의존 마사지사 배정을 위해 그리디하게 마사지사들 스캔
+    for (const task of tasks) {
+      let matchedTherapistId: number | null = null
+
+      for (const t of therapists) {
+        if (!t.is_active) continue
+        if (task.role === 'wet' && t.massage_type !== 'wet' && t.massage_type !== 'both') continue
+        if (task.role === 'dry' && t.massage_type !== 'dry' && t.massage_type !== 'both') continue
+
+        const testDate = new Date(task.startMs)
+        const h = testDate.getHours()
+        const min = testDate.getMinutes()
+        const segDur = (task.endMs - task.startMs) / 60000
+        
+        const schedType = daySchedules[t.id]
+        let scheduleOk = false
+        if (schedType === 'full') scheduleOk = true
+        else if (schedType === 'am_half' && (h * 60 + min) >= 990) scheduleOk = true
+        else if (schedType === 'pm_half' && (h * 60 + min + segDur) <= 990) scheduleOk = true
+        
+        if (!scheduleOk) continue
+
+        const currentSegments = therapistTimelines.get(t.id) || []
+        const hasOverlap = currentSegments.some(seg => seg.startMs < task.endMs && seg.endMs > task.startMs)
+        if (hasOverlap) continue
+
+        matchedTherapistId = t.id
+        break
+      }
+
+      if (matchedTherapistId === null) {
+        return false
+      }
+
+      const segments = therapistTimelines.get(matchedTherapistId) || []
+      segments.push({ startMs: task.startMs, endMs: task.endMs })
+      therapistTimelines.set(matchedTherapistId, segments)
+    }
+
+    return true
+  }
+
+  const scanGuestProposals = (): GuestProposal[] => {
+    const results: GuestProposal[] = []
+
+    for (let i = 0; i < personCount; i++) {
+      const comp = companions[i]
+      const displayName = i === 0 ? customerName : `${customerName} (동반 ${i})`
+      const compPlan = pricingPlans.find(p => p.id.toString() === comp.planId)
+      if (!compPlan) continue
+
+      const compIsCombo = compPlan.category === 'combo'
+      const duration = compPlan.duration_minutes + (compIsCombo ? 30 : 0)
+
+      let guestStatus: GuestProposal['status'] = 'success'
+      // 원래 시점의 가용성 판단
+      const checkTargetStartISO = getISOStringFromLocal(comp.startHour, comp.startMinute)
+      const checkTargetStartMs = new Date(checkTargetStartISO).getTime()
+      
+      let isWetOk = false
+      let isDryOk = false
+
+      const checkAvailabilityForSegment = (type: 'wet' | 'dry', testStartMs: number, segDur: number) => {
+        const testEndMs = testStartMs + segDur * 60000
+        const blocked: number[] = []
+        for (let j = 0; j < personCount; j++) {
+          if (j === i) continue
+          const other = companions[j]
+          const otherPlan = pricingPlans.find(p => p.id.toString() === other.planId)
+          if (!otherPlan) continue
+          const otherIsCombo = otherPlan.category === 'combo'
+          const otherBaseStartISO = getISOStringFromLocal(other.startHour, other.startMinute)
+          const otherBaseStartMs = new Date(otherBaseStartISO).getTime()
+          const otherDur = otherPlan.duration_minutes + (otherIsCombo ? 30 : 0)
+          const otherEndMs = otherBaseStartMs + otherDur * 60000
+
+          const isOtherMain = other.therapistId && other.therapistId !== 'auto'
+          const isOtherSub = other.secondaryTherapistId && other.secondaryTherapistId !== 'auto'
+          
+          if (isOtherMain || isOtherSub) {
+            let otherStartMs = otherBaseStartMs
+            let otherEndMsVal = otherEndMs
+            if (otherIsCombo) {
+              const otherBathDur = otherPlan.bath_duration_minutes || 60
+              if (isOtherSub) {
+                otherEndMsVal = otherStartMs + otherBathDur * 60000
+              } else {
+                otherStartMs = otherStartMs + (otherBathDur + 30) * 60000
+              }
+            }
+            if (otherStartMs < testEndMs && otherEndMsVal > testStartMs) {
+              if (isOtherMain && other.therapistId) blocked.push(Number(other.therapistId))
+              if (isOtherSub && other.secondaryTherapistId) blocked.push(Number(other.secondaryTherapistId))
+            }
+          }
+        }
+
+        const candidates = therapists.filter(t => {
+          if (blocked.includes(t.id)) return false
+          if (type === 'wet' && t.massage_type !== 'wet' && t.massage_type !== 'both') return false
+          if (type === 'dry' && t.massage_type !== 'dry' && t.massage_type !== 'both') return false
+
+          const testDate = new Date(testStartMs)
+          const h = testDate.getHours()
+          const min = testDate.getMinutes()
+          
+          const schedType = daySchedules[t.id]
+          if (schedType === 'full') return true
+          if (schedType === 'am_half') return (h * 60 + min) >= 990
+          if (schedType === 'pm_half') return (h * 60 + min + segDur) <= 990
+          return false
+        })
+
+        const freeCandidates = candidates.filter(t => {
+          return !reservations.some(res => {
+            const isMain = res.therapist_id === t.id
+            const isSub = (res as any).secondary_therapist_id === t.id
+            if (!isMain && !isSub) return false
+            if (res.status !== 'confirmed') return false
+            if (isEditMode && selectedReservation && res.id === selectedReservation.id) return false
+
+            const plan = res.pricing_plan_id ? pricingPlans.find(p => p.id === res.pricing_plan_id) : null
+            const isCombo = plan?.category === 'combo'
+
+            let resStartMs = new Date(res.start_time).getTime()
+            let resEndMs = new Date(res.end_time).getTime()
+
+            if (isCombo) {
+              const resBathDur = plan?.bath_duration_minutes || 60
+              const baseStart = new Date(res.start_time)
+              if (isSub) {
+                resStartMs = baseStart.getTime()
+                resEndMs = baseStart.getTime() + resBathDur * 60000
+              } else {
+                resStartMs = baseStart.getTime() + (resBathDur + 30) * 60000
+                resEndMs = new Date(res.end_time).getTime()
+              }
+            }
+            return resStartMs < testEndMs && resEndMs > testStartMs
+          })
+        })
+
+        return freeCandidates.length > 0
+      }
+
+      if (compIsCombo) {
+        const bathDur = compPlan.bath_duration_minutes || 60
+        const massageDur = compPlan.massage_duration_minutes || 60
+        isWetOk = checkAvailabilityForSegment('wet', checkTargetStartMs, bathDur)
+        isDryOk = checkAvailabilityForSegment('dry', checkTargetStartMs + (bathDur + 30) * 60000, massageDur)
+      } else {
+        const cat = compPlan.category
+        if (cat === 'wet') isWetOk = checkAvailabilityForSegment('wet', checkTargetStartMs, duration)
+        else if (cat === 'dry') isDryOk = checkAvailabilityForSegment('dry', checkTargetStartMs, duration)
+      }
+
+      if (compIsCombo) {
+        if (!isWetOk && !isDryOk) guestStatus = 'all_failed'
+        else if (!isWetOk) guestStatus = 'wet_failed'
+        else if (!isDryOk) guestStatus = 'dry_failed'
+      } else {
+        if (compPlan.category === 'wet' && !isWetOk) guestStatus = 'wet_failed'
+        if (compPlan.category === 'dry' && !isDryOk) guestStatus = 'dry_failed'
+      }
+
+      const allSlots: { h: number; min: number; diff: number }[] = []
+      const targetMinVal = comp.startHour * 60 + comp.startMinute
+      
+      for (let currentMin = 540; currentMin <= 1440; currentMin += 10) {
+        const h = Math.floor(currentMin / 60)
+        const min = currentMin % 60
+        if (h === comp.startHour && min === comp.startMinute) continue
+
+        allSlots.push({
+          h,
+          min,
+          diff: Math.abs(currentMin - targetMinVal)
+        })
+      }
+
+      allSlots.sort((a, b) => a.diff - b.diff)
+
+      const proposals: GuestProposal['proposals'] = []
+      
+      for (const slot of allSlots) {
+        // 그룹 전원 배정 시뮬레이션 적용!
+        const pass = simulateGroupAssignment(slot.h, slot.min)
+
+        if (pass) {
+          const sHourStr = String(slot.h).padStart(2, '0')
+          const sMinStr = String(slot.min).padStart(2, '0')
+          
+          const scanStartISO = getISOStringFromLocal(slot.h, slot.min)
+          const scanStartMs = new Date(scanStartISO).getTime()
+          const endObj = new Date(scanStartMs + duration * 60000)
+          const eHourStr = String(endObj.getHours()).padStart(2, '0')
+          const eMinStr = String(endObj.getMinutes()).padStart(2, '0')
+
+          proposals.push({
+            hour: slot.h,
+            minute: slot.min,
+            timeStr: `${sHourStr}:${sMinStr} ~ ${eHourStr}:${eMinStr}`
+          })
+          if (proposals.length >= 2) break
+        }
+      }
+
+      results.push({
+        name: displayName,
+        status: guestStatus,
+        proposals
+      })
+    }
+
+    return results
+  }
+
+  const handlePersonCountChange = (newCount: number) => {
+    setPersonCount(newCount)
+    setCompanions(prev => {
+      const updated = [...prev]
+      if (newCount > prev.length) {
+        const base = prev[0] || { planId: '', price: 80, startHour: 9, startMinute: 0, endHour: 10, endMinute: 0, therapistId: 'auto', secondaryTherapistId: 'auto' }
+        for (let i = prev.length; i < newCount; i++) {
+          updated.push({
+            planId: isSamePlanApplied ? base.planId : '',
+            price: isSamePlanApplied ? base.price : 80,
+            startHour: isSameTimeApplied ? base.startHour : 9,
+            startMinute: isSameTimeApplied ? base.startMinute : 0,
+            endHour: isSameTimeApplied ? base.endHour : 10,
+            endMinute: isSameTimeApplied ? base.endMinute : 0,
+            therapistId: 'auto',
+            secondaryTherapistId: 'auto'
+          })
+        }
+      } else if (newCount < prev.length) {
+        updated.splice(newCount)
+      }
+      return updated
+    })
+
+    if (activeTab >= newCount) {
+      setActiveTab(newCount - 1)
+    }
+  }
+
+  const handleApplyGuestProposal = (guestIdx: number, hour: number, minute: number) => {
+    setCompanions(prev => {
+      if (prev.length <= guestIdx) return prev
+      const updated = [...prev]
+      const planId = updated[guestIdx].planId
+      
+      updated[guestIdx].startHour = hour
+      updated[guestIdx].startMinute = minute
+      
+      const plan = pricingPlans.find(p => p.id.toString() === planId)
+      const duration = plan ? (plan.duration_minutes + (plan.category === 'combo' ? 30 : 0)) : 90
+      
+      let eh = hour
+      let em = minute + duration
+      if (em >= 60) {
+        eh += Math.floor(em / 60)
+        em = em % 60
+      }
+      updated[guestIdx].endHour = eh
+      updated[guestIdx].endMinute = em
+
+      // 0번 탭(예약자 본인)이 수정되고 동일 시간 적용이 켜져있다면 다른 탭 동기화
+      if (guestIdx === 0 && isSameTimeApplied) {
+        for (let j = 1; j < updated.length; j++) {
+          updated[j].startHour = hour
+          updated[j].startMinute = minute
+          
+          const otherPlan = pricingPlans.find(p => p.id.toString() === updated[j].planId)
+          const otherDur = otherPlan ? (otherPlan.duration_minutes + (otherPlan.category === 'combo' ? 30 : 0)) : 90
+          
+          let oeh = hour
+          let oem = minute + otherDur
+          if (oem >= 60) {
+            oeh += Math.floor(oem / 60)
+            oem = oem % 60
+          }
+          updated[j].endHour = oeh
+          updated[j].endMinute = oem
+        }
+      }
+
+      // 만약 현재 활성화된 탭의 값을 바꾼 것이라면, 개별 상태 변수에도 즉시 반영
+      if (guestIdx === activeTab) {
+        setStartHour(hour)
+        setStartMinute(minute)
+        
+        let activeEh = hour
+        let activeEm = minute + duration
+        if (activeEm >= 60) {
+          activeEh += Math.floor(activeEm / 60)
+          activeEm = activeEm % 60
+        }
+        setEndHour(activeEh)
+        setEndMinute(activeEm)
+      } else if (guestIdx === 0 && isSameTimeApplied && activeTab > 0) {
+        // 본인 변경에 따라 현재 활성화된 탭의 시간도 동기화
+        const activePlan = pricingPlans.find(p => p.id.toString() === updated[activeTab].planId)
+        const activeDur = activePlan ? (activePlan.duration_minutes + (activePlan.category === 'combo' ? 30 : 0)) : 90
+        setStartHour(hour)
+        setStartMinute(minute)
+        
+        let activeEh = hour
+        let activeEm = minute + activeDur
+        if (activeEm >= 60) {
+          activeEh += Math.floor(activeEm / 60)
+          activeEm = activeEm % 60
+        }
+        setEndHour(activeEh)
+        setEndMinute(activeEm)
+      }
+
+      return updated
+    })
+  }
+
+  const handleCloseProposal = () => {
+    setPendingProposal(null)
+  }
+
+  // 1. activeTab 또는 개별 상태 변수 변경 시 companions 배열의 해당 요소 자동 저장 및 0번 탭에서의 일괄 동기화
+  useEffect(() => {
+    if (!isOpen) return
+    setCompanions(prev => {
+      if (prev.length <= activeTab) return prev
+      const updated = [...prev]
+      const current = updated[activeTab]
+      if (
+        current.planId !== selectedPlanId ||
+        current.price !== price ||
+        current.startHour !== startHour ||
+        current.startMinute !== startMinute ||
+        current.endHour !== endHour ||
+        current.endMinute !== endMinute ||
+        current.therapistId !== therapistId ||
+        current.secondaryTherapistId !== secondaryTherapistId
+      ) {
+        updated[activeTab] = {
+          planId: selectedPlanId,
+          price,
+          startHour,
+          startMinute,
+          endHour,
+          endMinute,
+          therapistId,
+          secondaryTherapistId
+        }
+        
+        // 0번 탭(예약자 본인) 수정 시 일괄 적용 룰 전파
+        if (activeTab === 0) {
+          for (let i = 1; i < updated.length; i++) {
+            if (isSamePlanApplied) {
+              updated[i].planId = selectedPlanId
+              updated[i].price = price
+            }
+            if (isSameTimeApplied) {
+              updated[i].startHour = startHour
+              updated[i].startMinute = startMinute
+              updated[i].endHour = endHour
+              updated[i].endMinute = endMinute
+            }
+          }
+        }
+      }
+      return updated
+    })
+  }, [
+    selectedPlanId,
+    price,
+    startHour,
+    startMinute,
+    endHour,
+    endMinute,
+    therapistId,
+    secondaryTherapistId,
+    activeTab,
+    isOpen,
+    isSamePlanApplied,
+    isSameTimeApplied
+  ])
+
+  // 2. activeTab 변경 시 선택된 탭의 버퍼 데이터를 단일 상태들로 즉시 복사 로드
+  useEffect(() => {
+    if (!isOpen || companions.length <= activeTab) return
+    const current = companions[activeTab]
+    setSelectedPlanId(current.planId)
+    setPrice(current.price)
+    setStartHour(current.startHour)
+    setStartMinute(current.startMinute)
+    setEndHour(current.endHour)
+    setEndMinute(current.endMinute)
+    setTherapistId(current.therapistId)
+    setSecondaryTherapistId(current.secondaryTherapistId)
+  }, [activeTab, isOpen])
+
   const [loading, setLoading] = useState(false)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
   const { language, t } = useLanguage()
@@ -102,7 +633,12 @@ export default function BookingModal({
       try {
         console.log('[Autocomplete] Fetching DB for:', cleanQuery)
         // 1. reservations 테이블에서 검색
-        let dbQuery = supabase.from('reservations').select('customer_name, customer_phone, status')
+        // 1. reservations 테이블에서 검색 (동반인은 배제)
+        let dbQuery = supabase
+          .from('reservations')
+          .select('customer_name, customer_phone, status')
+          .not('customer_name', 'ilike', '%(동반%')
+
         if (activeInput === 'name') {
           dbQuery = dbQuery.ilike('customer_name', `%${cleanQuery}%`)
         } else {
@@ -137,6 +673,8 @@ export default function BookingModal({
 
         if (resData) {
           resData.forEach((item: any) => {
+            if (item.customer_name && item.customer_name.includes('(동반')) return
+
             const rawPhone = item.customer_phone || ''
             const formattedPhone = formatUSPhone(rawPhone)
             const key = `${item.customer_name}_${formattedPhone}`
@@ -361,10 +899,45 @@ export default function BookingModal({
     }
   }, [])
 
-  const isTherapistOverlapping = (tId: number, startISO: string, endISO: string) => {
-    const targetStartMs = new Date(startISO).getTime()
-    const targetEndMs = new Date(endISO).getTime()
+  const isTherapistOverlapping = (tId: number, targetDateStr: string, targetStartMin: number, targetEndMin: number) => {
+    // 1. 현재 모달 내 다른 탭에서 해당 마사지사를 동일 시간대에 이미 선점했는지 체크
+    if (!isEditMode && companions.length > 1) {
+      for (let i = 0; i < companions.length; i++) {
+        if (i === activeTab) continue // 현재 편집 중인 탭은 제외
+        const comp = companions[i]
+        if (!comp.planId) continue
 
+        const compPlan = pricingPlans.find(p => p.id.toString() === comp.planId)
+        if (!compPlan) continue
+
+        const compIsCombo = compPlan.category === 'combo'
+        const compBathDur = compPlan.bath_duration_minutes || 60
+        const compMassageDur = compPlan.massage_duration_minutes || 60
+        
+        const isCompMain = comp.therapistId === tId.toString()
+        const isCompSub = comp.secondaryTherapistId === tId.toString()
+        if (!isCompMain && !isCompSub) continue
+
+        let compStartMin = comp.startHour * 60 + comp.startMinute
+        let compEndMin = compStartMin + compPlan.duration_minutes + (compIsCombo ? 30 : 0)
+
+        if (compIsCombo) {
+          if (isCompSub) {
+            compEndMin = compStartMin + compBathDur
+          } else {
+            compStartMin = compStartMin + compBathDur + 30
+            compEndMin = compStartMin + compMassageDur
+          }
+        }
+
+        // 겹침 여부 판단 (정수 범위 겹침 식)
+        if (compStartMin < targetEndMin && compEndMin > targetStartMin) {
+          return true // 다른 동반인 탭에서 이미 예약 선점함!
+        }
+      }
+    }
+
+    // 2. 기존 DB 예약들과의 시간 겹침 체크
     const overlapping = reservations.filter(res => {
       const isMain = res.therapist_id === tId
       const isSub = (res as any).secondary_therapist_id === tId
@@ -372,33 +945,39 @@ export default function BookingModal({
       if (res.status !== 'confirmed') return false
       if (isEditMode && selectedReservation && res.id === selectedReservation.id) return false
       
+      const resStartObj = new Date(res.start_time)
+      const resEndObj = new Date(res.end_time)
+
+      // 날짜 대조: res.start_time의 로컬 날짜가 targetDateStr 과 다른 경우 즉시 배제
+      const resDateStr = toLocalDateString(resStartObj)
+      if (resDateStr !== targetDateStr) return false
+
       const plan = res.pricing_plan_id ? pricingPlans.find(p => p.id === res.pricing_plan_id) : null
       const isCombo = plan?.category === 'combo'
 
-      let resStartMs = new Date(res.start_time).getTime()
-      let resEndMs = new Date(res.end_time).getTime()
+      // 현지 브라우저 로컬 기준으로 시/분을 오차 없이 정수 누적 분(Minutes)으로 추출
+      let resStartMin = resStartObj.getHours() * 60 + resStartObj.getMinutes()
+      let resEndMin = resEndObj.getHours() * 60 + resEndObj.getMinutes()
 
-      if (isCombo) {
-        const bathDur = plan?.bath_duration_minutes || 60
-        const baseStart = new Date(res.start_time)
-        
+      if (isCombo && plan) {
+        const bathDur = plan.bath_duration_minutes || 60
+        const massageDur = plan.massage_duration_minutes || 60
         if (isSub) {
           // 습식 담당 마사지사는 콤보 시작부터 bath_duration 까지만 바쁨
-          resStartMs = baseStart.getTime()
-          resEndMs = baseStart.getTime() + bathDur * 60000
+          resEndMin = resStartMin + bathDur
         } else {
           // 건식 담당 마사지사는 콤보 시작 + bath_duration + 30분 지연시간 이후부터 바쁨
-          resStartMs = baseStart.getTime() + (bathDur + 30) * 60000
-          resEndMs = new Date(res.end_time).getTime()
+          resStartMin = resStartMin + bathDur + 30
+          resEndMin = resStartMin + massageDur
         }
       }
       
-      return resStartMs < targetEndMs && resEndMs > targetStartMs
+      return resStartMin < targetEndMin && resEndMin > targetStartMin
     })
     return overlapping.length > 0
   }
 
-  const checkTherapistAvailability = (tId: number, specificStartISO?: string, specificEndISO?: string) => {
+  const checkTherapistAvailability = (tId: number, specificStartMin?: number, specificEndMin?: number) => {
     const type = daySchedules[tId]
     
     // 기본은 미정(null), 미정일 때는 가용하지 않음
@@ -409,22 +988,16 @@ export default function BookingModal({
       return { available: false, reason: t('schedule.off_duty') }
     }
     
-    let checkStartISO = specificStartISO
-    let checkEndISO = specificEndISO
+    let startMinutes = specificStartMin
+    let endMinutes = specificEndMin
 
-    if (!checkStartISO || !checkEndISO) {
-      const { startTimeISO, endTimeISO } = getISODateStrings()
-      checkStartISO = startTimeISO
-      checkEndISO = endTimeISO
+    if (startMinutes === undefined || endMinutes === undefined) {
+      startMinutes = startHour * 60 + startMinute
+      endMinutes = endHour * 60 + endMinute
     }
 
-    const startDate = new Date(checkStartISO)
-    const endDate = new Date(checkEndISO)
+    const boundary = 16 * 60 + 30 // 16:30 ➡️ 990분
 
-    const startMinutes = startDate.getHours() * 60 + startDate.getMinutes()
-    const endMinutes = endDate.getHours() * 60 + endDate.getMinutes()
-    const boundary = 16 * 60 + 30 // 16:30
-    
     if (type === 'am_half') {
       if (startMinutes < boundary) {
         return { 
@@ -443,8 +1016,8 @@ export default function BookingModal({
       }
     }
 
-    // 기존 예약 겹침 확인
-    const isBusy = isTherapistOverlapping(tId, checkStartISO, checkEndISO)
+    // 기존 예약 겹침 확인 (targetDateStr = date, startMinutes, endMinutes 사용)
+    const isBusy = isTherapistOverlapping(tId, date, startMinutes, endMinutes)
     if (isBusy) {
       return { available: false, reason: language === 'ko' ? '시간 중복' : 'Time Conflict' }
     }
@@ -453,14 +1026,14 @@ export default function BookingModal({
   }
   
   // 예약 성공 결과를 저장하는 상태 (결과 화면 전환용)
-  const [successResult, setSuccessResult] = useState<{
+  interface SuccessResultItem {
     customerName: string
     therapistName: string
+    timeStr: string
+  }
+  const [successResult, setSuccessResult] = useState<{
     date: string
-    startTime: number
-    startMinute: number
-    endTime: number
-    endMinute: number
+    items: SuccessResultItem[]
     isEdit: boolean
   } | null>(null)
   
@@ -558,13 +1131,31 @@ export default function BookingModal({
         const start = new Date(selectedReservation.start_time)
         const end = new Date(selectedReservation.end_time)
         
+        const sh = start.getHours()
+        const sm = roundTo10Minutes(start.getMinutes())
+        const eh = end.getHours()
+        const em = roundTo10Minutes(end.getMinutes())
+        
         setDate(toLocalDateString(start))
-        setStartHour(start.getHours())
-        setStartMinute(roundTo10Minutes(start.getMinutes()))
-        setEndHour(end.getHours())
-        setEndMinute(roundTo10Minutes(end.getMinutes()))
+        setStartHour(sh)
+        setStartMinute(sm)
+        setEndHour(eh)
+        setEndMinute(em)
         setTherapistId(selectedReservation.therapist_id?.toString() || 'auto')
         setSecondaryTherapistId((selectedReservation as any).secondary_therapist_id?.toString() || 'auto')
+
+        setPersonCount(1)
+        setActiveTab(0)
+        setCompanions([{
+          planId: selectedReservation.pricing_plan_id?.toString() || '',
+          price: Number(selectedReservation.price),
+          startHour: sh,
+          startMinute: sm,
+          endHour: eh,
+          endMinute: em,
+          therapistId: selectedReservation.therapist_id?.toString() || 'auto',
+          secondaryTherapistId: (selectedReservation as any).secondary_therapist_id?.toString() || 'auto'
+        }])
       } else {
         // 신규 등록 모드
         setCustomerName('')
@@ -574,14 +1165,21 @@ export default function BookingModal({
         setTherapistId(initialTherapistId?.toString() || 'auto')
         setSecondaryTherapistId('auto')
         
+        let sh = 9
+        let sm = 0
+        let eh = 10
+        let em = 30
+        
         if (initialTime) {
-          const sh = initialTime.getHours()
-          const sm = roundTo10Minutes(initialTime.getMinutes())
+          sh = initialTime.getHours()
+          sm = roundTo10Minutes(initialTime.getMinutes())
           setDate(toLocalDateString(initialTime))
           setStartHour(sh)
           setStartMinute(sm)
           
-          const { endHour: eh, endMinute: em } = getDefaultEndTime(sh, sm)
+          const defaultEnd = getDefaultEndTime(sh, sm)
+          eh = defaultEnd.endHour
+          em = defaultEnd.endMinute
           setEndHour(eh)
           setEndMinute(em)
         } else {
@@ -591,6 +1189,21 @@ export default function BookingModal({
           setEndHour(10)
           setEndMinute(30)
         }
+
+        setPersonCount(1)
+        setActiveTab(0)
+        setIsSamePlanApplied(true)
+        setIsSameTimeApplied(true)
+        setCompanions([{
+          planId: '',
+          price: 80,
+          startHour: sh,
+          startMinute: sm,
+          endHour: eh,
+          endMinute: em,
+          therapistId: initialTherapistId?.toString() || 'auto',
+          secondaryTherapistId: 'auto'
+        }])
       }
     }
   }, [isOpen, isEditMode, selectedReservation, initialTime, initialTherapistId, pricingPlans.length, defaultDate])
@@ -603,24 +1216,40 @@ export default function BookingModal({
   const planCategory = selectedPlan?.category || 'dry'
   const isCombo = planCategory === 'combo'
 
-  // 콤보 마사지 시작/종료 세그먼트 시간대 계산
+
+
+  // 콤보 마사지 시작/종료 세그먼트 시간대 계산 (수동 조합 - 브라우저 타임존 오차 방지)
   const comboTimes = (() => {
     if (!selectedPlan || selectedPlan.category !== 'combo') return null
     const bathDur = selectedPlan.bath_duration_minutes || 60
     const massageDur = selectedPlan.massage_duration_minutes || 60
-    const [y, m, d] = date.split('-').map(Number)
     
-    const bathStart = new Date(y, m - 1, d, startHour, startMinute, 0, 0)
-    const bathEnd = new Date(bathStart.getTime() + bathDur * 60000)
+    // 시작 시각
+    const bathStartISO = getISOStringFromLocal(startHour, startMinute)
+    const bathStartMs = new Date(bathStartISO).getTime()
     
-    const dryStart = new Date(bathEnd.getTime() + 30 * 60000) // 예비시간 30분
-    const dryEnd = new Date(dryStart.getTime() + massageDur * 60000)
+    const offset = getLocalTimezoneOffsetString()
+
+    // 습식 종료 시각 (시작 + bathDur)
+    const bathEndMs = bathStartMs + bathDur * 60000
+    const bathEnd = new Date(bathEndMs)
+    const bathEndISO = `${date}T${String(bathEnd.getHours()).padStart(2, '0')}:${String(bathEnd.getMinutes()).padStart(2, '0')}:00${offset}`
+    
+    // 건식 시작 시각 (습식 종료 + 30)
+    const dryStartMs = bathEndMs + 30 * 60000
+    const dryStart = new Date(dryStartMs)
+    const dryStartISO = `${date}T${String(dryStart.getHours()).padStart(2, '0')}:${String(dryStart.getMinutes()).padStart(2, '0')}:00${offset}`
+    
+    // 건식 종료 시각 (건식 시작 + massageDur)
+    const dryEndMs = dryStartMs + massageDur * 60000
+    const dryEnd = new Date(dryEndMs)
+    const dryEndISO = `${date}T${String(dryEnd.getHours()).padStart(2, '0')}:${String(dryEnd.getMinutes()).padStart(2, '0')}:00${offset}`
     
     return {
-      bathStartISO: bathStart.toISOString(),
-      bathEndISO: bathEnd.toISOString(),
-      dryStartISO: dryStart.toISOString(),
-      dryEndISO: dryEnd.toISOString()
+      bathStartISO,
+      bathEndISO,
+      dryStartISO,
+      dryEndISO
     }
   })()
 
@@ -681,21 +1310,56 @@ export default function BookingModal({
  
   const scheduleList = getTherapistScheduleList(therapistId, planCategory === 'wet' ? 'wet' : 'dry')
 
-  // 3. 시간 포맷 도우미 (ISO String 변환)
+  // 3. 시간 포맷 도우미 (ISO String 변환 - 브라우저 타임존 오차 방지 수동 조합)
   const getISODateStrings = () => {
-    const [y, m, d] = date.split('-').map(Number)
-    const start = new Date(y, m - 1, d, startHour, startMinute, 0, 0)
-    const end = new Date(y, m - 1, d, endHour, endMinute, 0, 0)
+    const sHourStr = String(startHour).padStart(2, '0')
+    const sMinStr = String(startMinute).padStart(2, '0')
+    const eHourStr = String(endHour).padStart(2, '0')
+    const eMinStr = String(endMinute).padStart(2, '0')
+    const offset = getLocalTimezoneOffsetString()
 
     return {
-      startTimeISO: start.toISOString(),
-      endTimeISO: end.toISOString()
+      startTimeISO: `${date}T${sHourStr}:${sMinStr}:00${offset}`,
+      endTimeISO: `${date}T${eHourStr}:${eMinStr}:00${offset}`
     }
   }
 
   // 4. 예약 등록 / 수정 처리 핸들러
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+
+    // [동기식 companions 상태 강제 동기화 보정]
+    // React useEffect 비동기 딜레이로 인해 입력 폼 개별 상태와 companions 배열 간의 Desync 버그(09:00 무단 예약)를 원천 차단
+    let activeCompanions = [...companions]
+    if (activeCompanions.length > activeTab) {
+      activeCompanions[activeTab] = {
+        planId: selectedPlanId,
+        price,
+        startHour,
+        startMinute,
+        endHour,
+        endMinute,
+        therapistId,
+        secondaryTherapistId
+      }
+
+      // 0번 탭(예약자 본인)이 수정되었고 동일 요금제/시간 전파가 켜져있다면, 동반인들에게도 동적으로 보정 전파
+      if (activeTab === 0) {
+        for (let i = 1; i < activeCompanions.length; i++) {
+          if (isSamePlanApplied) {
+            activeCompanions[i].planId = selectedPlanId
+            activeCompanions[i].price = price
+          }
+          if (isSameTimeApplied) {
+            activeCompanions[i].startHour = startHour
+            activeCompanions[i].startMinute = startMinute
+            activeCompanions[i].endHour = endHour
+            activeCompanions[i].endMinute = endMinute
+          }
+        }
+      }
+    }
+
     if (!customerName.trim()) {
       setErrorMsg(language === 'ko' ? '고객 이름을 입력해 주세요.' : 'Please enter client name.')
       return
@@ -742,14 +1406,17 @@ export default function BookingModal({
         }
       }
 
-      let assignedId: number | null = null
-      let assignedName = ''
-      let assignedSecondaryId: number | null = null
-      let assignedSecondaryName = ''
 
-      // 변경 여부 확인 (수정 모드일 때만 작동, 신규 등록 시에는 무조건 변경된 것으로 간주하여 validation 진행)
-      let isValidationRequired = true
       if (isEditMode && selectedReservation) {
+        // ==========================================
+        // [수정 모드 처리 - 단일 건 100% 호환 보존]
+        // ==========================================
+        const { startTimeISO, endTimeISO } = getISODateStrings()
+        let assignedId: number | null = null
+        let assignedName = ''
+        let assignedSecondaryId: number | null = null
+        let assignedSecondaryName = ''
+
         const isTimeChanged =
           selectedReservation.start_time !== startTimeISO ||
           selectedReservation.end_time !== endTimeISO
@@ -764,74 +1431,66 @@ export default function BookingModal({
             ? (selectedReservation as any).secondary_therapist_id !== null
             : Number(secondaryTherapistId) !== (selectedReservation as any).secondary_therapist_id
 
-        isValidationRequired = isTimeChanged || isTherapistChanged || isSecondaryTherapistChanged
-      }
+        const isValidationRequired = isTimeChanged || isTherapistChanged || isSecondaryTherapistChanged
 
-      if (isValidationRequired) {
-        // [자동 배정 / 수동 검증 단계]
-        // 1. 마사지사 배정 시간대 설정 (콤보일 때 분할)
-        const dryStart = (isCombo && comboTimes) ? comboTimes.dryStartISO : startTimeISO
-        const dryEnd = (isCombo && comboTimes) ? comboTimes.dryEndISO : endTimeISO
-        const bathStart = (isCombo && comboTimes) ? comboTimes.bathStartISO : startTimeISO
-        const bathEnd = (isCombo && comboTimes) ? comboTimes.bathEndISO : endTimeISO
+        if (isValidationRequired) {
+          const dryStart = (isCombo && comboTimes) ? comboTimes.dryStartISO : startTimeISO
+          const dryEnd = (isCombo && comboTimes) ? comboTimes.dryEndISO : endTimeISO
+          const bathStart = (isCombo && comboTimes) ? comboTimes.bathStartISO : startTimeISO
+          const bathEnd = (isCombo && comboTimes) ? comboTimes.bathEndISO : endTimeISO
 
-        // 2. 건식 담당 마사지사 배정 (또는 단일 마사지사)
-        const reqTherapistId = therapistId === 'auto' ? undefined : Number(therapistId)
-        const mainCategory = isCombo ? 'dry' : planCategory
+          const reqTherapistId = therapistId === 'auto' ? undefined : Number(therapistId)
+          const mainCategory = isCombo ? 'dry' : planCategory
 
-        const assignResult = await assignTherapist({
-          supabase,
-          startTime: dryStart,
-          endTime: dryEnd,
-          price,
-          therapistId: reqTherapistId,
-          excludeReservationId: selectedReservation?.id,
-          category: mainCategory
-        })
-
-        if (!assignResult.success || !assignResult.therapistId) {
-          setErrorMsg(assignResult.error || (language === 'ko' ? '마사지사 배정에 실패했습니다.' : 'Failed to assign therapist.'))
-          setLoading(false)
-          return
-        }
-
-        assignedId = assignResult.therapistId
-        assignedName = assignResult.therapistName || ''
-
-        // 3. 콤보 요금제일 경우, 습식 담당 마사지사(secondary_therapist_id) 추가 배정
-        if (isCombo) {
-          const reqSecondaryId = secondaryTherapistId === 'auto' ? undefined : Number(secondaryTherapistId)
-
-          const assignSecondaryResult = await assignTherapist({
+          const assignResult = await assignTherapist({
             supabase,
-            startTime: bathStart,
-            endTime: bathEnd,
+            startTime: dryStart,
+            endTime: dryEnd,
             price,
-            therapistId: reqSecondaryId,
-            excludeReservationId: selectedReservation?.id,
-            category: 'wet',
-            excludeTherapistIds: [assignedId] // 겹침 방지: 이미 배정된 건식 마사지사는 제외
+            therapistId: reqTherapistId,
+            excludeReservationId: selectedReservation.id,
+            category: mainCategory
           })
 
-          if (!assignSecondaryResult.success || !assignSecondaryResult.therapistId) {
-            setErrorMsg(assignSecondaryResult.error || (language === 'ko' ? '습식 담당 마사지사 배정에 실패했습니다.' : 'Failed to assign wet therapist.'))
+          if (!assignResult.success || !assignResult.therapistId) {
+            setErrorMsg(assignResult.error || (language === 'ko' ? '마사지사 배정에 실패했습니다.' : 'Failed to assign therapist.'))
             setLoading(false)
             return
           }
 
-          assignedSecondaryId = assignSecondaryResult.therapistId
-          assignedSecondaryName = assignSecondaryResult.therapistName || ''
-        }
-      } else {
-        // therapist, date, time이 모두 변경되지 않은 경우 (단순 이름, 연락처, 금액 등의 변경)
-        assignedId = selectedReservation!.therapist_id
-        assignedName = therapists.find(t => t.id === assignedId)?.name || ''
-        assignedSecondaryId = (selectedReservation as any).secondary_therapist_id || null
-        assignedSecondaryName = therapists.find(t => t.id === assignedSecondaryId)?.name || ''
-      }
+          assignedId = assignResult.therapistId
+          assignedName = assignResult.therapistName || ''
 
-      if (isEditMode && selectedReservation) {
-        // [수정 모드 처리]
+          if (isCombo) {
+            const reqSecondaryId = secondaryTherapistId === 'auto' ? undefined : Number(secondaryTherapistId)
+
+            const assignSecondaryResult = await assignTherapist({
+              supabase,
+              startTime: bathStart,
+              endTime: bathEnd,
+              price,
+              therapistId: reqSecondaryId,
+              excludeReservationId: selectedReservation.id,
+              category: 'wet',
+              excludeTherapistIds: [assignedId]
+            })
+
+            if (!assignSecondaryResult.success || !assignSecondaryResult.therapistId) {
+              setErrorMsg(assignSecondaryResult.error || (language === 'ko' ? '습식 담당 마사지사 배정에 실패했습니다.' : 'Failed to assign wet therapist.'))
+              setLoading(false)
+              return
+            }
+
+            assignedSecondaryId = assignSecondaryResult.therapistId
+            assignedSecondaryName = assignSecondaryResult.therapistName || ''
+          }
+        } else {
+          assignedId = selectedReservation.therapist_id
+          assignedName = therapists.find(t => t.id === assignedId)?.name || ''
+          assignedSecondaryId = (selectedReservation as any).secondary_therapist_id || null
+          assignedSecondaryName = therapists.find(t => t.id === assignedSecondaryId)?.name || ''
+        }
+
         const changesList: any[] = []
         if (selectedReservation.customer_name !== customerName) {
           changesList.push({
@@ -909,47 +1568,208 @@ export default function BookingModal({
 
         if (error) throw error
 
-        // 이력 로그 기록
         await supabase.from('reservation_logs').insert({
           reservation_id: selectedReservation.id,
           action: 'update',
           performed_by: validatedUserId,
           details: detailsText
         })
+
+        const editTherapist = therapists.find(t => t.id === assignedId)
+        const editSecTherapist = assignedSecondaryId ? therapists.find(t => t.id === assignedSecondaryId) : null
+        
+        // 습식 & 건식 마사지사 순서 정렬
+        const editTherapistName = editSecTherapist 
+          ? `${editSecTherapist.name} & ${editTherapist?.name || ''}` 
+          : (editTherapist?.name || '')
+
+        const sHourStr = String(startHour).padStart(2, '0')
+        const sMinStr = String(startMinute).padStart(2, '0')
+        const eHourStr = String(endHour).padStart(2, '0')
+        const eMinStr = String(endMinute).padStart(2, '0')
+
+        setSuccessResult({
+          date,
+          items: [{
+            customerName,
+            therapistName: editTherapistName,
+            timeStr: `${sHourStr}:${sMinStr} ~ ${eHourStr}:${eMinStr}`
+          }],
+          isEdit: true
+        })
+
       } else {
-        // [신규 등록 모드 처리]
-        const { data: insertedData, error } = await supabase
-          .from('reservations')
-          .insert({
-            customer_name: customerName,
+        // ==========================================
+        // [신규 등록 모드 - 다중 예약 및 동시 배정 처리]
+        // ==========================================
+        const insertPayloads: any[] = []
+        const assignedRecords: { therapistId: number; secondaryTherapistId: number | null; startMs: number; endMs: number }[] = []
+
+        for (let i = 0; i < personCount; i++) {
+          const comp = activeCompanions[i]
+          const compPlan = pricingPlans.find(p => p.id.toString() === comp.planId)
+          if (!compPlan) {
+            setErrorMsg(language === 'ko' ? `${i === 0 ? '예약자' : `동반인 ${i}`}의 요금제를 선택해 주세요.` : `Please select a pricing plan for ${i === 0 ? 'main guest' : `guest ${i}`}.`)
+            setLoading(false)
+            return
+          }
+
+          const compIsCombo = compPlan.category === 'combo'
+          
+          // 시간대 빌드 (브라우저 타임존 오차 방지 수동 조합)
+          const sHourStr = String(comp.startHour).padStart(2, '0')
+          const sMinStr = String(comp.startMinute).padStart(2, '0')
+          const eHourStr = String(comp.endHour).padStart(2, '0')
+          const eMinStr = String(comp.endMinute).padStart(2, '0')
+          const offset = getLocalTimezoneOffsetString()
+
+          const compStartISO = `${date}T${sHourStr}:${sMinStr}:00${offset}`
+          const compEndISO = `${date}T${eHourStr}:${eMinStr}:00${offset}`
+          
+          const compStartMs = new Date(compStartISO).getTime()
+          const compEndMs = new Date(compEndISO).getTime()
+
+          // 콤보의 내부 세그먼트 빌드
+          const bathDur = compPlan.bath_duration_minutes || 60
+          const bathStart = compStartISO
+          
+          const bathEndObj = new Date(compStartMs + bathDur * 60000)
+          const bathEnd = `${date}T${String(bathEndObj.getHours()).padStart(2, '0')}:${String(bathEndObj.getMinutes()).padStart(2, '0')}:00${offset}`
+          
+          const dryStartObj = new Date(compStartMs + (bathDur + 30) * 60000)
+          const dryStart = `${date}T${String(dryStartObj.getHours()).padStart(2, '0')}:${String(dryStartObj.getMinutes()).padStart(2, '0')}:00${offset}`
+          const dryEnd = compEndISO
+
+          // 시간대가 겹치는 다른 탭의 선점 마사지사 ID 모으기
+          const blockedTherapists: number[] = []
+          assignedRecords.forEach(rec => {
+            if (rec.startMs < compEndMs && rec.endMs > compStartMs) {
+              blockedTherapists.push(rec.therapistId)
+              if (rec.secondaryTherapistId) {
+                blockedTherapists.push(rec.secondaryTherapistId)
+              }
+            }
+          })
+
+          let assignedId: number | null = null
+          let assignedName = ''
+          let assignedSecondaryId: number | null = null
+          let assignedSecondaryName = ''
+
+          const reqTherapistId = comp.therapistId === 'auto' ? undefined : Number(comp.therapistId)
+          const mainCategory = compIsCombo ? 'dry' : compPlan.category
+
+          const assignResult = await assignTherapist({
+            supabase,
+            startTime: compIsCombo ? dryStart : compStartISO,
+            endTime: compIsCombo ? dryEnd : compEndISO,
+            price: comp.price,
+            therapistId: reqTherapistId,
+            category: mainCategory,
+            excludeTherapistIds: blockedTherapists
+          })
+
+          if (!assignResult.success || !assignResult.therapistId) {
+            console.error("Companion assignment dry error:", assignResult.error)
+            setErrorMsg(assignResult.error || (language === 'ko' ? '건식 마사지사 배정에 실패했습니다.' : 'Failed to assign dry therapist.'))
+            const guestProposals = scanGuestProposals()
+            setPendingProposal({
+              guests: guestProposals
+            })
+            setLoading(false)
+            return
+          }
+
+          assignedId = assignResult.therapistId
+          assignedName = assignResult.therapistName || ''
+
+          if (compIsCombo) {
+            const reqSecondaryId = comp.secondaryTherapistId === 'auto' ? undefined : Number(comp.secondaryTherapistId)
+            const secondaryBlocked = [...blockedTherapists, assignedId]
+
+            const assignSecondaryResult = await assignTherapist({
+              supabase,
+              startTime: bathStart,
+              endTime: bathEnd,
+              price: comp.price,
+              therapistId: reqSecondaryId,
+              category: 'wet',
+              excludeTherapistIds: secondaryBlocked
+            })
+
+            if (!assignSecondaryResult.success || !assignSecondaryResult.therapistId) {
+              console.error("Companion assignment wet error:", assignSecondaryResult.error)
+              setErrorMsg(assignSecondaryResult.error || (language === 'ko' ? '습식 마사지사 배정에 실패했습니다.' : 'Failed to assign wet therapist.'))
+              const guestProposals = scanGuestProposals()
+              setPendingProposal({
+                guests: guestProposals
+              })
+              setLoading(false)
+              return
+            }
+
+            assignedSecondaryId = assignSecondaryResult.therapistId
+            assignedSecondaryName = assignSecondaryResult.therapistName || ''
+          }
+
+          assignedRecords.push({
+            therapistId: assignedId,
+            secondaryTherapistId: assignedSecondaryId,
+            startMs: compStartMs,
+            endMs: compEndMs
+          })
+
+          const targetName = i === 0 ? customerName : `${customerName} (동반 ${i})`
+          insertPayloads.push({
+            customer_name: targetName,
             customer_phone: stripPhone(customerPhone),
-            start_time: startTimeISO,
-            end_time: endTimeISO,
-            price,
-            pricing_plan_id: selectedPlanId ? Number(selectedPlanId) : null,
+            start_time: compStartISO,
+            end_time: compEndISO,
+            price: comp.price,
+            pricing_plan_id: Number(comp.planId),
             therapist_id: assignedId,
             secondary_therapist_id: assignedSecondaryId,
             created_by: validatedUserId,
             status: 'confirmed'
           })
+        }
+
+        const { data: insertedData, error } = await supabase
+          .from('reservations')
+          .insert(insertPayloads)
           .select()
 
         if (error) throw error
 
-        // 신규 등록 시 이력 로그(create)는 남기지 않음
-      }
+        const successItems = insertPayloads.map(payload => {
+          const mainTherapist = therapists.find(t => t.id === payload.therapist_id)
+          const mainSecTherapist = payload.secondary_therapist_id ? therapists.find(t => t.id === payload.secondary_therapist_id) : null
+          
+          // 습식 & 건식 마사지사 순서 정렬
+          const therapistDisplayName = mainSecTherapist 
+            ? `${mainSecTherapist.name} & ${mainTherapist?.name || ''}` 
+            : (mainTherapist?.name || '')
 
-      // 즉시 닫지 않고 성공 팝업 정보를 세팅합니다.
-      setSuccessResult({
-        customerName,
-        therapistName: isCombo ? `${assignedName} & ${assignedSecondaryName}` : assignedName,
-        date,
-        startTime: startHour,
-        startMinute: startMinute,
-        endTime: endHour,
-        endMinute: endMinute,
-        isEdit: isEditMode
-      })
+          const payloadStart = new Date(payload.start_time)
+          const payloadEnd = new Date(payload.end_time)
+          const sHourStr = String(payloadStart.getHours()).padStart(2, '0')
+          const sMinStr = String(payloadStart.getMinutes()).padStart(2, '0')
+          const eHourStr = String(payloadEnd.getHours()).padStart(2, '0')
+          const eMinStr = String(payloadEnd.getMinutes()).padStart(2, '0')
+
+          return {
+            customerName: payload.customer_name,
+            therapistName: therapistDisplayName,
+            timeStr: `${sHourStr}:${sMinStr} ~ ${eHourStr}:${eMinStr}`
+          }
+        })
+
+        setSuccessResult({
+          date,
+          items: successItems,
+          isEdit: false
+        })
+      }
 
     } catch (err: any) {
       console.error(err)
@@ -1041,7 +1861,7 @@ export default function BookingModal({
   if (successResult) {
     return (
       <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-stone-900/30 backdrop-blur-sm animate-in fade-in duration-200">
-        <div className="w-full max-w-sm bg-stone-50 border border-stone-200 rounded-2xl shadow-2xl p-6 text-center space-y-6">
+        <div className="w-full max-w-md bg-stone-50 border border-stone-200 rounded-3xl shadow-2xl p-6 text-center space-y-6">
           <div className="flex justify-center">
             <div className="w-14 h-14 rounded-full bg-emerald-50 border border-emerald-200 flex items-center justify-center text-emerald-700 shadow-inner">
               <UserCheck className="w-7 h-7" />
@@ -1059,33 +1879,38 @@ export default function BookingModal({
             </p>
           </div>
 
-          {/* 성공 메시지 상세 디테일 (고객명, 시간, 배정 마사지사) */}
-          <div className="w-full bg-white border border-stone-200 rounded-xl p-4 text-xs text-stone-600 leading-relaxed text-left space-y-2.5 shadow-inner">
-            <p className="font-semibold text-stone-700">
-              {successResult.isEdit 
-                ? (language === 'ko' ? '✏️ 변경 완료 정보:' : '✏️ Updated Info:') 
-                : (language === 'ko' ? '📋 접수 완료 정보:' : '📋 Registered Info:')}
-            </p>
-            <div className="text-[10px] text-stone-400 pt-2 border-t border-stone-200">
-              {language === 'ko' ? `예약 날짜: ${toUIDateString(successResult.date)}` : `Booking Date: ${toUIDateString(successResult.date)}`}
+          {/* 성공 메시지 상세 디테일 (고객명, 시간, 배정 마사지사 각각 렌더링) */}
+          <div className="w-full bg-white border border-stone-200 rounded-2xl p-5 text-xs text-stone-600 leading-relaxed text-left space-y-3.5 shadow-inner max-h-72 overflow-y-auto scrollbar-thin">
+            <div className="flex justify-between items-center pb-2.5 border-b border-stone-200">
+              <span className="font-bold text-stone-700">
+                {successResult.isEdit 
+                  ? (language === 'ko' ? '✏️ 변경 완료 정보' : '✏️ Updated Info') 
+                  : (language === 'ko' ? '📋 접수 완료 정보' : '📋 Registered Info')}
+              </span>
+              <span className="text-[10px] text-stone-400 font-mono font-semibold">
+                {toUIDateString(successResult.date)}
+              </span>
             </div>
-            <div className="text-[10px] text-stone-400">
-              {language === 'ko' 
-                ? `예약 시간: ${String(successResult.startTime).padStart(2, '0')}:${String(successResult.startMinute).padStart(2, '0')} ~ ${String(successResult.endTime).padStart(2, '0')}:${String(successResult.endMinute).padStart(2, '0')}` 
-                : `Booking Time: ${String(successResult.startTime).padStart(2, '0')}:${String(successResult.startMinute).padStart(2, '0')} ~ ${String(successResult.endTime).padStart(2, '0')}:${String(successResult.endMinute).padStart(2, '0')}`}
-            </div>
-            <div className="text-[10px] text-stone-400">
-              {language === 'ko' ? `고객 이름: ${successResult.customerName}` : `Client Name: ${successResult.customerName}`}
-            </div>
-            <div className="text-[10px] text-stone-400">
-              {language === 'ko' ? `배정 마사지사: ${successResult.therapistName}` : `Assigned Therapist: ${successResult.therapistName}`}
+            
+            <div className="flex flex-col gap-3">
+              {successResult.items.map((item, idx) => (
+                <div key={idx} className="flex flex-col gap-1 p-3.5 bg-stone-50/50 rounded-xl border border-stone-200/50">
+                  <div className="flex justify-between items-center text-[11px] font-bold text-stone-850">
+                    <span className="flex items-center gap-1.5 text-stone-800">👤 {item.customerName}</span>
+                    <span className="font-mono text-emerald-800">{item.timeStr}</span>
+                  </div>
+                  <div className="text-[10px] text-stone-500 font-medium pl-4.5 mt-0.5">
+                    {language === 'ko' ? '배정 마사지사' : 'Therapist'}: <span className="font-bold text-stone-700">{item.therapistName}</span>
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
 
           <button
             type="button"
             onClick={handleConfirmClose}
-            className="w-full rounded-xl bg-emerald-700 hover:bg-emerald-600 text-white shadow-md py-2.5 text-xs font-bold transition-all"
+            className="w-full rounded-xl bg-emerald-700 hover:bg-emerald-600 text-white shadow-md py-3 text-xs font-bold transition-all animate-none"
           >
             {language === 'ko' ? '확인' : 'Confirm'}
           </button>
@@ -1099,7 +1924,7 @@ export default function BookingModal({
   // ==========================================
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-stone-900/30 backdrop-blur-sm animate-in fade-in duration-200">
-      <div className="w-full max-w-lg bg-stone-50 border border-stone-200 rounded-2xl shadow-2xl flex flex-col max-h-[90vh] overflow-hidden">
+      <div className="w-full max-w-3xl bg-stone-50 border border-stone-200 rounded-2xl shadow-2xl flex flex-col max-h-[90vh] overflow-hidden">
         {/* 헤더 */}
         <div className="flex items-center justify-between p-5 border-b border-stone-200 bg-stone-100">
           <h2 className="text-lg font-bold tracking-tight text-stone-800 flex items-center gap-2">
@@ -1340,6 +2165,49 @@ export default function BookingModal({
             </div>
           )}
 
+          {/* 예약 인원 (신규 등록 시에만 노출) */}
+          {!isEditMode && (
+            <div>
+              <label className="block text-xs font-bold text-stone-600 mb-1.5 uppercase tracking-wider">
+                {language === 'ko' ? '예약 인원' : 'Number of Guests'}
+              </label>
+              <div className="flex items-center gap-3">
+                <div className="flex items-center border border-stone-200 rounded-xl bg-white overflow-hidden h-[44px]">
+                  <button
+                    type="button"
+                    onClick={() => handlePersonCountChange(Math.max(1, personCount - 1))}
+                    disabled={personCount <= 1}
+                    className="px-4 h-full text-stone-600 hover:bg-stone-50 font-bold transition-colors disabled:opacity-30 disabled:hover:bg-transparent"
+                  >
+                    -
+                  </button>
+                  <input
+                    type="number"
+                    min={1}
+                    max={10}
+                    value={personCount}
+                    onChange={(e) => {
+                      const val = Math.min(10, Math.max(1, Number(e.target.value) || 1))
+                      handlePersonCountChange(val)
+                    }}
+                    className="w-12 text-center text-sm font-extrabold text-stone-850 focus:outline-none [appearance:textfield] [&::-webkit-outer-spin-button]:appearance-none [&::-webkit-inner-spin-button]:appearance-none"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => handlePersonCountChange(Math.min(10, personCount + 1))}
+                    disabled={personCount >= 10}
+                    className="px-4 h-full text-stone-600 hover:bg-stone-50 font-bold transition-colors disabled:opacity-30 disabled:hover:bg-transparent"
+                  >
+                    +
+                  </button>
+                </div>
+                <span className="text-xs text-stone-500 font-medium">
+                  {language === 'ko' ? '명 (본인 포함 최대 10명)' : 'people (Max 10 including yourself)'}
+                </span>
+              </div>
+            </div>
+          )}
+
           {/* 예약 일자 */}
           <div>
             <label className="block text-xs font-bold text-stone-600 mb-1.5 uppercase tracking-wider">
@@ -1362,6 +2230,78 @@ export default function BookingModal({
               </div>
             </div>
           </div>
+
+          {/* 일행 개별 탭 메뉴 바 및 일괄 적용 제어 장치 */}
+          {!isEditMode && personCount > 1 && (
+            <div className="border-t border-stone-200/80 pt-4 mt-2">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-3">
+                {/* 탭 목록 */}
+                <div className="flex flex-wrap gap-1.5 bg-stone-100 p-1 rounded-xl max-w-max border border-stone-200/50">
+                  {Array.from({ length: personCount }).map((_, idx) => {
+                    const isSelected = activeTab === idx
+                    return (
+                      <button
+                        key={idx}
+                        type="button"
+                        onClick={() => setActiveTab(idx)}
+                        className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
+                          isSelected
+                            ? 'bg-white text-emerald-850 shadow-xs border border-stone-200/20'
+                            : 'text-stone-500 hover:text-stone-850 hover:bg-stone-50/50'
+                        }`}
+                      >
+                        👤 {idx === 0 
+                          ? (customerName.trim() || (language === 'ko' ? '예약자 본인' : 'Main Guest'))
+                          : (language === 'ko' ? `동반인 ${idx}` : `Guest ${idx}`)}
+                      </button>
+                    )
+                  })}
+                </div>
+
+                {/* 동기화 옵션 */}
+                <div className="flex flex-wrap gap-x-4 gap-y-1.5 text-[11px] font-bold text-stone-600 bg-stone-100/40 border border-stone-200/30 p-2.5 rounded-xl">
+                  <label className="flex items-center gap-1.5 cursor-pointer hover:text-stone-800">
+                    <input
+                      type="checkbox"
+                      checked={isSamePlanApplied}
+                      onChange={(e) => {
+                        const checked = e.target.checked
+                        setIsSamePlanApplied(checked)
+                        if (checked) {
+                          // 본인 요금제로 동반인들 일괄 동기화
+                          setCompanions(prev => prev.map((c, i) => i === 0 ? c : { ...c, planId: prev[0].planId, price: prev[0].price }))
+                        }
+                      }}
+                      className="rounded text-emerald-700 focus:ring-emerald-500 w-3.5 h-3.5"
+                    />
+                    <span>{language === 'ko' ? '동일 요금제 적용' : 'Same Plan'}</span>
+                  </label>
+                  <label className="flex items-center gap-1.5 cursor-pointer hover:text-stone-800">
+                    <input
+                      type="checkbox"
+                      checked={isSameTimeApplied}
+                      onChange={(e) => {
+                        const checked = e.target.checked
+                        setIsSameTimeApplied(checked)
+                        if (checked) {
+                          // 본인 시간대로 동반인들 일괄 동기화
+                          setCompanions(prev => prev.map((c, i) => i === 0 ? c : {
+                            ...c,
+                            startHour: prev[0].startHour,
+                            startMinute: prev[0].startMinute,
+                            endHour: prev[0].endHour,
+                            endMinute: prev[0].endMinute
+                          }))
+                        }
+                      }}
+                      className="rounded text-emerald-700 focus:ring-emerald-500 w-3.5 h-3.5"
+                    />
+                    <span>{language === 'ko' ? '동일 시간 적용' : 'Same Time'}</span>
+                  </label>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* 요금제 및 마사지 코스 선택 (종료시간보다 위에 노출) */}
           <div>
@@ -1563,7 +2503,9 @@ export default function BookingModal({
                     </button>
 
                     {therapists.filter(t => t.massage_type === 'wet' || t.massage_type === 'both').map(t => {
-                      const avail = checkTherapistAvailability(t.id, comboTimes?.bathStartISO, comboTimes?.bathEndISO)
+                      const startMin = startHour * 60 + startMinute
+                      const bathDur = selectedPlan?.bath_duration_minutes || 60
+                      const avail = checkTherapistAvailability(t.id, startMin, startMin + bathDur)
                       const isDbActive = t.is_active
                       const isAssignedToOther = therapistId === t.id.toString()
                       const isSelectable = isDbActive && avail.available && !isAssignedToOther
@@ -1621,7 +2563,11 @@ export default function BookingModal({
                     </button>
 
                     {therapists.filter(t => t.massage_type === 'dry' || t.massage_type === 'both').map(t => {
-                      const avail = checkTherapistAvailability(t.id, comboTimes?.dryStartISO, comboTimes?.dryEndISO)
+                      const startMin = startHour * 60 + startMinute
+                      const bathDur = selectedPlan?.bath_duration_minutes || 60
+                      const massageDur = selectedPlan?.massage_duration_minutes || 60
+                      const dryStartMin = startMin + bathDur + 30
+                      const avail = checkTherapistAvailability(t.id, dryStartMin, dryStartMin + massageDur)
                       const isDbActive = t.is_active
                       const isAssignedToOther = secondaryTherapistId === t.id.toString()
                       const isSelectable = isDbActive && avail.available && !isAssignedToOther
@@ -1856,6 +2802,134 @@ export default function BookingModal({
           </div>
         )}
       </div>
+
+      {/* 대안 시간대 예약자별 맞춤 추천 팝업 */}
+      {pendingProposal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-in fade-in duration-200">
+          <div className="bg-stone-50 rounded-3xl p-6 shadow-2xl max-w-lg w-full border border-stone-200/60 animate-in zoom-in-95 duration-200 flex flex-col gap-5 relative">
+            
+            {/* Header */}
+            <div className="flex items-center justify-between border-b border-stone-200/50 pb-3 pr-8">
+              <div className="flex items-center gap-3">
+                <div className="p-2 bg-amber-50 text-amber-600 rounded-xl">
+                  <Calendar className="w-5 h-5" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-stone-850 text-sm leading-tight">
+                    {language === 'ko' ? '예약자별 맞춤 대안 시간 추천' : 'Guest-Wise Alternative Time Recommendations'}
+                  </h3>
+                  <p className="text-[10px] text-stone-400 font-medium">
+                    {language === 'ko' ? '각 예약자별로 가능한 대체 시간을 선택하여 적용할 수 있습니다.' : 'Adjust schedules for each guest using available recommendations.'}
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            {/* X Close icon button absolute */}
+            <button
+              type="button"
+              onClick={handleCloseProposal}
+              className="absolute top-5 right-5 text-stone-400 hover:text-stone-600 p-2 rounded-xl transition-all"
+              aria-label="Close alternative popup"
+            >
+              <X className="w-4 h-4" />
+            </button>
+
+            {/* 예약자별 현황 및 맞춤 추천 버튼 리스트 */}
+            <div className="flex flex-col gap-3.5 max-h-80 overflow-y-auto scrollbar-thin pr-1">
+              {pendingProposal.guests.map((g, idx) => {
+                let statusLabel = ''
+                let statusColor = ''
+                if (g.status === 'success') {
+                  statusLabel = language === 'ko' ? '✓ 배정 가능' : '✓ Available'
+                  statusColor = 'text-emerald-700 bg-emerald-50 border-emerald-200/60'
+                } else if (g.status === 'wet_failed') {
+                  statusLabel = language === 'ko' ? '🧴 습식 마사지사 부족' : '🧴 Wet Therapist Shortage'
+                  statusColor = 'text-sky-800 bg-sky-50 border-sky-200/60'
+                } else if (g.status === 'dry_failed') {
+                  statusLabel = language === 'ko' ? '🧘‍♂️ 건식 마사지사 부족' : '🧘‍♂️ Dry Therapist Shortage'
+                  statusColor = 'text-amber-800 bg-amber-50 border-amber-200/60'
+                } else {
+                  statusLabel = language === 'ko' ? '⚠️ 습식 & 건식 부족' : '⚠️ Wet & Dry Shortage'
+                  statusColor = 'text-rose-700 bg-rose-50 border-rose-200/60'
+                }
+
+                // 현재 이 손님의 시간대 폼 상태값 가져오기
+                const currentComp = companions[idx]
+                const currentStr = currentComp 
+                  ? `${String(currentComp.startHour).padStart(2, '0')}:${String(currentComp.startMinute).padStart(2, '0')} ~ ${String(currentComp.endHour).padStart(2, '0')}:${String(currentComp.endMinute).padStart(2, '0')}`
+                  : ''
+
+                return (
+                  <div key={idx} className="p-4 bg-white border border-stone-200 rounded-2xl flex flex-col gap-2.5 shadow-sm">
+                    <div className="flex justify-between items-center text-xs">
+                      <span className="font-bold text-stone-800">👤 {g.name}</span>
+                      <span className={`text-[9px] font-bold px-2 py-0.5 rounded-full border ${statusColor}`}>
+                        {statusLabel}
+                      </span>
+                    </div>
+
+                    <div className="text-[10px] text-stone-400 font-medium">
+                      {language === 'ko' ? `현재 요청 시간: ${currentStr}` : `Requested: ${currentStr}`}
+                    </div>
+
+                    {/* 추천 시간대 (최대 2개 버튼 제공) */}
+                    <div className="flex flex-col gap-1.5 mt-1">
+                      <div className="text-[9px] text-stone-500 font-bold uppercase tracking-wider">
+                        {language === 'ko' ? '💡 추천 시간대 (선택 시 해당 탭에 즉시 반영)' : '💡 Recommended Slots (Click to apply)'}
+                      </div>
+                      {g.proposals.length === 0 ? (
+                        <div className="text-[10px] text-stone-400 font-bold bg-stone-50 py-2 text-center rounded-xl border border-dashed border-stone-200">
+                          {language === 'ko' ? '추천 가능한 대안 시간이 없습니다.' : 'No alternative slots found today.'}
+                        </div>
+                      ) : (
+                        <div className="flex gap-2">
+                          {g.proposals.map((p, pIdx) => {
+                            const isCurrentlySelected = currentComp && currentComp.startHour === p.hour && currentComp.startMinute === p.minute
+                            return (
+                              <button
+                                key={pIdx}
+                                type="button"
+                                onClick={() => handleApplyGuestProposal(idx, p.hour, p.minute)}
+                                className={`flex-1 py-2 px-2.5 rounded-xl border text-[11px] font-mono font-bold text-center transition-all ${
+                                  isCurrentlySelected
+                                    ? 'bg-emerald-50 border-emerald-500 text-emerald-700 shadow-inner'
+                                    : 'bg-stone-50 border-stone-200 text-stone-700 hover:bg-stone-100 hover:border-stone-300'
+                                }`}
+                              >
+                                {p.timeStr}
+                              </button>
+                            )
+                          })}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
+
+            {/* Buttons */}
+            <div className="grid grid-cols-2 gap-3 border-t border-stone-200/50 pt-3.5">
+              <button
+                type="button"
+                onClick={() => setPendingProposal(null)}
+                className="w-full py-3.5 text-xs font-bold text-stone-600 bg-stone-100 hover:bg-stone-200 border border-stone-200/50 rounded-xl transition-all"
+              >
+                {language === 'ko' ? '취소 및 직접 변경' : 'Cancel & Modify Direct'}
+              </button>
+              <button
+                type="button"
+                onClick={handleCloseProposal}
+                className="w-full py-3.5 text-xs font-bold text-white bg-emerald-700 hover:bg-emerald-600 rounded-xl transition-all shadow-md shadow-emerald-950/10"
+              >
+                {language === 'ko' ? '대안 시간 적용 완료' : 'Apply Alternatives & Close'}
+              </button>
+            </div>
+
+          </div>
+        </div>
+      )}
     </div>
   )
 }

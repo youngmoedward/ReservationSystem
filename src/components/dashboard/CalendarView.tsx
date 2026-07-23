@@ -74,6 +74,34 @@ export default function CalendarView({
     fetchPricingPlans()
   }, [])
 
+  const [daySchedules, setDaySchedules] = useState<Record<number, string | null>>({})
+
+  useEffect(() => {
+    const fetchDaySchedules = async () => {
+      if (!currentDate) return
+      try {
+        const todayStr = toLocalDateString(currentDate)
+        const { data, error } = await supabase
+          .from('therapist_schedule')
+          .select('therapist_id, availability_type')
+          .eq('date', todayStr)
+
+        if (error) throw error
+        
+        const mapping: Record<number, string | null> = {}
+        if (data) {
+          data.forEach((s: any) => {
+            mapping[s.therapist_id] = s.availability_type
+          })
+        }
+        setDaySchedules(mapping)
+      } catch (err) {
+        console.error('CalendarView schedules fetch error:', err)
+      }
+    }
+    fetchDaySchedules()
+  }, [currentDate])
+
   // 1. 날짜 이동 핸들러
   const handlePrev = () => {
     const nextDate = new Date(currentDate)
@@ -243,18 +271,35 @@ export default function CalendarView({
         }
       }
 
+      const schedType = daySchedules[therapist.id]
+      const isOffDuty = !therapist.is_active || schedType === 'off' || !schedType
+
       return (
         <div 
           key={`${therapist.id}-${type}`} 
-          className="grid min-h-[64px] items-center hover:bg-stone-100 transition-colors"
+          className={`grid min-h-[64px] items-center hover:bg-stone-100 transition-colors ${
+            isOffDuty ? 'opacity-50 bg-stone-50/60 select-none pointer-events-none' : ''
+          }`}
           style={{ gridTemplateColumns: 'repeat(18, minmax(0, 1fr))' }}
         >
           <div className="col-span-2 pl-4 py-2 border-r border-stone-200">
             <div className="flex items-center gap-1.5">
               <span className="font-semibold text-stone-850">{therapist.name}</span>
             </div>
-            <span className="text-[11px] text-stone-500">
-              {therapist.is_active ? t('schedule.on_duty') : t('schedule.off_duty')}
+            <span className="text-[11px] font-bold">
+              {(() => {
+                if (!therapist.is_active) return <span className="text-stone-400 font-medium">{t('schedule.off_duty')}</span>
+                if (schedType === 'off') {
+                  return <span className="text-rose-500">{t('schedule.off_duty')}</span>
+                } else if (schedType === 'am_half') {
+                  return <span className="text-amber-600">{language === 'ko' ? '오전반차' : 'AM Half'}</span>
+                } else if (schedType === 'pm_half') {
+                  return <span className="text-amber-600">{language === 'ko' ? '오후반차' : 'PM Half'}</span>
+                } else if (!schedType) {
+                  return <span className="text-stone-400">{language === 'ko' ? '미정' : 'TBD'}</span>
+                }
+                return <span className="text-emerald-600">{t('schedule.on_duty')}</span>
+              })()}
             </span>
           </div>
 
