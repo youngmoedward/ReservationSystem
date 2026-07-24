@@ -27,12 +27,15 @@ export interface Reservation {
   price: number
   is_premium: boolean
   therapist_id: number | null
+  secondary_therapist_id?: number | null
+  pricing_plan_id?: number | null
   created_by: string | null
   status: 'confirmed' | 'cancelled'
   cancellation_type?: 'request' | 'noshow' | null
   penalty_points?: number
-  pricing_plan_id?: number | null
   created_at: string
+  is_checked_in?: boolean
+  locker_number?: string | null
 }
 
 interface CalendarViewProps {

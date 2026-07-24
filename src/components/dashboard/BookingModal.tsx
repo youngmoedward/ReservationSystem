@@ -587,6 +587,9 @@ export default function BookingModal({
     setSecondaryTherapistId(current.secondaryTherapistId)
   }, [activeTab, isOpen])
 
+  const [lockerNumber, setLockerNumber] = useState('')
+  const [isCheckedIn, setIsCheckedIn] = useState(false)
+
   const [loading, setLoading] = useState(false)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
   const { language, t } = useLanguage()
@@ -1127,6 +1130,8 @@ export default function BookingModal({
         setCustomerPhone(formatUSPhone(selectedReservation.customer_phone || ''))
         setPrice(Number(selectedReservation.price))
         setSelectedPlanId(selectedReservation.pricing_plan_id?.toString() || '')
+        setLockerNumber((selectedReservation as any).locker_number || '')
+        setIsCheckedIn(!!(selectedReservation as any).is_checked_in)
         
         const start = new Date(selectedReservation.start_time)
         const end = new Date(selectedReservation.end_time)
@@ -1164,6 +1169,8 @@ export default function BookingModal({
         setSelectedPlanId('')
         setTherapistId(initialTherapistId?.toString() || 'auto')
         setSecondaryTherapistId('auto')
+        setLockerNumber('')
+        setIsCheckedIn(false)
         
         let sh = 9
         let sm = 0
@@ -1321,6 +1328,69 @@ export default function BookingModal({
     return {
       startTimeISO: `${date}T${sHourStr}:${sMinStr}:00${offset}`,
       endTimeISO: `${date}T${eHourStr}:${eMinStr}:00${offset}`
+    }
+  }
+
+  const isFormLocked = isEditMode && isCheckedIn && currentUserRole !== 'manager'
+
+  const handleCheckIn = async () => {
+    if (!selectedReservation) return
+    const cleanedLocker = lockerNumber.trim()
+    if (!cleanedLocker) {
+      setErrorMsg(language === 'ko' ? '라커 번호를 입력해 주세요.' : 'Please enter locker number.')
+      return
+    }
+
+    setLoading(true)
+    setErrorMsg(null)
+
+    try {
+      const { data, error } = await supabase
+        .from('reservations')
+        .update({
+          is_checked_in: true,
+          locker_number: cleanedLocker
+        })
+        .eq('id', selectedReservation.id)
+
+      if (error) throw error
+
+      // 예약 이력 로그 기록
+      let validatedUserId: string | null = null
+      if (currentUserId) {
+        const { data: empExists } = await supabase
+          .from('employee')
+          .select('id')
+          .eq('id', currentUserId)
+          .maybeSingle()
+        if (empExists) {
+          validatedUserId = currentUserId
+        }
+      }
+
+      await supabase
+        .from('reservation_logs')
+        .insert({
+          reservation_id: selectedReservation.id,
+          employee_id: validatedUserId,
+          action: 'update',
+          details: {
+            changes: [
+              {
+                key: 'log.reservation.val.check_in',
+                params: { locker: cleanedLocker }
+              }
+            ]
+          }
+        })
+
+      setIsCheckedIn(true)
+      onSuccess()
+      onClose()
+    } catch (err: any) {
+      setErrorMsg(err.message || 'Failed to check in.')
+    } finally {
+      setLoading(false)
     }
   }
 
@@ -1970,7 +2040,7 @@ export default function BookingModal({
               <input
                 ref={nameInputRef}
                 type="text"
-                disabled={!canModify}
+                disabled={!canModify || isFormLocked}
                 value={customerName}
                 onChange={(e) => {
                   setCustomerName(e.target.value)
@@ -2048,7 +2118,7 @@ export default function BookingModal({
               <input
                 ref={phoneInputRef}
                 type="text"
-                disabled={!canModify}
+                disabled={!canModify || isFormLocked}
                 value={customerPhone}
                 onChange={(e) => {
                   setCustomerPhone(formatUSPhone(e.target.value))
@@ -2216,13 +2286,13 @@ export default function BookingModal({
             <div className="relative">
               <input
                 type="date"
-                disabled={!canModify}
+                disabled={!canModify || isFormLocked}
                 value={date}
                 onChange={(e) => setDate(e.target.value)}
                 onClick={(e) => e.currentTarget.showPicker?.()}
                 className="absolute inset-0 w-full h-full opacity-0 z-10 cursor-pointer disabled:cursor-not-allowed"
               />
-              <div className={`w-full bg-white border border-stone-200 rounded-xl pl-9 pr-3.5 py-2.5 text-sm text-stone-800 flex justify-between items-center pointer-events-none min-h-[42px] font-medium ${!canModify ? 'opacity-50' : ''}`}>
+              <div className={`w-full bg-white border border-stone-200 rounded-xl pl-9 pr-3.5 py-2.5 text-sm text-stone-800 flex justify-between items-center pointer-events-none min-h-[42px] font-medium ${!canModify || isFormLocked ? 'opacity-50' : ''}`}>
                 <span className="absolute left-3 text-emerald-700">
                   <Calendar className="w-4 h-4" />
                 </span>
@@ -2313,7 +2383,7 @@ export default function BookingModal({
                 <DollarSign className="w-4 h-4" />
               </span>
               <select
-                disabled={!canModify}
+                disabled={!canModify || isFormLocked}
                 value={selectedPlanId}
                 onChange={(e) => handlePlanChange(e.target.value)}
                 className="w-full bg-white border border-stone-200 rounded-xl pl-9 pr-3 py-3 text-sm text-stone-800 focus:outline-none focus:border-emerald-500/80 transition-colors disabled:opacity-50"
@@ -2343,7 +2413,7 @@ export default function BookingModal({
               <label className="block text-xs font-bold text-stone-600 mb-1.5 uppercase tracking-wider">{t('booking.modal.start_time')}</label>
               <div className="flex gap-2">
                 <select
-                  disabled={!canModify}
+                  disabled={!canModify || isFormLocked}
                   value={startHour}
                   onChange={(e) => {
                     const newHour = Number(e.target.value)
@@ -2359,7 +2429,7 @@ export default function BookingModal({
                   ))}
                 </select>
                 <select
-                  disabled={!canModify}
+                  disabled={!canModify || isFormLocked}
                   value={startMinute}
                   onChange={(e) => {
                     const newMinute = Number(e.target.value)
@@ -2429,7 +2499,7 @@ export default function BookingModal({
                   {/* 자동 선택 버튼 */}
                   <button
                     type="button"
-                    disabled={!canModify}
+                    disabled={!canModify || isFormLocked}
                     onClick={() => setTherapistId('auto')}
                     className={`px-3 py-2.5 rounded-xl border text-xs font-extrabold text-center transition-all ${
                       therapistId === 'auto'
@@ -2458,7 +2528,7 @@ export default function BookingModal({
                       <button
                         key={t.id}
                         type="button"
-                        disabled={!canModify || !isSelectable}
+                        disabled={!canModify || !isSelectable || isFormLocked}
                         onClick={() => setTherapistId(t.id.toString())}
                         className={`px-3 py-2.5 rounded-xl border text-xs font-bold text-center transition-all relative ${
                           isSelected
@@ -2491,7 +2561,7 @@ export default function BookingModal({
                     {/* 습식 자동 선택 */}
                     <button
                       type="button"
-                      disabled={!canModify}
+                      disabled={!canModify || isFormLocked}
                       onClick={() => setSecondaryTherapistId('auto')}
                       className={`px-3 py-2.5 rounded-xl border text-xs font-extrabold text-center transition-all ${
                         secondaryTherapistId === 'auto'
@@ -2520,7 +2590,7 @@ export default function BookingModal({
                         <button
                           key={t.id}
                           type="button"
-                          disabled={!canModify || !isSelectable}
+                          disabled={!canModify || !isSelectable || isFormLocked}
                           onClick={() => setSecondaryTherapistId(t.id.toString())}
                           className={`px-3 py-2.5 rounded-xl border text-xs font-bold text-center transition-all relative ${
                             isSelected
@@ -2551,7 +2621,7 @@ export default function BookingModal({
                     {/* 건식 자동 선택 */}
                     <button
                       type="button"
-                      disabled={!canModify}
+                      disabled={!canModify || isFormLocked}
                       onClick={() => setTherapistId('auto')}
                       className={`px-3 py-2.5 rounded-xl border text-xs font-extrabold text-center transition-all ${
                         therapistId === 'auto'
@@ -2582,7 +2652,7 @@ export default function BookingModal({
                         <button
                           key={t.id}
                           type="button"
-                          disabled={!canModify || !isSelectable}
+                          disabled={!canModify || !isSelectable || isFormLocked}
                           onClick={() => setTherapistId(t.id.toString())}
                           className={`px-3 py-2.5 rounded-xl border text-xs font-bold text-center transition-all relative ${
                             isSelected
@@ -2762,9 +2832,9 @@ export default function BookingModal({
             </div>
           </div>
         ) : (
-          <div className="p-5 border-t border-stone-200 bg-stone-100 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-            {/* 예약 취소 버튼 (수정 모드이면서 권한 권한 소지 시 노출) */}
-            {isEditMode && canModify && selectedReservation.status === 'confirmed' ? (
+          <div className="p-5 border-t border-stone-200 bg-stone-100 flex flex-col md:flex-row md:items-center justify-between gap-3">
+            {/* 예약 취소 버튼 (수정 모드이면서 RLS 권한 권한 소지 시, 그리고 체크인이 안 되었거나 매니저일 때만 노출) */}
+            {isEditMode && canModify && selectedReservation.status === 'confirmed' && (!isCheckedIn || currentUserRole === 'manager') ? (
               <button
                 type="button"
                 onClick={handleCancelReservation}
@@ -2777,6 +2847,37 @@ export default function BookingModal({
               <div />
             )}
 
+            {/* 🔑 라커키 체크인 영역 (수정 모드일 때만 노출) */}
+            {isEditMode && (
+              <div className="flex items-center gap-2 bg-white border border-stone-200/80 rounded-xl px-3 py-1.5 shadow-sm">
+                <span className="text-xs font-bold text-stone-600 flex items-center gap-1">
+                  🔑 {language === 'ko' ? '라커번호' : 'Locker'}:
+                </span>
+                <input
+                  type="text"
+                  placeholder={language === 'ko' ? '번호' : 'No.'}
+                  value={lockerNumber}
+                  disabled={isFormLocked || loading}
+                  onChange={(e) => setLockerNumber(e.target.value)}
+                  className="w-16 bg-stone-50 border border-stone-200 rounded-lg px-2 py-1 text-xs text-center font-bold text-stone-800 focus:outline-none focus:border-emerald-500 disabled:opacity-50"
+                />
+                {isCheckedIn ? (
+                  <span className="px-2.5 py-1.5 rounded-lg bg-emerald-100 text-emerald-800 text-xs font-bold flex items-center gap-1">
+                    ✓ {language === 'ko' ? '체크인 완료' : 'Checked In'}
+                  </span>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={handleCheckIn}
+                    disabled={!canModify || loading}
+                    className="rounded-lg bg-sky-600 hover:bg-sky-500 text-white px-3 py-1.5 text-xs font-bold transition-all disabled:opacity-50 cursor-pointer animate-none"
+                  >
+                    {language === 'ko' ? '체크인' : 'Check In'}
+                  </button>
+                )}
+              </div>
+            )}
+
             <div className="flex gap-2">
               <button
                 type="button"
@@ -2785,7 +2886,7 @@ export default function BookingModal({
               >
                 {t('booking.modal.close')}
               </button>
-              {canModify && (
+              {canModify && !isFormLocked && (
                 <button
                   onClick={handleSubmit}
                   disabled={loading}

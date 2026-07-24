@@ -6,15 +6,9 @@ import { createClient } from '@/utils/supabase/client'
 import { useUserSim } from '@/app/providers'
 import { useLanguage } from '@/app/LanguageContext'
 import { toLocalDateString, toUIDateString } from '@/utils/booking/dateUtils'
-import { Layers, User, Award, Clock, ChevronLeft, ChevronRight } from 'lucide-react'
-
-// 마사지사 인터페이스
-interface Therapist {
-  id: number
-  name: string
-  massage_type: 'wet' | 'dry' | 'both'
-  is_active: boolean
-}
+import { Layers, User, Award, Clock, ChevronLeft, ChevronRight, Plus } from 'lucide-react'
+import BookingModal from '@/components/dashboard/BookingModal'
+import { Therapist, Reservation } from '@/components/dashboard/CalendarView'
 
 // 요금제 인터페이스
 interface PricingPlan {
@@ -32,19 +26,6 @@ interface PricingPlan {
   bath_weight?: number
 }
 
-// 예약 인터페이스
-interface Reservation {
-  id: number
-  customer_name: string
-  therapist_id: number | null
-  secondary_therapist_id: number | null
-  pricing_plan_id: number | null
-  start_time: string
-  end_time: string
-  price: number
-  status: string
-}
-
 export default function TodaySchedulePage() {
   const supabase = createClient()
   const { currentUser } = useUserSim()
@@ -59,6 +40,10 @@ export default function TodaySchedulePage() {
   const [schedulesState, setSchedulesState] = useState<Record<number, string>>({})
   const [currentTherapistType, setCurrentTherapistType] = useState<'wet' | 'dry' | 'both' | null>(null)
   const [loading, setLoading] = useState(true)
+  const [isBookingModalOpen, setIsBookingModalOpen] = useState(false)
+  const [selectedReservation, setSelectedReservation] = useState<any>(null)
+  const [initialTime, setInitialTime] = useState<Date | null>(null)
+  const [initialTherapistId, setInitialTherapistId] = useState<number | null>(null)
 
   // 조회 대상 날짜 상태 (기본값: 오늘)
   const [selectedDate, setSelectedDate] = useState<string>(toLocalDateString(new Date()))
@@ -105,7 +90,7 @@ export default function TodaySchedulePage() {
           .order('name', { ascending: true })
 
         const activeTherapists = thData || []
-        setTherapists(activeTherapists)
+        setTherapists(activeTherapists as any[])
 
         // 2. 만약 현재 사용자가 therapist 권한인 경우 본인의 massage_type 확인
         if (currentUser.role === 'therapist' && currentUser.therapistId) {
@@ -135,12 +120,12 @@ export default function TodaySchedulePage() {
         
         const { data: resData } = await supabase
           .from('reservations')
-          .select('id, customer_name, therapist_id, secondary_therapist_id, pricing_plan_id, start_time, end_time, price, status')
+          .select('id, customer_name, therapist_id, secondary_therapist_id, pricing_plan_id, start_time, end_time, price, status, is_checked_in, locker_number')
           .eq('status', 'confirmed')
           .gte('start_time', startOfDay)
           .lte('start_time', endOfDay)
 
-        setReservations(resData || [])
+        setReservations((resData || []) as any[])
 
         // 4. 요금제 정보 조회
         const { data: planData } = await supabase
@@ -274,7 +259,7 @@ export default function TodaySchedulePage() {
     
     return {
       timeStr,
-      priceStr: `${priceVal}`,
+      priceStr: `${priceVal}(${duration}m)`,
       durationStr: `${duration}분`,
       planName: language === 'ko' ? plan.name_ko : plan.name_en
     }
@@ -295,11 +280,46 @@ export default function TodaySchedulePage() {
           id: res.id,
           customerName: res.customer_name,
           point: pt,
+          rawReservation: res,
           ...info
         }
       })
       .filter((item): item is NonNullable<typeof item> => item !== null)
       .sort((a, b) => a.timeStr.localeCompare(b.timeStr))
+  }
+
+  const canModify = currentUser.role === 'manager' || currentUser.role === 'staff' || currentUser.role === 'leader'
+
+  const handleRowClick = (rawRes: any) => {
+    if (!canModify) return
+    setSelectedReservation(rawRes)
+    setInitialTime(null)
+    setInitialTherapistId(null)
+    setIsBookingModalOpen(true)
+  }
+
+  const handleNewBookingClick = (thId: number, isOff: boolean) => {
+    if (!canModify || isOff) return
+    
+    const parts = selectedDate.split('-').map(Number)
+    const targetTime = new Date(parts[0], parts[1] - 1, parts[2], 9, 0, 0)
+    
+    setSelectedReservation(null)
+    setInitialTime(targetTime)
+    setInitialTherapistId(thId)
+    setIsBookingModalOpen(true)
+  }
+
+  const handleTopNewBookingClick = () => {
+    if (!canModify) return
+    
+    const parts = selectedDate.split('-').map(Number)
+    const targetTime = new Date(parts[0], parts[1] - 1, parts[2], 9, 0, 0)
+    
+    setSelectedReservation(null)
+    setInitialTime(targetTime)
+    setInitialTherapistId(null)
+    setIsBookingModalOpen(true)
   }
 
   // 권한별 노출 스키마 분기
@@ -371,6 +391,15 @@ export default function TodaySchedulePage() {
             <div className="bg-white border border-stone-300 px-4 py-1.5 rounded-xl shadow-inner font-mono text-xs font-black text-stone-850">
               {getDisplayDateWithDay(selectedDate)}
             </div>
+
+            {canModify && (
+              <button
+                onClick={handleTopNewBookingClick}
+                className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-emerald-700 hover:bg-emerald-600 active:scale-95 text-white shadow-sm shadow-emerald-900/10 px-4 py-2 text-xs font-bold transition-all cursor-pointer ml-auto sm:ml-0"
+              >
+                <Plus className="w-4 h-4" /> {language === 'ko' ? '신규 예약 접수' : 'New Booking'}
+              </button>
+            )}
           </div>
         </div>
 
@@ -391,7 +420,7 @@ export default function TodaySchedulePage() {
                 {language === 'ko' ? '등록된 습식 마사지사가 없습니다.' : 'No registered wet therapists.'}
               </p>
             ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-1.5">
                 {wetTherapists.map((th, index) => {
                   const items = getTherapistReservations(th.id)
                   const totalPt = items.reduce((sum, item) => sum + (item?.point || 0), 0)
@@ -399,11 +428,11 @@ export default function TodaySchedulePage() {
                   return (
                     <div
                       key={th.id}
-                      className={`w-full min-w-0 bg-white border border-stone-200 rounded-xl p-2.5 shadow-sm space-y-2 hover:border-sky-300 hover:shadow-md transition-all animate-in fade-in slide-in-from-bottom-2 duration-200 ${isOff ? 'opacity-65' : ''}`}
+                      className={`w-full min-w-0 bg-white border border-stone-200 rounded-xl p-2 shadow-sm space-y-2 hover:border-sky-300 hover:shadow-md transition-all animate-in fade-in slide-in-from-bottom-2 duration-200 ${isOff ? 'opacity-65' : ''}`}
                     >
-                      <div className="flex items-center justify-between bg-sky-50/50 border border-sky-100 rounded-xl p-2">
-                        <div className="flex items-center gap-1 min-w-0">
-                          <div className="w-5 h-5 bg-sky-600 text-white rounded-lg flex items-center justify-center text-[10px] font-bold shadow-sm flex-shrink-0">
+                      <div className="flex items-center justify-between bg-sky-50/50 border border-sky-100 rounded-lg p-1.5">
+                        <div className="flex items-center gap-1.5 min-w-0">
+                          <div className="w-5 h-5 bg-sky-600 text-white rounded-md flex items-center justify-center text-[10px] font-bold shadow-sm flex-shrink-0">
                             <User className="w-3 h-3" />
                           </div>
                           <span className="text-[11px] font-black text-stone-850 truncate">{index + 1}. {th.name}</span>
@@ -413,49 +442,81 @@ export default function TodaySchedulePage() {
                             </span>
                           )}
                         </div>
-                        <div className="bg-sky-100/80 border border-sky-200/50 rounded px-1.5 py-0.5 font-mono font-black text-[10px] text-sky-800 flex-shrink-0">
-                          {totalPt}
+                        <div className="flex items-center gap-1 flex-shrink-0">
+                          {canModify && !isOff && (
+                            <button
+                              onClick={() => handleNewBookingClick(th.id, isOff)}
+                              className="w-4.5 h-4.5 bg-sky-600 hover:bg-sky-700 active:scale-95 text-white rounded-md flex items-center justify-center shadow transition-all cursor-pointer"
+                              title={language === 'ko' ? '신규 예약 접수' : 'New Booking'}
+                            >
+                              <Plus className="w-3 h-3" />
+                            </button>
+                          )}
+                          <div className="bg-sky-100/80 border border-sky-200/50 rounded px-1.5 py-0.5 font-mono font-black text-[10px] text-sky-800">
+                            {totalPt}
+                          </div>
                         </div>
                       </div>
 
                       <div className="overflow-hidden border border-stone-150 rounded-xl">
-                        <table className="w-full text-left border-collapse">
+                        <table className="w-full text-left border-collapse table-fixed">
                           <thead>
-                            <tr className="bg-stone-50 text-[11px] font-black text-stone-400 uppercase tracking-wider border-b border-stone-150">
-                              <th className="p-1.5 w-6 text-center border-r border-stone-150"></th>
-                              <th className="p-1.5 w-14 text-center border-r border-stone-150">Time</th>
-                              <th className="p-1.5 border-r border-stone-150 text-center">Price</th>
-                              <th className="p-1.5 w-10 text-center">Pt</th>
+                            <tr className="bg-stone-50 text-[10px] font-black text-stone-400 uppercase border-b border-stone-150">
+                              <th className="p-1.5 w-[20%] text-center border-r border-stone-150">Locker</th>
+                              <th className="p-1.5 w-[25%] text-center border-r border-stone-150">Time</th>
+                              <th className="p-1.5 w-[37%] border-r border-stone-150 text-center">Price</th>
+                              <th className="p-1.5 w-[18%] text-center">Pt</th>
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-stone-100">
                             {items.length === 0 ? (
                               <tr>
-                                <td colSpan={4} className="p-3 text-center text-[11px] text-stone-400 font-bold bg-stone-50/30">
+                                <td colSpan={4} className="p-3 text-center text-[10.5px] text-stone-400 font-bold bg-stone-50/30">
                                   {isOff ? (language === 'ko' ? '휴무' : 'Off') : (language === 'ko' ? '비어있음' : 'Empty')}
                                 </td>
                               </tr>
                             ) : (
-                              items.map(item => (
-                                <tr key={item.id} className="hover:bg-sky-50/30 transition-all">
-                                  <td className="p-1.5 text-center border-r border-stone-100">
-                                    <input
-                                      type="text"
-                                      disabled
-                                      className="w-4 h-4 bg-stone-100/50 border border-stone-250 rounded cursor-not-allowed"
-                                    />
-                                  </td>
-                                  <td className="p-1.5 text-center font-mono text-[12px] font-black text-sky-800 border-r border-stone-100">
-                                    {item.timeStr}
-                                  </td>
-                                  <td className="p-1.5 text-center font-mono text-[12px] font-extrabold text-stone-750 border-r border-stone-100">
-                                    {item.priceStr}
-                                  </td>
-                                  <td className="p-1.5 text-center font-mono text-[12px] font-bold text-sky-600 bg-sky-50/10">
-                                    {item.point}
-                                  </td>
-                                </tr>
-                              ))
+                              items.map(item => {
+                                const isCheckedIn = !!item.rawReservation.is_checked_in
+                                const lockerNo = item.rawReservation.locker_number
+                                return (
+                                  <tr
+                                    key={item.id}
+                                    onClick={() => handleRowClick(item.rawReservation)}
+                                    className={`transition-all ${
+                                      isCheckedIn
+                                        ? 'bg-emerald-50 text-emerald-950 border-y border-emerald-250/30 hover:bg-emerald-100/85 font-medium'
+                                        : canModify
+                                        ? 'cursor-pointer hover:bg-sky-50/40'
+                                        : ''
+                                    }`}
+                                    title={
+                                      language === 'ko'
+                                        ? `예약자: ${item.customerName}`
+                                        : `Client: ${item.customerName}`
+                                    }
+                                  >
+                                    <td className="p-1.5 text-center border-r border-stone-100 text-[10.5px] font-bold text-stone-700">
+                                      {isCheckedIn && lockerNo ? (
+                                        <span className="inline-flex items-center px-1 py-0.5 rounded bg-emerald-50 text-emerald-850 border border-emerald-100/50 text-[9.5px] font-black leading-none">
+                                          🔑{lockerNo}
+                                        </span>
+                                      ) : (
+                                        <span className="text-stone-300">-</span>
+                                      )}
+                                    </td>
+                                    <td className="p-1.5 text-center font-mono text-[11px] font-black text-sky-850 border-r border-stone-100">
+                                      {item.timeStr}
+                                    </td>
+                                    <td className="p-1.5 text-center font-mono text-[10.5px] font-bold text-stone-700 border-r border-stone-100">
+                                      {item.priceStr}
+                                    </td>
+                                    <td className="py-1.5 px-0 text-center font-mono text-[11px] font-black text-sky-600 bg-sky-50/10">
+                                      {item.point}
+                                    </td>
+                                  </tr>
+                                )
+                              })
                             )}
                           </tbody>
                         </table>
@@ -485,7 +546,7 @@ export default function TodaySchedulePage() {
                 {language === 'ko' ? '등록된 건식 마사지사가 없습니다.' : 'No registered dry therapists.'}
               </p>
             ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-2">
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-1.5">
                 {dryTherapists.map((th, index) => {
                   const items = getTherapistReservations(th.id)
                   const totalPt = items.reduce((sum, item) => sum + (item?.point || 0), 0)
@@ -493,11 +554,11 @@ export default function TodaySchedulePage() {
                   return (
                     <div
                       key={th.id}
-                      className={`w-full min-w-0 bg-white border border-stone-200 rounded-xl p-2.5 shadow-sm space-y-2 hover:border-amber-300 hover:shadow-md transition-all animate-in fade-in slide-in-from-bottom-2 duration-200 ${isOff ? 'opacity-65' : ''}`}
+                      className={`w-full min-w-0 bg-white border border-stone-200 rounded-xl p-2 shadow-sm space-y-2 hover:border-amber-300 hover:shadow-md transition-all animate-in fade-in slide-in-from-bottom-2 duration-200 ${isOff ? 'opacity-65' : ''}`}
                     >
-                      <div className="flex items-center justify-between bg-amber-50/50 border border-amber-100 rounded-xl p-2">
-                        <div className="flex items-center gap-1 min-w-0">
-                          <div className="w-5 h-5 bg-amber-600 text-white rounded-lg flex items-center justify-center text-[10px] font-bold shadow-sm flex-shrink-0">
+                      <div className="flex items-center justify-between bg-amber-50/50 border border-amber-100 rounded-lg p-1.5">
+                        <div className="flex items-center gap-1.5 min-w-0">
+                          <div className="w-5 h-5 bg-amber-600 text-white rounded-md flex items-center justify-center text-[10px] font-bold shadow-sm flex-shrink-0">
                             <User className="w-3 h-3" />
                           </div>
                           <span className="text-[11px] font-black text-stone-850 truncate">{index + 1}. {th.name}</span>
@@ -507,49 +568,81 @@ export default function TodaySchedulePage() {
                             </span>
                           )}
                         </div>
-                        <div className="bg-amber-100/80 border border-amber-200/50 rounded px-1.5 py-0.5 font-mono font-black text-[10px] text-amber-850 flex-shrink-0">
-                          {totalPt}
+                        <div className="flex items-center gap-1 flex-shrink-0">
+                          {canModify && !isOff && (
+                            <button
+                              onClick={() => handleNewBookingClick(th.id, isOff)}
+                              className="w-4.5 h-4.5 bg-amber-600 hover:bg-amber-700 active:scale-95 text-white rounded-md flex items-center justify-center shadow transition-all cursor-pointer"
+                              title={language === 'ko' ? '신규 예약 접수' : 'New Booking'}
+                            >
+                              <Plus className="w-3 h-3" />
+                            </button>
+                          )}
+                          <div className="bg-amber-100/80 border border-amber-200/50 rounded px-1.5 py-0.5 font-mono font-black text-[10px] text-amber-855">
+                            {totalPt}
+                          </div>
                         </div>
                       </div>
 
                       <div className="overflow-hidden border border-stone-150 rounded-xl">
-                        <table className="w-full text-left border-collapse">
+                        <table className="w-full text-left border-collapse table-fixed">
                           <thead>
-                            <tr className="bg-stone-50 text-[11px] font-black text-stone-400 uppercase tracking-wider border-b border-stone-150">
-                              <th className="p-1.5 w-6 text-center border-r border-stone-150"></th>
-                              <th className="p-1.5 w-14 text-center border-r border-stone-150">Time</th>
-                              <th className="p-1.5 border-r border-stone-150 text-center">Price</th>
-                              <th className="p-1.5 w-10 text-center">Pt</th>
+                            <tr className="bg-stone-50 text-[10px] font-black text-stone-400 uppercase border-b border-stone-150">
+                              <th className="p-1.5 w-[20%] text-center border-r border-stone-150">Locker</th>
+                              <th className="p-1.5 w-[25%] text-center border-r border-stone-150">Time</th>
+                              <th className="p-1.5 w-[37%] border-r border-stone-150 text-center">Price</th>
+                              <th className="p-1.5 w-[18%] text-center">Pt</th>
                             </tr>
                           </thead>
                           <tbody className="divide-y divide-stone-100">
                             {items.length === 0 ? (
                               <tr>
-                                <td colSpan={4} className="p-3 text-center text-[11px] text-stone-400 font-bold bg-stone-50/30">
+                                <td colSpan={4} className="p-3 text-center text-[10.5px] text-stone-400 font-bold bg-stone-50/30">
                                   {isOff ? (language === 'ko' ? '휴무' : 'Off') : (language === 'ko' ? '비어있음' : 'Empty')}
                                 </td>
                               </tr>
                             ) : (
-                              items.map(item => (
-                                <tr key={item.id} className="hover:bg-amber-50/30 transition-all">
-                                  <td className="p-1.5 text-center border-r border-stone-100">
-                                    <input
-                                      type="text"
-                                      disabled
-                                      className="w-4 h-4 bg-stone-100/50 border border-stone-250 rounded cursor-not-allowed"
-                                    />
-                                  </td>
-                                  <td className="p-1.5 text-center font-mono text-[12px] font-black text-amber-850 border-r border-stone-100">
-                                    {item.timeStr}
-                                  </td>
-                                  <td className="p-1.5 text-center font-mono text-[12px] font-extrabold text-stone-750 border-r border-stone-100">
-                                    {item.priceStr}
-                                  </td>
-                                  <td className="p-1.5 text-center font-mono text-[12px] font-bold text-amber-600 bg-amber-50/10">
-                                    {item.point}
-                                  </td>
-                                </tr>
-                              ))
+                              items.map(item => {
+                                const isCheckedIn = !!item.rawReservation.is_checked_in
+                                const lockerNo = item.rawReservation.locker_number
+                                return (
+                                  <tr
+                                    key={item.id}
+                                    onClick={() => handleRowClick(item.rawReservation)}
+                                    className={`transition-all ${
+                                      isCheckedIn
+                                        ? 'bg-emerald-50 text-emerald-950 border-y border-emerald-250/30 hover:bg-emerald-100/85 font-medium'
+                                        : canModify
+                                        ? 'cursor-pointer hover:bg-amber-50/30'
+                                        : ''
+                                    }`}
+                                    title={
+                                      language === 'ko'
+                                        ? `예약자: ${item.customerName}`
+                                        : `Client: ${item.customerName}`
+                                    }
+                                  >
+                                    <td className="p-1.5 text-center border-r border-stone-100 text-[10.5px] font-bold text-stone-700">
+                                      {isCheckedIn && lockerNo ? (
+                                        <span className="inline-flex items-center px-1 py-0.5 rounded bg-emerald-50 text-emerald-850 border border-emerald-100/50 text-[9.5px] font-black leading-none">
+                                          🔑{lockerNo}
+                                        </span>
+                                      ) : (
+                                        <span className="text-stone-300">-</span>
+                                      )}
+                                    </td>
+                                    <td className="p-1.5 text-center font-mono text-[11px] font-black text-amber-850 border-r border-stone-100">
+                                      {item.timeStr}
+                                    </td>
+                                    <td className="p-1.5 text-center font-mono text-[10.5px] font-bold text-stone-700 border-r border-stone-100">
+                                      {item.priceStr}
+                                    </td>
+                                    <td className="py-1.5 px-0 text-center font-mono text-[11px] font-black text-amber-600 bg-amber-50/10">
+                                      {item.point}
+                                    </td>
+                                  </tr>
+                                )
+                              })
                             )}
                           </tbody>
                         </table>
@@ -562,6 +655,24 @@ export default function TodaySchedulePage() {
           </div>
         )}
       </div>
+      {isBookingModalOpen && (
+        <BookingModal
+          isOpen={isBookingModalOpen}
+          onClose={() => setIsBookingModalOpen(false)}
+          onSuccess={() => {
+            window.location.reload()
+          }}
+          selectedReservation={selectedReservation}
+          initialTime={initialTime}
+          initialTherapistId={initialTherapistId}
+          defaultDate={selectedDate}
+          supabase={supabase}
+          therapists={therapists}
+          reservations={reservations}
+          currentUserId={currentUser.id}
+          currentUserRole={currentUser.role}
+        />
+      )}
     </DashboardLayout>
   )
 }
