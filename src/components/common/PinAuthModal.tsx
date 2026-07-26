@@ -3,6 +3,7 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { createClient } from '@/utils/supabase/client'
 import { useLanguage } from '@/app/LanguageContext'
+import { useUserSim } from '@/app/providers'
 import { Lock, AlertCircle, X, Check } from 'lucide-react'
 
 export interface PinAuthResult {
@@ -26,6 +27,7 @@ export default function PinAuthModal({
 }: PinAuthModalProps) {
   const supabase = createClient()
   const { language } = useLanguage()
+  const { currentUser } = useUserSim()
   const [pin, setPin] = useState('')
   const [loading, setLoading] = useState(false)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
@@ -79,16 +81,7 @@ export default function PinAuthModal({
     setErrorMsg(null)
 
     try {
-      // 1. Manager 전용 PIN (7717) 체크
-      if (pin === '7717') {
-        onSuccess({
-          pin: '7717',
-          userName: 'Manager (7717)',
-          userRole: 'manager'
-        })
-        setPin('')
-        return
-      }
+
 
       // 2. employees (직원 명단) 테이블에서 PIN 확인
       const { data: empData } = await supabase
@@ -98,6 +91,33 @@ export default function PinAuthModal({
         .maybeSingle()
 
       if (empData) {
+        // 로그인 권한과 PIN 소유자 권한의 1:1 검증
+        if (currentUser.role === 'staff' && empData.role !== 'staff') {
+          setErrorMsg(language === 'ko' ? 'Staff 로그인 상태에서는 Staff 권한의 PIN만 사용할 수 있습니다.' : 'Only Staff PIN is allowed in staff session.')
+          setLoading(false)
+          return
+        }
+
+        if (currentUser.role === 'leader' && empData.role !== 'leader') {
+          setErrorMsg(language === 'ko' ? 'Staff Leader 로그인 상태에서는 Leader 권한의 PIN만 사용할 수 있습니다.' : 'Only Leader PIN is allowed in leader session.')
+          setLoading(false)
+          return
+        }
+
+        if (currentUser.role === 'manager' && empData.role !== 'manager') {
+          setErrorMsg(language === 'ko' ? 'Manager 로그인 상태에서는 Manager 권한의 PIN만 사용할 수 있습니다.' : 'Only Manager PIN is allowed in manager session.')
+          setLoading(false)
+          return
+        }
+
+        // 마사지사 로그인 상태에서는 직원 PIN 절대 사용 불가
+        const isTherapistSession = currentUser.role === 'therapist' || currentUser.role === 'msg1' || currentUser.role === 'msg2'
+        if (isTherapistSession) {
+          setErrorMsg(language === 'ko' ? '마사지사 로그인 상태에서는 직원 PIN을 사용할 수 없습니다.' : 'Cannot use employee PIN in therapist session.')
+          setLoading(false)
+          return
+        }
+
         onSuccess({
           pin,
           userName: `${empData.name} (${pin})`,
@@ -115,6 +135,14 @@ export default function PinAuthModal({
         .maybeSingle()
 
       if (thData) {
+        // 마사지사 PIN은 오직 마사지사 로그인 상태(therapist, msg1, msg2)에서만 허용
+        const isTherapistSession = currentUser.role === 'therapist' || currentUser.role === 'msg1' || currentUser.role === 'msg2'
+        if (!isTherapistSession) {
+          setErrorMsg(language === 'ko' ? '직원/매니저 로그인 상태에서는 마사지사 PIN을 사용할 수 없습니다.' : 'Cannot use therapist PIN in employee session.')
+          setLoading(false)
+          return
+        }
+
         onSuccess({
           pin,
           userName: `${thData.name} (${pin})`,

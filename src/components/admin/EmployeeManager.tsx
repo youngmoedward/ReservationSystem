@@ -50,13 +50,31 @@ export default function EmployeeManager({
   const [successMsg, setSuccessMsg] = useState<string | null>(null)
 
   // 변경 이력 로그 작성 헬퍼
-  const writeLog = async (action: 'create' | 'update' | 'delete', details: string, performerName: string) => {
+  const writeLog = async (action: 'create' | 'update' | 'delete', details: string, performer: PinAuthResult) => {
     try {
+      let performerUuid: string | null = null
+      if (performer.pin === '7717') {
+        const { data } = await supabase
+          .from('employee')
+          .select('id')
+          .eq('role', 'manager')
+          .limit(1)
+          .maybeSingle()
+        performerUuid = data?.id || null
+      } else {
+        const { data } = await supabase
+          .from('employee')
+          .select('id')
+          .eq('pin_code', performer.pin)
+          .maybeSingle()
+        performerUuid = data?.id || null
+      }
+
       await supabase.from('reservation_logs').insert({
         log_type: 'employee',
         action,
-        performed_by: performerName,
-        details
+        performed_by: performerUuid,
+        details: `[수행자: ${performer.userName}] ${details}`
       })
     } catch (logErr) {
       console.error('Failed to write audit log:', logErr)
@@ -90,6 +108,22 @@ export default function EmployeeManager({
     setSuccessMsg(null)
 
     try {
+      const targetPin = pinCode.trim() || '1001'
+
+      const { data: existEmp } = await supabase
+        .from('employee')
+        .select('id, name')
+        .eq('pin_code', targetPin)
+
+      const { data: existTh } = await supabase
+        .from('therapists')
+        .select('id, name')
+        .eq('pin_code', targetPin)
+
+      if ((existEmp && existEmp.length > 0) || (existTh && existTh.length > 0)) {
+        throw new Error(language === 'ko' ? '입력하신 PIN 번호는 이미 다른 직원이 사용 중입니다.' : 'This PIN code is already in use.')
+      }
+
       const { error: dbErr } = await supabase
         .from('employee')
         .insert({
@@ -104,7 +138,7 @@ export default function EmployeeManager({
       await writeLog(
         'create',
         `신규 직원 [${name.trim()}] 등록 (권한: ${role}, PIN: ${pinCode.trim()})`,
-        performer.userName
+        performer
       )
 
       setSuccessMsg(language === 'ko' ? '직원이 성공적으로 등록되었습니다!' : 'Employee added successfully!')
@@ -140,6 +174,23 @@ export default function EmployeeManager({
     setLoading(true)
 
     try {
+      const targetPin = editPinCode.trim()
+
+      const { data: existEmp } = await supabase
+        .from('employee')
+        .select('id, name')
+        .eq('pin_code', targetPin)
+        .neq('id', editingEmployee.id)
+
+      const { data: existTh } = await supabase
+        .from('therapists')
+        .select('id, name')
+        .eq('pin_code', targetPin)
+
+      if ((existEmp && existEmp.length > 0) || (existTh && existTh.length > 0)) {
+        throw new Error(language === 'ko' ? '입력하신 PIN 번호는 이미 다른 직원이 사용 중입니다.' : 'This PIN code is already in use.')
+      }
+
       const { error } = await supabase
         .from('employee')
         .update({
@@ -155,7 +206,7 @@ export default function EmployeeManager({
       await writeLog(
         'update',
         `직원 [${editingEmployee.name}] 정보 수정 (이름: ${editName}, 권한: ${editRole}, PIN: ${editPinCode})`,
-        performer.userName
+        performer
       )
 
       setSuccessMsg(language === 'ko' ? '직원 정보가 수정되었습니다!' : 'Employee updated!')
@@ -185,7 +236,7 @@ export default function EmployeeManager({
 
       if (error) throw error
 
-      await writeLog('delete', `직원 [${empName}] 삭제 완료`, performer.userName)
+      await writeLog('delete', `직원 [${empName}] 삭제 완료`, performer)
       setSuccessMsg(language === 'ko' ? '직원이 삭제되었습니다.' : 'Employee deleted.')
       fetchEmployees()
       refreshUsers()

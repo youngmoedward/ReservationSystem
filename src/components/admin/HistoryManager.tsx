@@ -164,6 +164,7 @@ export default function HistoryManager({ supabase }: HistoryManagerProps) {
     if (!details) return '-'
 
     // 1. JSON 형식인 경우 처리 (신규 마사지사, 직원, 예약 변경 등)
+    let processedDetails = details
     try {
       const data = JSON.parse(details)
       if (data && data.key) {
@@ -197,11 +198,45 @@ export default function HistoryManager({ supabase }: HistoryManagerProps) {
       }
     } catch (e) {
       // JSON 파싱 실패시 -> 레거시 텍스트이거나 스케줄 변경 로그
+      // 만약 [수행자: ...] {"key": ...} 처럼 섞여있다면 JSON 파싱 실패로 오는데, 앞의 접두사를 제거하고 다시 파싱을 시도할 수도 있습니다!
+      if (details.includes('[수행자:')) {
+        const cleaned = details.replace(/^\[수행자:\s*[^\]]+\]\s*/, '')
+        try {
+          const data = JSON.parse(cleaned)
+          if (data && data.key) {
+            let template = t(data.key)
+            let params = { ...data.params }
+            if (params.changes && Array.isArray(params.changes)) {
+              const translatedChanges = params.changes.map((change: any) => {
+                if (change && typeof change === 'object' && change.key) {
+                  let changeTemplate = t(change.key)
+                  Object.entries(change.params || {}).forEach(([k, v]) => {
+                    changeTemplate = changeTemplate.replace(`{${k}}`, String(v))
+                  })
+                  return changeTemplate
+                }
+                return String(change)
+              })
+              params.changes = translatedChanges.join(', ')
+            }
+            Object.entries(params).forEach(([k, v]) => {
+              let valStr = String(v)
+              if (valStr.startsWith('trans:')) {
+                valStr = t(valStr.substring(6))
+              }
+              template = template.replace(`{${k}}`, valStr)
+            })
+            return template
+          }
+        } catch (innerErr) {
+          processedDetails = cleaned
+        }
+      }
     }
 
     // 2. 스케줄 변경 이력 정규식 기반 다국어 처리
     if (language === 'en') {
-      let matched = details.match(/^(.+)의 (.+) 근무 일정을 \[(.+)\]로 변경함\. \(이전: (.+)\)$/)
+      let matched = processedDetails.match(/^(.+)의 (.+) 근무 일정을 \[(.+)\]로 변경함\. \(이전: (.+)\)$/)
       if (matched) {
         const [, name, date, status, prev] = matched
         const statusEn = translateDutyStatus(status)
@@ -209,14 +244,14 @@ export default function HistoryManager({ supabase }: HistoryManagerProps) {
         return `${name}'s duty schedule for ${date} changed to [${statusEn}]. (Previous: ${prevEn})`
       }
 
-      matched = details.match(/^(.+)의 (.+) 근무 일정을 \[(.+)\]로 설정함\.$/)
+      matched = processedDetails.match(/^(.+)의 (.+) 근무 일정을 \[(.+)\]로 설정함\.$/)
       if (matched) {
         const [, name, date, status] = matched
         const statusEn = translateDutyStatus(status)
         return `${name}'s duty schedule for ${date} set to [${statusEn}].`
       }
 
-      matched = details.match(/^(.+)의 (.+) 근무 일정을 \[(.+)\]으로 초기화함\.$/)
+      matched = processedDetails.match(/^(.+)의 (.+) 근무 일정을 \[(.+)\]으로 초기화함\.$/)
       if (matched) {
         const [, name, date, status] = matched
         const statusEn = translateDutyStatus(status)
@@ -224,7 +259,7 @@ export default function HistoryManager({ supabase }: HistoryManagerProps) {
       }
     }
 
-    return details
+    return processedDetails
   }
 
   return (
@@ -263,6 +298,7 @@ export default function HistoryManager({ supabase }: HistoryManagerProps) {
             <option value="therapist">{t('history.filter.therapist')}</option>
             <option value="employee">{t('history.filter.employee')}</option>
             <option value="priority">{language === 'ko' ? '우선순위 관리' : 'Priority'}</option>
+            <option value="pricing">{language === 'ko' ? '요금제 관리' : 'Pricing'}</option>
           </select>
         </div>
 
@@ -339,7 +375,8 @@ export default function HistoryManager({ supabase }: HistoryManagerProps) {
                     schedule: { text: t('history.type.schedule'), class: 'bg-amber-50 text-amber-700 border border-amber-200 font-bold' },
                     therapist: { text: t('history.type.therapist'), class: 'bg-stone-100 text-stone-700 border border-stone-300 font-bold' },
                     employee: { text: t('history.type.employee'), class: 'bg-stone-200 text-stone-600 border border-stone-300 font-bold' },
-                    priority: { text: language === 'ko' ? '우선순위' : 'Priority', class: 'bg-purple-50 text-purple-700 border border-purple-200 font-bold' }
+                    priority: { text: language === 'ko' ? '우선순위' : 'Priority', class: 'bg-purple-50 text-purple-700 border border-purple-200 font-bold' },
+                    pricing: { text: language === 'ko' ? '요금제' : 'Pricing', class: 'bg-blue-50 text-blue-700 border border-blue-200 font-bold' }
                   }
 
                   // 액션 뱃지
@@ -401,6 +438,8 @@ export default function HistoryManager({ supabase }: HistoryManagerProps) {
                           <span className="text-stone-400 font-medium">{t('history.type.employee')}</span>
                         ) : log.log_type === 'priority' ? (
                           <span className="text-stone-400 font-medium">{language === 'ko' ? '우선순위 관리' : 'Priorities'}</span>
+                        ) : log.log_type === 'pricing' ? (
+                          <span className="text-stone-400 font-medium">{language === 'ko' ? '요금제 관리' : 'Pricing'}</span>
                         ) : (
                           <span className="text-stone-400 font-medium">{t('history.type.other')}</span>
                         )}

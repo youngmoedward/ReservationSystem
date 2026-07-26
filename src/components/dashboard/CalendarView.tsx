@@ -58,6 +58,7 @@ export default function CalendarView({
   viewMode
 }: CalendarViewProps) {
   const { currentUser } = useUserSim()
+  const isTherapist = currentUser.role === 'therapist' || currentUser.role === 'msg1' || currentUser.role === 'msg2'
   const { language, t } = useLanguage()
   const [popoverDate, setPopoverDate] = useState<string | null>(null)
   const hours = Array.from({ length: 16 }, (_, i) => i + 9) // 09:00 ~ 24:00
@@ -173,6 +174,21 @@ export default function CalendarView({
 
     const wetList = therapists.filter(t => t.massage_type === 'wet' || t.massage_type === 'both' || !t.massage_type)
     const dryList = therapists.filter(t => t.massage_type === 'dry' || t.massage_type === 'both' || !t.massage_type)
+
+    let userTherapistType: 'wet' | 'dry' | 'both' | null = null
+    if (currentUser.role === 'msg1') {
+      userTherapistType = 'dry'
+    } else if (currentUser.role === 'msg2') {
+      userTherapistType = 'wet'
+    } else if (currentUser.role === 'therapist' && currentUser.therapistId) {
+      const myProfile = therapists.find(t => t.id === currentUser.therapistId)
+      if (myProfile) {
+        userTherapistType = myProfile.massage_type as any
+      }
+    }
+
+    const showWet = !isTherapist || userTherapistType === 'wet' || userTherapistType === 'both'
+    const showDry = !isTherapist || userTherapistType === 'dry' || userTherapistType === 'both'
 
     // 마사지사 개별 행 렌더링 헬퍼 함수
     const renderTherapistRow = (therapist: Therapist, type: 'wet' | 'dry') => {
@@ -354,7 +370,8 @@ export default function CalendarView({
                       marginLeft: `${leftOffsetPercent}%`
                     }}
                   >
-                    <span className="truncate">
+                    <span className="truncate flex items-center gap-0.5">
+                      {res.locker_number && <span className="mr-0.5">🔑{res.locker_number}</span>}
                       {(res as any).display_name || res.customer_name} ({toLocalTimeString(new Date(res.start_time))}~{toLocalTimeString(new Date(res.end_time))})
                     </span>
                     <span className="text-[9px] opacity-80">
@@ -368,7 +385,7 @@ export default function CalendarView({
                 <div
                   key={`empty-${seg.hour}-${idx}`}
                   onClick={() => {
-                    if (currentUser.role === 'therapist') return
+                    if (isTherapist) return
                     const bookingTime = new Date(currentDate)
                     bookingTime.setHours(seg.hour, 0, 0, 0)
                     onAddReservationAt(bookingTime, therapist.id)
@@ -376,7 +393,7 @@ export default function CalendarView({
                   className="h-full border-r border-stone-200/60 relative flex items-center justify-center p-1 cursor-pointer transition-all hover:bg-stone-200/50"
                   style={{ gridColumn: 'span 1 / span 1' }}
                 >
-                  {currentUser.role !== 'therapist' && (
+                  {!isTherapist && (
                     <Plus className="w-3.5 h-3.5 text-stone-400 opacity-0 hover:opacity-100 transition-opacity" />
                   )}
                 </div>
@@ -409,7 +426,7 @@ export default function CalendarView({
 
           <div className="divide-y divide-stone-200 bg-white">
             {/* 1F 습식 마사지사 영역 */}
-            {wetList.length > 0 && (
+            {wetList.length > 0 && showWet && (
               <div className="flex border-b border-stone-200">
                 <div className="w-20 flex-shrink-0 bg-sky-50/50 border-r border-stone-250 flex items-center justify-center p-2 text-center select-none">
                   <div className="font-extrabold text-[10px] tracking-widest text-sky-850 uppercase flex flex-col items-center gap-1.5">
@@ -424,7 +441,7 @@ export default function CalendarView({
             )}
 
             {/* 2F 건식 마사지사 영역 */}
-            {dryList.length > 0 && (
+            {dryList.length > 0 && showDry && (
               <div className="flex">
                 <div className="w-20 flex-shrink-0 bg-amber-50/50 border-r border-stone-250 flex items-center justify-center p-2 text-center select-none">
                   <div className="font-extrabold text-[10px] tracking-widest text-amber-850 uppercase flex flex-col items-center gap-1.5">
@@ -504,14 +521,13 @@ export default function CalendarView({
                       <div
                         key={res.id}
                         onClick={() => onSelectReservation(res)}
-                        className={`rounded-lg p-2.5 text-left text-xs cursor-pointer transition-all border hover:translate-y-[-1px] ${
-                          res.is_premium
-                            ? 'bg-amber-50 border-amber-200 text-amber-800 hover:bg-amber-100/60'
-                            : 'bg-emerald-50 border-emerald-200/20 text-emerald-800 hover:bg-emerald-100/60'
-                        }`}
+                        className="rounded-lg p-2.5 text-left text-xs cursor-pointer transition-all border hover:translate-y-[-1px] bg-emerald-50 border-emerald-200/20 text-emerald-800 hover:bg-emerald-100/60"
                       >
                         <div className="font-semibold flex items-center justify-between gap-1 mb-1">
-                          <span className="truncate">{res.customer_name}</span>
+                          <span className="truncate flex items-center gap-0.5">
+                            {res.locker_number && <span className="mr-0.5">🔑{res.locker_number}</span>}
+                            {res.customer_name}
+                          </span>
                           <span className="text-[10px] opacity-75 font-mono">{toLocalTimeString(new Date(res.start_time))}</span>
                         </div>
                         <div className="text-[10px] text-stone-500 truncate">
@@ -523,7 +539,7 @@ export default function CalendarView({
                 )}
               </div>
 
-              {currentUser.role !== 'therapist' && (
+              {!isTherapist && (
                 <button
                   onClick={() => {
                     const bookingTime = new Date(day)
@@ -588,7 +604,7 @@ export default function CalendarView({
               <div
                 key={`curr-${day}`}
                 onClick={() => {
-                  if (currentUser.role !== 'therapist') {
+                  if (!isTherapist) {
                     const bookingTime = new Date(year, month, day, 9, 0, 0, 0)
                     onAddReservationAt(bookingTime)
                   }
@@ -609,13 +625,12 @@ export default function CalendarView({
                         e.stopPropagation()
                         onSelectReservation(res)
                       }}
-                      className={`truncate rounded px-1.5 py-0.5 text-[10px] font-medium cursor-pointer transition-all border ${
-                        res.is_premium
-                          ? 'bg-amber-50 border-amber-200/20 text-amber-800 hover:bg-amber-100/50'
-                          : 'bg-emerald-50 border-emerald-200/20 text-emerald-800 hover:bg-emerald-100/50'
-                      }`}
+                      className="truncate rounded px-1.5 py-0.5 text-[10px] font-medium cursor-pointer transition-all border bg-emerald-50 border-emerald-200/20 text-emerald-800 hover:bg-emerald-100/50"
                     >
-                      {res.customer_name} ({toLocalTimeString(new Date(res.start_time))})
+                      <span className="truncate flex items-center gap-0.5">
+                        {res.locker_number && <span className="mr-0.5">🔑{res.locker_number}</span>}
+                        <span>{res.customer_name} ({toLocalTimeString(new Date(res.start_time))})</span>
+                      </span>
                     </div>
                   ))}
                   {dayResList.length > 3 && (
@@ -725,18 +740,12 @@ export default function CalendarView({
                       setPopoverDate(null)
                       onSelectReservation(res)
                     }}
-                    className={`flex items-center justify-between rounded-lg p-3 text-xs font-medium cursor-pointer border transition-all ${
-                      res.is_premium
-                        ? 'bg-amber-50 border-amber-250/20 text-amber-800 hover:bg-amber-100/60 shadow-sm'
-                        : 'bg-emerald-50 border-emerald-250/20 text-emerald-800 hover:bg-emerald-100/60 shadow-sm'
-                    }`}
+                    className="flex items-center justify-between rounded-lg p-3 text-xs font-medium cursor-pointer border transition-all bg-emerald-50 border-emerald-250/20 text-emerald-800 hover:bg-emerald-100/60 shadow-sm"
                   >
-                    <div className="flex flex-col space-y-0.5">
-                      <span className="font-bold">{res.customer_name}</span>
-                      {res.is_premium && (
-                        <span className="text-[9px] text-amber-600 font-semibold uppercase tracking-wider">Premium</span>
-                      )}
-                    </div>
+                      <span className="font-bold flex items-center gap-0.5">
+                        {res.locker_number && <span className="mr-0.5">🔑{res.locker_number}</span>}
+                        {res.customer_name}
+                      </span>
                     <span className="font-mono text-[10px] text-stone-600 bg-stone-100 px-1.5 py-0.5 rounded border border-stone-200">
                       {toLocalTimeString(new Date(res.start_time))}
                     </span>
@@ -744,7 +753,7 @@ export default function CalendarView({
                 ))}
               </div>
               
-              {currentUser.role !== 'therapist' && (
+              {!isTherapist && (
                 <button
                   onClick={() => {
                     const bookingTime = new Date(selectedDate.getFullYear(), selectedDate.getMonth(), selectedDate.getDate(), 9, 0, 0, 0)

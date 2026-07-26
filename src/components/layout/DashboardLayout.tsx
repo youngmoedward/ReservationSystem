@@ -140,15 +140,7 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
             >
               <Calendar className="w-4 h-4" /> {t('nav.calendar')}
             </button>
-            <button
-              onClick={() => navigateTo('/list')}
-              className={`inline-flex items-center gap-1.5 flex-shrink-0 px-4 py-2 text-xs font-bold rounded-xl border transition-all ${pathname === '/list'
-                ? 'bg-white border-stone-300 text-emerald-800 shadow-sm'
-                : 'bg-transparent border-transparent text-stone-700 hover:text-stone-900 hover:bg-stone-50/40'
-                }`}
-            >
-              <List className="w-4 h-4" /> {t('nav.list')}
-            </button>
+
             {currentUser.role !== 'therapist' && (
               <button
                 onClick={() => navigateTo('/blacklist')}

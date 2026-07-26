@@ -93,7 +93,11 @@ export default function TodaySchedulePage() {
         setTherapists(activeTherapists as any[])
 
         // 2. 만약 현재 사용자가 therapist 권한인 경우 본인의 massage_type 확인
-        if (currentUser.role === 'therapist' && currentUser.therapistId) {
+        if (currentUser.role === 'msg1') {
+          setCurrentTherapistType('dry')
+        } else if (currentUser.role === 'msg2') {
+          setCurrentTherapistType('wet')
+        } else if (currentUser.role === 'therapist' && currentUser.therapistId) {
           const myProfile = activeTherapists.find(t => t.id === currentUser.therapistId)
           if (myProfile) {
             setCurrentTherapistType(myProfile.massage_type)
@@ -120,7 +124,7 @@ export default function TodaySchedulePage() {
         
         const { data: resData } = await supabase
           .from('reservations')
-          .select('id, customer_name, therapist_id, secondary_therapist_id, pricing_plan_id, start_time, end_time, price, status, is_checked_in, locker_number')
+          .select('id, customer_name, customer_phone, therapist_id, secondary_therapist_id, pricing_plan_id, start_time, end_time, price, status, is_checked_in, locker_number')
           .eq('status', 'confirmed')
           .gte('start_time', startOfDay)
           .lte('start_time', endOfDay)
@@ -323,8 +327,9 @@ export default function TodaySchedulePage() {
   }
 
   // 권한별 노출 스키마 분기
-  const show1F = currentUser.role !== 'therapist' || currentTherapistType === 'wet' || currentTherapistType === 'both'
-  const show2F = currentUser.role !== 'therapist' || currentTherapistType === 'dry' || currentTherapistType === 'both'
+  const isTherapistUser = currentUser.role === 'therapist' || currentUser.role === 'msg1' || currentUser.role === 'msg2'
+  const show1F = !isTherapistUser || currentTherapistType === 'wet' || currentTherapistType === 'both'
+  const show2F = !isTherapistUser || currentTherapistType === 'dry' || currentTherapistType === 'both'
 
   // 마사지사 목록 필터링
   const wetTherapists = therapists.filter(t => t.massage_type === 'wet' || t.massage_type === 'both')

@@ -19,6 +19,8 @@ interface ListViewProps {
   endDate: string
   onStartDateChange: (val: string) => void
   onEndDateChange: (val: string) => void
+  viewType?: 'table' | 'card'
+  onViewTypeChange?: (val: 'table' | 'card') => void
 }
 
 export default function ListView({
@@ -31,11 +33,15 @@ export default function ListView({
   startDate,
   endDate,
   onStartDateChange,
-  onEndDateChange
+  onEndDateChange,
+  viewType,
+  onViewTypeChange
 }: ListViewProps) {
   const [filterStatus, setFilterStatus] = useState<'all' | 'confirmed' | 'cancelled'>('confirmed')
   const [searchTerm, setSearchTerm] = useState('')
-  const [viewType, setViewType] = useState<'table' | 'card'>('table') // 디폴트는 표(Table) 형식
+  const [internalViewType, setInternalViewType] = useState<'table' | 'card'>('table')
+  const activeViewType = viewType || internalViewType
+  const setViewTypeState = onViewTypeChange || setInternalViewType
   const { language, t } = useLanguage()
 
   // 직원 이름 매핑 헬퍼 함수
@@ -46,10 +52,41 @@ export default function ListView({
   }
 
   // 1. 예약 필터링 로직
+  const isTherapistUser = currentUserRole === 'therapist' || currentUserRole === 'msg1' || currentUserRole === 'msg2'
+  
+  let userType: 'wet' | 'dry' | 'both' | null = null
+  if (currentUserRole === 'msg1') {
+    userType = 'dry'
+  } else if (currentUserRole === 'msg2') {
+    userType = 'wet'
+  } else {
+    const myProfile = therapists.find(t => t.user_id === currentUserId || `mock-therapist-${t.id}` === currentUserId)
+    if (myProfile) {
+      userType = myProfile.massage_type as any
+    }
+  }
+
   const filtered = reservations
     .filter(res => {
       const therapist = therapists.find(t => t.id === res.therapist_id)
       const therapistName = therapist ? therapist.name : ''
+
+      // 마사지사 권한 격리: 습식 마사지사는 건식 전용 예약을 차단하고, 건식 마사지사는 습식 예약을 차단
+      if (isTherapistUser && userType && userType !== 'both') {
+        const assignedSecTherapist = (res as any).secondary_therapist_id
+          ? therapists.find(t => t.id === (res as any).secondary_therapist_id)
+          : null
+        
+        const isWetReservation = (therapist?.massage_type === 'wet') || (assignedSecTherapist?.massage_type === 'wet')
+        const isDryReservation = (therapist?.massage_type === 'dry')
+
+        if (userType === 'wet' && isDryReservation && !isWetReservation) {
+          return false
+        }
+        if (userType === 'dry' && isWetReservation && !isDryReservation) {
+          return false
+        }
+      }
 
       // 검색어 (고객명, 연락처, 마사지사 이름)
       const cleanSearch = searchTerm.replace(/\D/g, '')
@@ -110,8 +147,6 @@ export default function ListView({
                   className={`hover:bg-stone-100 transition-colors group ${
                     res.status === 'cancelled'
                       ? 'opacity-50 line-through text-stone-400'
-                      : res.is_premium
-                      ? 'bg-amber-500/5 border-l-2 border-l-amber-500/40'
                       : ''
                   }`}
                 >
@@ -123,24 +158,26 @@ export default function ListView({
                   <td className="p-3 text-center">
                     <span
                       className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-[10px] font-semibold ${
-                        res.status === 'confirmed'
-                          ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                          : 'bg-rose-50 text-rose-700 border border-rose-200'
+                        res.status === 'cancelled'
+                          ? 'bg-rose-50 text-rose-700 border border-rose-200'
+                          : res.locker_number
+                          ? 'bg-sky-50 text-sky-700 border border-sky-200 shadow-sm shadow-sky-900/5'
+                          : 'bg-emerald-50 text-emerald-700 border border-emerald-200'
                       }`}
                     >
-                      {res.status === 'confirmed' ? t('calendar.legend.confirmed') : t('calendar.legend.cancelled')}
+                      {res.status === 'cancelled' 
+                        ? t('calendar.legend.cancelled') 
+                        : res.locker_number 
+                        ? (language === 'ko' ? '체크인 완료' : 'Checked In') 
+                        : t('calendar.legend.confirmed')}
                     </span>
                   </td>
                   
                   {/* 고객명 */}
                   <td className="p-3 font-semibold text-stone-800">
                     <div className="flex items-center gap-1.5">
+                      {res.locker_number && <span className="text-xs" title={`Locker: ${res.locker_number}`}>🔑</span>}
                       {res.customer_name}
-                      {res.is_premium && (
-                        <span className="inline-flex items-center rounded-full bg-amber-500/10 px-2 py-0.5 text-[9px] font-medium text-amber-500 border border-amber-500/20">
-                          {language === 'ko' ? '고급' : 'Premium'}
-                        </span>
-                      )}
                       {isOwner && (
                         <span className="text-[9px] text-emerald-750 bg-emerald-50 px-1 py-0.5 rounded border border-emerald-200 font-bold">
                           {language === 'ko' ? '내예약' : 'Mine'}
@@ -165,7 +202,7 @@ export default function ListView({
                   </td>
                   
                   {/* 결제 금액 */}
-                  <td className={`p-3 text-right font-bold ${res.is_premium ? 'text-amber-600' : 'text-emerald-700'}`}>
+                  <td className="p-3 text-right font-bold text-emerald-700">
                     ${res.price.toLocaleString()}
                   </td>
                   
@@ -212,8 +249,6 @@ export default function ListView({
               className={`relative rounded-xl border p-5 bg-stone-100/50 hover:bg-stone-100/80 transition-all flex flex-col justify-between group border-stone-200 ${
                 res.status === 'cancelled'
                   ? 'opacity-60'
-                  : res.is_premium
-                  ? 'border-amber-200 bg-amber-50/10 shadow-lg shadow-amber-900/5'
                   : ''
               }`}
             >
@@ -224,19 +259,20 @@ export default function ListView({
                     #{index + 1}
                   </span>
                   <div className="flex flex-wrap gap-1.5">
-                    {res.is_premium && (
-                      <span className="inline-flex items-center rounded-full bg-amber-500/10 px-2.5 py-0.5 text-xs font-semibold text-amber-500 border border-amber-500/20">
-                        {language === 'ko' ? '고급 마사지' : 'Premium Massage'}
-                      </span>
-                    )}
                     <span
                       className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase ${
-                        res.status === 'confirmed'
-                          ? 'bg-emerald-50 text-emerald-700 border border-emerald-200'
-                          : 'bg-rose-50 text-rose-700 border border-rose-200'
+                        res.status === 'cancelled'
+                          ? 'bg-rose-50 text-rose-700 border border-rose-200'
+                          : res.locker_number
+                          ? 'bg-sky-50 text-sky-700 border border-sky-200'
+                          : 'bg-emerald-50 text-emerald-700 border border-emerald-200'
                       }`}
                     >
-                      {res.status === 'confirmed' ? t('calendar.legend.confirmed') : t('calendar.legend.cancelled')}
+                      {res.status === 'cancelled' 
+                        ? t('calendar.legend.cancelled') 
+                        : res.locker_number 
+                        ? (language === 'ko' ? '체크인 완료' : 'Checked In') 
+                        : t('calendar.legend.confirmed')}
                     </span>
                   </div>
                 </div>
@@ -256,7 +292,9 @@ export default function ListView({
               {/* 고객 및 예약 요약 */}
               <div className="space-y-2.5 flex-1">
                 <h3 className="text-base font-bold text-stone-800 tracking-tight flex items-center gap-1.5">
-                  <User className="w-4 h-4 text-stone-400" /> {res.customer_name}
+                  <User className="w-4 h-4 text-stone-400" />
+                  {res.locker_number && <span className="text-xs" title={`Locker: ${res.locker_number}`}>🔑</span>}
+                  {res.customer_name}
                 </h3>
 
                 {res.customer_phone && (
@@ -356,15 +394,15 @@ export default function ListView({
           {/* 보기 형식 토글 그룹 */}
           <div className="flex bg-stone-100 border border-stone-200 rounded-xl p-0.5 shadow-inner">
             <button
-              onClick={() => setViewType('card')}
+              onClick={() => setViewTypeState('card')}
               className={`text-xs font-bold px-3.5 py-1.5 rounded-lg transition-all relative overflow-visible ${
-                viewType === 'card'
+                activeViewType === 'card'
                   ? 'bg-stone-200 text-stone-800 border border-stone-300 shadow'
                   : 'bg-transparent text-stone-500 hover:text-stone-700'
               }`}
             >
               {language === 'ko' ? '카드 형식' : 'Card View'}
-              {viewType !== 'card' && (
+              {activeViewType !== 'card' && (
                 <span className="absolute -top-1 -right-1 flex h-2 w-2">
                   <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
                   <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-600"></span>
@@ -372,9 +410,9 @@ export default function ListView({
               )}
             </button>
             <button
-              onClick={() => setViewType('table')}
+              onClick={() => setViewTypeState('table')}
               className={`text-xs font-bold px-3.5 py-1.5 rounded-lg transition-all ${
-                viewType === 'table'
+                activeViewType === 'table'
                   ? 'bg-stone-200 text-stone-800 border border-stone-300 shadow'
                   : 'bg-transparent text-stone-500 hover:text-stone-700'
               }`}
@@ -435,7 +473,7 @@ export default function ListView({
           <ShieldAlert className="w-10 h-10 text-stone-400 mx-auto mb-3" />
           <p className="text-sm text-stone-500">{t('list.no_data')}</p>
         </div>
-      ) : viewType === 'table' ? (
+      ) : activeViewType === 'table' ? (
         renderTableView()
       ) : (
         renderCardView()

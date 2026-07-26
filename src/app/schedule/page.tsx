@@ -9,6 +9,7 @@ import { toLocalDateString, toUIDateString } from '@/utils/booking/dateUtils'
 import { Therapist } from '@/components/dashboard/CalendarView'
 import { useLanguage } from '@/app/LanguageContext'
 import { sync4WeeksScheduleFromPriorities } from '@/utils/booking/scheduleAutoGenerator'
+import PinAuthModal, { PinAuthResult } from '@/components/common/PinAuthModal'
 
 interface ScheduleRecord {
   therapist_id: number
@@ -59,8 +60,39 @@ export default function SchedulePage() {
   const [modalError, setModalError] = useState<string | null>(null)
   const [saving, setSaving] = useState(false)
 
+  // PIN 인증 모달 관련 상태
+  const [pinModalOpen, setPinModalOpen] = useState(false)
+  const [pinActionTitle, setPinActionTitle] = useState('')
+  const [pendingAction, setPendingAction] = useState<((performer: PinAuthResult) => Promise<void>) | null>(null)
+
+  const getEmployeeUuidByPin = async (pin: string): Promise<string | null> => {
+    if (pin === '7717') {
+      try {
+        const { data } = await supabase
+          .from('employee')
+          .select('id')
+          .eq('role', 'manager')
+          .limit(1)
+          .maybeSingle()
+        return data?.id || null
+      } catch {
+        return null
+      }
+    }
+    try {
+      const { data } = await supabase
+        .from('employee')
+        .select('id')
+        .eq('pin_code', pin)
+        .maybeSingle()
+      return data?.id || null
+    } catch {
+      return null
+    }
+  }
+
   // 마사지사인지 여부
-  const isTherapistRole = currentUser.role === 'therapist'
+  const isTherapistRole = currentUser.role === 'therapist' || currentUser.role === 'msg1' || currentUser.role === 'msg2'
 
   // 3. 데이터 로딩
   const fetchData = async () => {
@@ -270,10 +302,18 @@ export default function SchedulePage() {
       return
     }
 
+    setPinActionTitle(language === 'ko' ? '근무 일정 설정 PIN 인증' : 'Schedule Update PIN Auth')
+    setPendingAction(() => (performer: PinAuthResult) => executeSaveSchedule(performer))
+    setPinModalOpen(true)
+  }
+
+  const executeSaveSchedule = async (performer: PinAuthResult) => {
     setSaving(true)
     setModalError(null)
 
     try {
+      const performerUuid = await getEmployeeUuidByPin(performer.pin)
+
       // From ~ To 범위의 모든 일자 구하기 (타임존 밀림 버그 방지를 위해 연/월/일 파싱해 로컬 Date로 생성)
       const daysArray: string[] = []
       const [fy, fm, fd] = modalFromDate.split('-').map(Number)
@@ -292,7 +332,7 @@ export default function SchedulePage() {
         therapist_id: modalTherapistId,
         date,
         availability_type: modalAvailType === 'undecided' ? null : modalAvailType,
-        updated_by: currentUser.id,
+        updated_by: performerUuid,
         updated_at: new Date().toISOString()
       }))
 
@@ -865,6 +905,22 @@ export default function SchedulePage() {
             </form>
           </div>
         </div>
+      )}
+      {pinModalOpen && (
+        <PinAuthModal
+          isOpen={pinModalOpen}
+          actionTitle={pinActionTitle}
+          onSuccess={async (result) => {
+            setPinModalOpen(false)
+            if (pendingAction) {
+              await pendingAction(result)
+            }
+          }}
+          onCancel={() => {
+            setPinModalOpen(false)
+            setPendingAction(null)
+          }}
+        />
       )}
     </DashboardLayout>
   )

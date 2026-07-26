@@ -59,6 +59,11 @@ export default function BookingModal({
   // 동반인 동시 예약용 상태 추가
   const [personCount, setPersonCount] = useState(1)
   const [activeTab, setActiveTab] = useState(0)
+
+  // PIN 인증 모달 관련 상태
+  const [pinModalOpen, setPinModalOpen] = useState(false)
+  const [pinActionTitle, setPinActionTitle] = useState('')
+  const [pendingAction, setPendingAction] = useState<((performer: PinAuthResult) => Promise<void>) | null>(null)
   const [companions, setCompanions] = useState<{
     planId: string
     price: number
@@ -1127,7 +1132,20 @@ export default function BookingModal({
       if (isEditMode && selectedReservation) {
         // 수정 모드
         setCustomerName(selectedReservation.customer_name)
-        setCustomerPhone(formatUSPhone(selectedReservation.customer_phone || ''))
+        
+        let phoneVal = selectedReservation.customer_phone || ''
+        if (!phoneVal) {
+          // 동반인의 경우 주 예약자의 번호 찾기 (동반 표시 괄호 패턴 제거)
+          const mainCustomerName = selectedReservation.customer_name.replace(/\s*\(동반.*?\)\s*$/, '').trim()
+          const mainRes = reservations.find(r => {
+            const nameCleaned = r.customer_name.replace(/\s*\(동반.*?\)\s*$/, '').trim()
+            return nameCleaned === mainCustomerName && r.customer_phone
+          })
+          if (mainRes) {
+            phoneVal = mainRes.customer_phone || ''
+          }
+        }
+        setCustomerPhone(formatUSPhone(phoneVal))
         setPrice(Number(selectedReservation.price))
         setSelectedPlanId(selectedReservation.pricing_plan_id?.toString() || '')
         setLockerNumber((selectedReservation as any).locker_number || '')
@@ -1333,19 +1351,43 @@ export default function BookingModal({
 
   const isFormLocked = isEditMode && isCheckedIn && currentUserRole !== 'manager'
 
-  const handleCheckIn = async () => {
-    if (!selectedReservation) return
-    const cleanedLocker = lockerNumber.trim()
-    if (!cleanedLocker) {
-      setErrorMsg(language === 'ko' ? '라커 번호를 입력해 주세요.' : 'Please enter locker number.')
-      return
+  // PIN을 사용하여 실제 DB의 employee.id (UUID)를 찾는 함수
+  const getEmployeeUuidByPin = async (pin: string): Promise<string | null> => {
+    if (pin === '7717') {
+      // 마스터 매니저 UUID 조회 (없으면 null 반환)
+      try {
+        const { data } = await supabase
+          .from('employee')
+          .select('id')
+          .eq('role', 'manager')
+          .limit(1)
+          .maybeSingle()
+        return data?.id || null
+      } catch {
+        return null
+      }
     }
+    try {
+      const { data } = await supabase
+        .from('employee')
+        .select('id')
+        .eq('pin_code', pin)
+        .maybeSingle()
+      return data?.id || null
+    } catch {
+      return null
+    }
+  }
 
+  const executeCheckIn = async (cleanedLocker: string, performer: PinAuthResult) => {
+    if (!selectedReservation) return
     setLoading(true)
     setErrorMsg(null)
 
     try {
-      const { data, error } = await supabase
+      const performerUuid = await getEmployeeUuidByPin(performer.pin)
+
+      const { error } = await supabase
         .from('reservations')
         .update({
           is_checked_in: true,
@@ -1355,33 +1397,15 @@ export default function BookingModal({
 
       if (error) throw error
 
-      // 예약 이력 로그 기록
-      let validatedUserId: string | null = null
-      if (currentUserId) {
-        const { data: empExists } = await supabase
-          .from('employee')
-          .select('id')
-          .eq('id', currentUserId)
-          .maybeSingle()
-        if (empExists) {
-          validatedUserId = currentUserId
-        }
-      }
-
+      // 예약 이력 로그 기록 (performed_by에는 직원의 UUID만 넣고 details에 상세 이력 문자열 입력)
       await supabase
         .from('reservation_logs')
         .insert({
           reservation_id: selectedReservation.id,
-          employee_id: validatedUserId,
+          performed_by: performerUuid,
           action: 'update',
-          details: {
-            changes: [
-              {
-                key: 'log.reservation.val.check_in',
-                params: { locker: cleanedLocker }
-              }
-            ]
-          }
+          log_type: 'reservation',
+          details: `[수행자: ${performer.userName}] 체크인 완료 (라커 번호: ${cleanedLocker})`
         })
 
       setIsCheckedIn(true)
@@ -1394,42 +1418,22 @@ export default function BookingModal({
     }
   }
 
+  const handleCheckIn = async () => {
+    if (!selectedReservation) return
+    const cleanedLocker = lockerNumber.trim()
+    if (!cleanedLocker) {
+      setErrorMsg(language === 'ko' ? '라커 번호를 입력해 주세요.' : 'Please enter locker number.')
+      return
+    }
+
+    setPinActionTitle(language === 'ko' ? '체크인 PIN 인증' : 'Check-In PIN Auth')
+    setPendingAction(() => (performer: PinAuthResult) => executeCheckIn(cleanedLocker, performer))
+    setPinModalOpen(true)
+  }
+
   // 4. 예약 등록 / 수정 처리 핸들러
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-
-    // [동기식 companions 상태 강제 동기화 보정]
-    // React useEffect 비동기 딜레이로 인해 입력 폼 개별 상태와 companions 배열 간의 Desync 버그(09:00 무단 예약)를 원천 차단
-    let activeCompanions = [...companions]
-    if (activeCompanions.length > activeTab) {
-      activeCompanions[activeTab] = {
-        planId: selectedPlanId,
-        price,
-        startHour,
-        startMinute,
-        endHour,
-        endMinute,
-        therapistId,
-        secondaryTherapistId
-      }
-
-      // 0번 탭(예약자 본인)이 수정되었고 동일 요금제/시간 전파가 켜져있다면, 동반인들에게도 동적으로 보정 전파
-      if (activeTab === 0) {
-        for (let i = 1; i < activeCompanions.length; i++) {
-          if (isSamePlanApplied) {
-            activeCompanions[i].planId = selectedPlanId
-            activeCompanions[i].price = price
-          }
-          if (isSameTimeApplied) {
-            activeCompanions[i].startHour = startHour
-            activeCompanions[i].startMinute = startMinute
-            activeCompanions[i].endHour = endHour
-            activeCompanions[i].endMinute = endMinute
-          }
-        }
-      }
-    }
-
     if (!customerName.trim()) {
       setErrorMsg(language === 'ko' ? '고객 이름을 입력해 주세요.' : 'Please enter client name.')
       return
@@ -1443,7 +1447,6 @@ export default function BookingModal({
       return
     }
 
-    // [과거 시간 예약 제한 검증]
     const [y, m, d] = date.split('-').map(Number)
     const bookingStart = new Date(y, m - 1, d, startHour, startMinute, 0, 0)
     const now = new Date()
@@ -1456,32 +1459,53 @@ export default function BookingModal({
       return
     }
 
+    setPinActionTitle(isEditMode ? (language === 'ko' ? '예약 수정 PIN 인증' : 'Update Booking PIN Auth') : (language === 'ko' ? '신규 예약 PIN 인증' : 'New Booking PIN Auth'))
+    setPendingAction(() => (performer: PinAuthResult) => executeSubmit(performer))
+    setPinModalOpen(true)
+  }
 
+  const executeSubmit = async (performer: PinAuthResult) => {
     setLoading(true)
     setErrorMsg(null)
 
     try {
       const { startTimeISO, endTimeISO } = getISODateStrings()
-      
-      // Check if currentUserId exists in employee table to avoid foreign key constraint violation
-      let validatedUserId: string | null = null
-      if (currentUserId) {
-        const { data: empExists } = await supabase
-          .from('employee')
-          .select('id')
-          .eq('id', currentUserId)
-          .maybeSingle()
-        if (empExists) {
-          validatedUserId = currentUserId
+      const performerUuid = await getEmployeeUuidByPin(performer.pin)
+
+      // [동기식 companions 상태 강제 동기화 보정]
+      let activeCompanions = [...companions]
+      if (activeCompanions.length > activeTab) {
+        activeCompanions[activeTab] = {
+          planId: selectedPlanId,
+          price,
+          startHour,
+          startMinute,
+          endHour,
+          endMinute,
+          therapistId,
+          secondaryTherapistId
+        }
+
+        if (activeTab === 0) {
+          for (let i = 1; i < activeCompanions.length; i++) {
+            if (isSamePlanApplied) {
+              activeCompanions[i].planId = selectedPlanId
+              activeCompanions[i].price = price
+            }
+            if (isSameTimeApplied) {
+              activeCompanions[i].startHour = startHour
+              activeCompanions[i].startMinute = startMinute
+              activeCompanions[i].endHour = endHour
+              activeCompanions[i].endMinute = endMinute
+            }
+          }
         }
       }
-
 
       if (isEditMode && selectedReservation) {
         // ==========================================
         // [수정 모드 처리 - 단일 건 100% 호환 보존]
         // ==========================================
-        const { startTimeISO, endTimeISO } = getISODateStrings()
         let assignedId: number | null = null
         let assignedName = ''
         let assignedSecondaryId: number | null = null
@@ -1641,8 +1665,9 @@ export default function BookingModal({
         await supabase.from('reservation_logs').insert({
           reservation_id: selectedReservation.id,
           action: 'update',
-          performed_by: validatedUserId,
-          details: detailsText
+          log_type: 'reservation',
+          performed_by: performerUuid,
+          details: `[수행자: ${performer.userName}] ${detailsText}`
         })
 
         const editTherapist = therapists.find(t => t.id === assignedId)
@@ -1799,7 +1824,7 @@ export default function BookingModal({
             pricing_plan_id: Number(comp.planId),
             therapist_id: assignedId,
             secondary_therapist_id: assignedSecondaryId,
-            created_by: validatedUserId,
+            created_by: performerUuid,
             status: 'confirmed'
           })
         }
@@ -1810,6 +1835,19 @@ export default function BookingModal({
           .select()
 
         if (error) throw error
+
+        // 신규 등록 이력 로깅
+        if (insertedData && Array.isArray(insertedData)) {
+          for (const row of insertedData) {
+            await supabase.from('reservation_logs').insert({
+              reservation_id: row.id,
+              action: 'create',
+              log_type: 'reservation',
+              performed_by: performerUuid,
+              details: `[수행자: ${performer.userName}] 예약을 신규 등록함. (대상: ${row.customer_name})`
+            })
+          }
+        }
 
         const successItems = insertPayloads.map(payload => {
           const mainTherapist = therapists.find(t => t.id === payload.therapist_id)
@@ -1850,29 +1888,13 @@ export default function BookingModal({
   }
 
   // 5. 예약 취소 처리 핸들러 (Soft Cancel)
-  const handleCancelReservation = async () => {
+  const executeCancel = async (performer: PinAuthResult) => {
     if (!selectedReservation) return
-    if (!isCancelling) {
-      setIsCancelling(true)
-      return
-    }
-
     setLoading(true)
     setErrorMsg(null)
 
     try {
-      // Check if currentUserId exists in employee table to avoid foreign key constraint violation
-      let validatedUserId: string | null = null
-      if (currentUserId) {
-        const { data: empExists } = await supabase
-          .from('employee')
-          .select('id')
-          .eq('id', currentUserId)
-          .maybeSingle()
-        if (empExists) {
-          validatedUserId = currentUserId
-        }
-      }
+      const performerUuid = await getEmployeeUuidByPin(performer.pin)
 
       const penaltyPoints = selectedCancelType === 'request'
         ? 1
@@ -1898,14 +1920,17 @@ export default function BookingModal({
           ? 'booking.modal.cancel.type_noshow'
           : 'booking.modal.cancel.type_normal'
 
+      const detailsText = JSON.stringify({
+        key: 'log.reservation.cancel',
+        params: { name: `${selectedReservation.customer_name} (${t(cancelTypeTransKey)})` }
+      })
+
       await supabase.from('reservation_logs').insert({
         reservation_id: selectedReservation.id,
         action: 'cancel',
-        performed_by: validatedUserId,
-        details: JSON.stringify({
-          key: 'log.reservation.cancel',
-          params: { name: `${selectedReservation.customer_name} (${t(cancelTypeTransKey)})` }
-        })
+        log_type: 'reservation',
+        performed_by: performerUuid,
+        details: `[수행자: ${performer.userName}] ${detailsText}`
       })
 
       onSuccess()
@@ -1917,6 +1942,21 @@ export default function BookingModal({
       setLoading(false)
     }
   }
+
+  // 5. 예약 취소 처리 핸들러 (Soft Cancel)
+  const handleCancelReservation = async () => {
+    if (!selectedReservation) return
+    if (!isCancelling) {
+      setIsCancelling(true)
+      return
+    }
+
+    setPinActionTitle(language === 'ko' ? '예약 취소 PIN 인증' : 'Cancel Booking PIN Auth')
+    setPendingAction(() => (performer: PinAuthResult) => executeCancel(performer))
+    setPinModalOpen(true)
+  }
+
+
 
   // 성공 팝업 최종 확인 클릭 핸들러
   const handleConfirmClose = () => {
@@ -3030,6 +3070,22 @@ export default function BookingModal({
 
           </div>
         </div>
+      )}
+      {pinModalOpen && (
+        <PinAuthModal
+          isOpen={pinModalOpen}
+          actionTitle={pinActionTitle}
+          onSuccess={async (result) => {
+            setPinModalOpen(false)
+            if (pendingAction) {
+              await pendingAction(result)
+            }
+          }}
+          onCancel={() => {
+            setPinModalOpen(false)
+            setPendingAction(null)
+          }}
+        />
       )}
     </div>
   )

@@ -50,13 +50,31 @@ export default function TherapistManager({
   const [successMsg, setSuccessMsg] = useState<string | null>(null)
 
   // 변경 이력 로그 작성 헬퍼
-  const writeLog = async (action: 'create' | 'update' | 'delete', details: string, performerName: string) => {
+  const writeLog = async (action: 'create' | 'update' | 'delete', details: string, performer: PinAuthResult) => {
     try {
+      let performerUuid: string | null = null
+      if (performer.pin === '7717') {
+        const { data } = await supabase
+          .from('employee')
+          .select('id')
+          .eq('role', 'manager')
+          .limit(1)
+          .maybeSingle()
+        performerUuid = data?.id || null
+      } else {
+        const { data } = await supabase
+          .from('employee')
+          .select('id')
+          .eq('pin_code', performer.pin)
+          .maybeSingle()
+        performerUuid = data?.id || null
+      }
+
       await supabase.from('reservation_logs').insert({
         log_type: 'therapist',
         action,
-        performed_by: performerName,
-        details
+        performed_by: performerUuid,
+        details: `[수행자: ${performer.userName}] ${details}`
       })
     } catch (logErr) {
       console.error('Failed to write audit log:', logErr)
@@ -70,6 +88,22 @@ export default function TherapistManager({
     setSuccessMsg(null)
 
     try {
+      const targetPin = pinCode.trim() || '2001'
+
+      const { data: existEmp } = await supabase
+        .from('employee')
+        .select('id, name')
+        .eq('pin_code', targetPin)
+
+      const { data: existTh } = await supabase
+        .from('therapists')
+        .select('id, name')
+        .eq('pin_code', targetPin)
+
+      if ((existEmp && existEmp.length > 0) || (existTh && existTh.length > 0)) {
+        throw new Error(language === 'ko' ? '입력하신 PIN 번호는 이미 다른 직원이 사용 중입니다.' : 'This PIN code is already in use.')
+      }
+
       const { error: dbError } = await supabase
         .from('therapists')
         .insert({
@@ -85,7 +119,7 @@ export default function TherapistManager({
       await writeLog(
         'create',
         `마사지사 [${newTherapistName.trim()}] 신규 등록 (PIN: ${pinCode.trim()}, 유형: ${massageType})`,
-        performer.userName
+        performer
       )
 
       setSuccessMsg(language === 'ko' ? '마사지사가 성공적으로 등록되었습니다!' : 'Therapist registered successfully!')
@@ -120,6 +154,23 @@ export default function TherapistManager({
     setErrorMsg(null)
 
     try {
+      const targetPin = editPinCode.trim()
+
+      const { data: existEmp } = await supabase
+        .from('employee')
+        .select('id, name')
+        .eq('pin_code', targetPin)
+
+      const { data: existTh } = await supabase
+        .from('therapists')
+        .select('id, name')
+        .eq('pin_code', targetPin)
+        .neq('id', editingTherapist.id)
+
+      if ((existEmp && existEmp.length > 0) || (existTh && existTh.length > 0)) {
+        throw new Error(language === 'ko' ? '입력하신 PIN 번호는 이미 다른 직원이 사용 중입니다.' : 'This PIN code is already in use.')
+      }
+
       const { error } = await supabase
         .from('therapists')
         .update({
@@ -135,7 +186,7 @@ export default function TherapistManager({
       await writeLog(
         'update',
         `마사지사 [${editingTherapist.name}] 정보 수정 (이름: ${editName}, PIN: ${editPinCode}, 유형: ${editMassageType})`,
-        performer.userName
+        performer
       )
 
       setSuccessMsg(language === 'ko' ? '마사지사 정보가 수정되었습니다!' : 'Therapist info updated!')
@@ -166,7 +217,7 @@ export default function TherapistManager({
       await writeLog(
         'update',
         `마사지사 [${name}] 근무 상태 변경 (${nextStatus ? '근무 가능' : '휴무/비활성'})`,
-        performer.userName
+        performer
       )
 
       onRefresh()
@@ -190,7 +241,7 @@ export default function TherapistManager({
 
       if (error) throw error
 
-      await writeLog('delete', `마사지사 [${name}] 완전히 삭제됨`, performer.userName)
+      await writeLog('delete', `마사지사 [${name}] 완전히 삭제됨`, performer)
       setSuccessMsg(language === 'ko' ? '마사지사가 삭제되었습니다.' : 'Therapist deleted.')
       onRefresh()
       setTimeout(() => setSuccessMsg(null), 3000)

@@ -318,7 +318,7 @@ export default function StatsManager({ supabase, currentUserId }: StatsManagerPr
       ) : (
         <>
           {/* KPI 요약 메트릭 그리드 */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
             {/* 총 확정 예약 건수 */}
             <div className="rounded-xl border border-stone-200 bg-stone-50 p-5 flex items-center justify-between shadow-sm">
               <div className="space-y-1">
@@ -351,19 +351,6 @@ export default function StatsManager({ supabase, currentUserId }: StatsManagerPr
               </div>
             </div>
 
-            {/* 고급 코스 점유율 */}
-            <div className="rounded-xl border border-stone-200 bg-stone-50 p-5 flex items-center justify-between shadow-sm">
-              <div className="space-y-1">
-                <span className="text-[10px] font-bold text-stone-500 uppercase tracking-wider block">{t('stats.kpi.premium_ratio')}</span>
-                <span className="text-2xl font-black text-amber-700 font-mono tracking-tight">{premiumRatio}%</span>
-                <span className="text-[9px] text-stone-500 block">
-                  {t('stats.kpi.premium_label').replace('{count}', premiumBookings.toString())}
-                </span>
-              </div>
-              <div className="w-10 h-10 rounded-lg bg-amber-50 border border-amber-200 flex items-center justify-center text-amber-700 shadow-inner">
-                <PieChart className="w-5 h-5" />
-              </div>
-            </div>
 
             {/* 최다 예약 마사지사 */}
             <div className="rounded-xl border border-stone-200 bg-stone-50 p-5 flex items-center justify-between shadow-sm">
@@ -458,9 +445,6 @@ export default function StatsManager({ supabase, currentUserId }: StatsManagerPr
                           <span className="font-bold text-stone-800">{item.name}</span>
                           {!item.isActive && (
                             <span className="text-[9px] bg-stone-200 text-stone-500 px-1 py-0.2 rounded">{t('stats.chart.off_duty')}</span>
-                          )}
-                          {item.isPremiumTarget && (
-                            <span className="text-[9px] bg-amber-50 text-amber-700 border border-amber-200 px-1 py-0.2 rounded font-semibold">{t('stats.chart.premium_role')}</span>
                           )}
                         </div>
                         <div className="text-right font-mono text-[11px] font-semibold text-stone-700">

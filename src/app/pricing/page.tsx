@@ -67,6 +67,37 @@ export default function PricingPage() {
 
   const [formLoading, setFormLoading] = useState(false)
 
+  // PIN 인증 모달 관련 상태
+  const [pinModalOpen, setPinModalOpen] = useState(false)
+  const [pinActionTitle, setPinActionTitle] = useState('')
+  const [pendingAction, setPendingAction] = useState<((performer: PinAuthResult) => Promise<void>) | null>(null)
+
+  const getEmployeeUuidByPin = async (pin: string): Promise<string | null> => {
+    if (pin === '7717') {
+      try {
+        const { data } = await supabase
+          .from('employee')
+          .select('id')
+          .eq('role', 'manager')
+          .limit(1)
+          .maybeSingle()
+        return data?.id || null
+      } catch {
+        return null
+      }
+    }
+    try {
+      const { data } = await supabase
+        .from('employee')
+        .select('id')
+        .eq('pin_code', pin)
+        .maybeSingle()
+      return data?.id || null
+    } catch {
+      return null
+    }
+  }
+
   // 1. 요금제 조회
   const fetchPlans = async () => {
     setLoading(true)
@@ -249,6 +280,12 @@ export default function PricingPage() {
       return
     }
 
+    setPinActionTitle(isEditing ? (language === 'ko' ? '요금제 수정 PIN 인증' : 'Update Pricing PIN Auth') : (language === 'ko' ? '신규 요금제 PIN 인증' : 'New Pricing PIN Auth'))
+    setPendingAction(() => (performer: PinAuthResult) => executeSavePlan(performer))
+    setPinModalOpen(true)
+  }
+
+  const executeSavePlan = async (performer: PinAuthResult) => {
     setFormLoading(true)
     setErrorMsg(null)
 
@@ -273,6 +310,9 @@ export default function PricingPage() {
     }
 
     try {
+      const performerUuid = await getEmployeeUuidByPin(performer.pin)
+      let planId: number | null = editingPlanId
+
       if (isEditing && editingPlanId !== null) {
         // 1차 시도: 신규 스키마 컬럼 포함 update
         let { error } = await supabase.from('pricing_plans').update(payload).eq('id', editingPlanId)
@@ -294,7 +334,7 @@ export default function PricingPage() {
         }
       } else {
         // 1차 시도: 신규 스키마 컬럼 포함 insert
-        let { error } = await supabase.from('pricing_plans').insert(payload)
+        const { data: insertedData, error } = await supabase.from('pricing_plans').insert(payload).select('id')
 
         // 만약 신규 컬럼이 DB에 아직 생성되지 않은 경우, 기본 필수 컬럼으로 2차 Fallback 저장
         if (error && (error.message.includes('column') || error.code === 'PGRST204')) {
@@ -306,12 +346,30 @@ export default function PricingPage() {
             duration_minutes: finalDuration,
             weight: finalWeight
           }
-          const res2 = await supabase.from('pricing_plans').insert(fallbackPayload)
+          const res2 = await supabase.from('pricing_plans').insert(fallbackPayload).select('id')
           if (res2.error) throw res2.error
+          if (res2.data && res2.data.length > 0) {
+            planId = res2.data[0].id
+          }
         } else if (error) {
           throw error
+        } else if (insertedData && insertedData.length > 0) {
+          planId = insertedData[0].id
         }
       }
+
+      // 프론트엔드 단에서 직접 이력 로그 인서트 수행 (트리거 결과의 빈약한 정보를 완벽히 보완)
+      const action = isEditing ? 'update' : 'create'
+      const detailsText = isEditing
+        ? `요금제 [${name.trim()}] 정보 변경. 금액: ${finalPrice}, 시간: ${finalDuration}분`
+        : `요금제 [${name.trim()}] (금액: ${finalPrice}, 시간: ${finalDuration}분) 신규 등록함.`
+
+      await supabase.from('reservation_logs').insert({
+        log_type: 'pricing',
+        action,
+        performed_by: performerUuid,
+        details: `[수행자: ${performer.userName}] ${detailsText}`
+      })
 
       closeFormModal()
       await fetchPlans()
@@ -323,24 +381,26 @@ export default function PricingPage() {
     }
   }
 
-  // 7. 삭제
-  const handleDeleteClick = async (planId: number) => {
-    const isConfirm = window.confirm(
-      language === 'ko'
-        ? '이 요금제를 정말로 삭제하시겠습니까?\n삭제 이력은 이력로그에 기록됩니다.'
-        : 'Are you sure you want to delete this pricing plan?\nDeletion history will be logged.'
-    )
-    if (!isConfirm) return
-
+  const executeDeletePlan = async (performer: PinAuthResult, planId: number, planName: string, planPrice: number) => {
     setLoading(true)
     setErrorMsg(null)
     try {
+      const performerUuid = await getEmployeeUuidByPin(performer.pin)
+
       const { error } = await supabase
         .from('pricing_plans')
         .delete()
         .eq('id', planId)
 
       if (error) throw error
+
+      await supabase.from('reservation_logs').insert({
+        log_type: 'pricing',
+        action: 'delete',
+        performed_by: performerUuid,
+        details: `[수행자: ${performer.userName}] 요금제 [${planName}] (금액: ${planPrice}) 삭제함.`
+      })
+
       await fetchPlans()
     } catch (err: any) {
       console.error('Error deleting pricing plan:', err)
@@ -348,6 +408,24 @@ export default function PricingPage() {
     } finally {
       setLoading(false)
     }
+  }
+
+  // 7. 삭제
+  const handleDeleteClick = async (planId: number) => {
+    const plan = plans.find(p => p.id === planId)
+    const planName = plan?.name || ''
+    const planPrice = plan?.price || 0
+
+    const isConfirm = window.confirm(
+      language === 'ko'
+        ? '이 요금제를 정말로 삭제하시겠습니까?\n삭제 이력은 이력로그에 기록됩니다.'
+        : 'Are you sure you want to delete this pricing plan?\nDeletion history will be logged.'
+    )
+    if (!isConfirm) return
+
+    setPinActionTitle(language === 'ko' ? '요금제 삭제 PIN 인증' : 'Delete Pricing PIN Auth')
+    setPendingAction(() => (performer: PinAuthResult) => executeDeletePlan(performer, planId, planName, Number(planPrice)))
+    setPinModalOpen(true)
   }
 
   // 카테고리 뱃지 렌더링 헬퍼
@@ -927,6 +1005,22 @@ export default function PricingPage() {
           </div>
         )}
       </div>
+      {pinModalOpen && (
+        <PinAuthModal
+          isOpen={pinModalOpen}
+          actionTitle={pinActionTitle}
+          onSuccess={async (result) => {
+            setPinModalOpen(false)
+            if (pendingAction) {
+              await pendingAction(result)
+            }
+          }}
+          onCancel={() => {
+            setPinModalOpen(false)
+            setPendingAction(null)
+          }}
+        />
+      )}
     </DashboardLayout>
   )
 }
