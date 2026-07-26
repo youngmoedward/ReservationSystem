@@ -7,6 +7,4 @@
 [build.environment]
   NODE_VERSION = "20"
 
-# Netlify의 Next.js 필수 플러그인 설정
-[[plugins]]
-  package = "@netlify/plugin-nextjs"
+
