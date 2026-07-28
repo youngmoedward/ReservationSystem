@@ -55,6 +55,8 @@ export default function BookingModal({
   const [endMinute, setEndMinute] = useState(0)
   const [therapistId, setTherapistId] = useState<string>('auto') // 'auto' 또는 마사지사 ID
   const [secondaryTherapistId, setSecondaryTherapistId] = useState<string>('auto') // 'auto' 또는 보조 마사지사 ID
+  const [delayMinutes, setDelayMinutes] = useState(30) // 콤보 요금제: 습식 종료 후 건식 시작까지 대기시간
+  const [delayMinutesDraft, setDelayMinutesDraft] = useState('30')
 
   // 동반인 동시 예약용 상태 추가
   const [personCount, setPersonCount] = useState(1)
@@ -73,8 +75,9 @@ export default function BookingModal({
     endMinute: number
     therapistId: string
     secondaryTherapistId: string
+    delayMinutes: number
   }[]>([
-    { planId: '', price: 80, startHour: 9, startMinute: 0, endHour: 10, endMinute: 0, therapistId: 'auto', secondaryTherapistId: 'auto' }
+    { planId: '', price: 80, startHour: 9, startMinute: 0, endHour: 10, endMinute: 0, therapistId: 'auto', secondaryTherapistId: 'auto', delayMinutes: 30 }
   ])
   const [isSamePlanApplied, setIsSamePlanApplied] = useState(true)
   const [isSameTimeApplied, setIsSameTimeApplied] = useState(true)
@@ -104,7 +107,18 @@ export default function BookingModal({
     return `${date}T${hStr}:${mStr}:00${offset}`
   }
 
-  const simulateGroupAssignment = (slotH: number, slotMin: number): boolean => {
+  const commitDelayMinutes = () => {
+    const parsed = Number(delayMinutesDraft)
+    const normalized = Number.isFinite(parsed) ? Math.max(5, Math.min(120, parsed)) : 5
+    setDelayMinutes(normalized)
+    setDelayMinutesDraft(String(normalized))
+  }
+
+  useEffect(() => {
+    setDelayMinutesDraft(String(delayMinutes))
+  }, [delayMinutes])
+
+  const simulateGroupAssignment = (slotH: number, slotMin: number, comps: typeof companions = companions): boolean => {
     const therapistTimelines = new Map<number, { startMs: number; endMs: number }[]>()
     therapists.forEach(t => therapistTimelines.set(t.id, []))
 
@@ -125,6 +139,7 @@ export default function BookingModal({
       if (isCombo && plan) {
         const bathDur = plan.bath_duration_minutes || 60
         const massageDur = plan.massage_duration_minutes || 60
+        const resDelayMin = (res as any).delay_minutes ?? 30
         if (res.secondary_therapist_id) {
           const subId = Number(res.secondary_therapist_id)
           const wetSegments = therapistTimelines.get(subId) || []
@@ -134,7 +149,7 @@ export default function BookingModal({
         if (res.therapist_id) {
           const mainId = Number(res.therapist_id)
           const drySegments = therapistTimelines.get(mainId) || []
-          const dryStart = resStartMs + (bathDur + 30) * 60000
+          const dryStart = resStartMs + (bathDur + resDelayMin) * 60000
           drySegments.push({ startMs: dryStart, endMs: dryStart + massageDur * 60000 })
           therapistTimelines.set(mainId, drySegments)
         }
@@ -156,47 +171,200 @@ export default function BookingModal({
       role: 'wet' | 'dry'
       startMs: number
       endMs: number
+      requestedTherapistId: number | null
     }
     const tasks: AssignmentTask[] = []
 
     for (let i = 0; i < personCount; i++) {
-      const comp = companions[i]
+      const comp = comps[i]
       const compPlan = pricingPlans.find(p => p.id.toString() === comp.planId)
       if (!compPlan) return false
 
       const compIsCombo = compPlan.category === 'combo'
       const bathDur = compPlan.bath_duration_minutes || 60
       const massageDur = compPlan.massage_duration_minutes || 60
-      const duration = compPlan.duration_minutes + (compIsCombo ? 30 : 0)
+      const duration = compPlan.duration_minutes + (compIsCombo ? comp.delayMinutes : 0)
 
       if (compIsCombo) {
         tasks.push({
           guestIdx: i,
-          role: 'wet',
-          startMs: scanStartMs,
-          endMs: scanStartMs + bathDur * 60000
+          role: 'dry',
+          startMs: scanStartMs + (bathDur + comp.delayMinutes) * 60000,
+          endMs: scanStartMs + (bathDur + comp.delayMinutes) * 60000 + massageDur * 60000,
+          requestedTherapistId: comp.therapistId === 'auto' ? null : Number(comp.therapistId)
         })
         tasks.push({
           guestIdx: i,
-          role: 'dry',
-          startMs: scanStartMs + (bathDur + 30) * 60000,
-          endMs: scanStartMs + (bathDur + 30) * 60000 + massageDur * 60000
+          role: 'wet',
+          startMs: scanStartMs,
+          endMs: scanStartMs + bathDur * 60000,
+          requestedTherapistId: comp.secondaryTherapistId === 'auto' ? null : Number(comp.secondaryTherapistId)
         })
       } else {
         tasks.push({
           guestIdx: i,
           role: compPlan.category === 'wet' ? 'wet' : 'dry',
           startMs: scanStartMs,
-          endMs: scanStartMs + duration * 60000
+          endMs: scanStartMs + duration * 60000,
+          requestedTherapistId: comp.therapistId === 'auto' ? null : Number(comp.therapistId)
         })
       }
     }
 
     // 콤보의 상호 의존 마사지사 배정을 위해 그리디하게 마사지사들 스캔
+    const assignedByGuest = new Map<number, number[]>()
     for (const task of tasks) {
       let matchedTherapistId: number | null = null
+      const guestAssignments = assignedByGuest.get(task.guestIdx) || []
 
       for (const t of therapists) {
+        if (task.requestedTherapistId !== null && t.id !== task.requestedTherapistId) continue
+        if (guestAssignments.includes(t.id)) continue
+        if (!t.is_active) continue
+        if (task.role === 'wet' && t.massage_type !== 'wet' && t.massage_type !== 'both') continue
+        if (task.role === 'dry' && t.massage_type !== 'dry' && t.massage_type !== 'both') continue
+
+        const testDate = new Date(task.startMs)
+        const h = testDate.getHours()
+        const min = testDate.getMinutes()
+        const segDur = (task.endMs - task.startMs) / 60000
+
+        const schedType = daySchedules[t.id]
+        let scheduleOk = false
+        if (schedType === 'full') scheduleOk = true
+        else if (schedType === 'am_half' && (h * 60 + min) >= 990) scheduleOk = true
+        else if (schedType === 'pm_half' && (h * 60 + min + segDur) <= 990) scheduleOk = true
+
+        if (!scheduleOk) continue
+
+        const currentSegments = therapistTimelines.get(t.id) || []
+        const hasOverlap = currentSegments.some(seg => seg.startMs < task.endMs && seg.endMs > task.startMs)
+        if (hasOverlap) continue
+
+        matchedTherapistId = t.id
+        break
+      }
+
+      if (matchedTherapistId === null) {
+        return false
+      }
+
+      const segments = therapistTimelines.get(matchedTherapistId) || []
+      segments.push({ startMs: task.startMs, endMs: task.endMs })
+      therapistTimelines.set(matchedTherapistId, segments)
+      assignedByGuest.set(task.guestIdx, [...guestAssignments, matchedTherapistId])
+    }
+
+    return true
+  }
+
+  // 각 게스트의 개별 시작 시간을 사용하는 그룹 배정 시뮬레이션
+  // (simulateGroupAssignment와 달리, 하나의 공통 시작 시간이 아닌 각 companion의 개별 시간으로 검증)
+  const simulateCurrentAssignment = (comps: typeof companions): boolean => {
+    const therapistTimelines = new Map<number, { startMs: number; endMs: number }[]>()
+    therapists.forEach(t => therapistTimelines.set(t.id, []))
+
+    // 기존 DB 예약들의 타임라인 구축
+    for (const res of reservations) {
+      if (res.status !== 'confirmed') continue
+      if (isEditMode && selectedReservation && res.id === selectedReservation.id) continue
+
+      const resStartObj = new Date(res.start_time)
+      const resDateStr = toLocalDateString(resStartObj)
+      if (resDateStr !== date) continue
+
+      const plan = res.pricing_plan_id ? pricingPlans.find(p => p.id === res.pricing_plan_id) : null
+      const resIsCombo = plan?.category === 'combo'
+
+      const resStartMs = resStartObj.getTime()
+      const resEndMs = new Date(res.end_time).getTime()
+
+      if (resIsCombo && plan) {
+        const bathDur = plan.bath_duration_minutes || 60
+        const massageDur = plan.massage_duration_minutes || 60
+        const resDelayMin = (res as any).delay_minutes ?? 30
+        if (res.secondary_therapist_id) {
+          const subId = Number(res.secondary_therapist_id)
+          const wetSegments = therapistTimelines.get(subId) || []
+          wetSegments.push({ startMs: resStartMs, endMs: resStartMs + bathDur * 60000 })
+          therapistTimelines.set(subId, wetSegments)
+        }
+        if (res.therapist_id) {
+          const mainId = Number(res.therapist_id)
+          const drySegments = therapistTimelines.get(mainId) || []
+          const dryStart = resStartMs + (bathDur + resDelayMin) * 60000
+          drySegments.push({ startMs: dryStart, endMs: dryStart + massageDur * 60000 })
+          therapistTimelines.set(mainId, drySegments)
+        }
+      } else {
+        if (res.therapist_id) {
+          const mainId = Number(res.therapist_id)
+          const segments = therapistTimelines.get(mainId) || []
+          segments.push({ startMs: resStartMs, endMs: resEndMs })
+          therapistTimelines.set(mainId, segments)
+        }
+      }
+    }
+
+    // 각 게스트별 개별 시간으로 배정 태스크 빌드
+    interface AssignmentTask {
+      guestIdx: number
+      role: 'wet' | 'dry'
+      startMs: number
+      endMs: number
+      requestedTherapistId: number | null
+    }
+    const tasks: AssignmentTask[] = []
+
+    for (let i = 0; i < personCount; i++) {
+      const comp = comps[i]
+      const compPlan = pricingPlans.find(p => p.id.toString() === comp.planId)
+      if (!compPlan) return false
+
+      // 각 게스트의 개별 시작 시간 사용
+      const compStartISO = getISOStringFromLocal(comp.startHour, comp.startMinute)
+      const compStartMs = new Date(compStartISO).getTime()
+
+      const compIsCombo = compPlan.category === 'combo'
+      const bathDur = compPlan.bath_duration_minutes || 60
+      const massageDur = compPlan.massage_duration_minutes || 60
+      const duration = compPlan.duration_minutes + (compIsCombo ? (comp.delayMinutes ?? 30) : 0)
+
+      if (compIsCombo) {
+        tasks.push({
+          guestIdx: i,
+          role: 'dry',
+          startMs: compStartMs + (bathDur + (comp.delayMinutes ?? 30)) * 60000,
+          endMs: compStartMs + (bathDur + (comp.delayMinutes ?? 30)) * 60000 + massageDur * 60000,
+          requestedTherapistId: comp.therapistId === 'auto' ? null : Number(comp.therapistId)
+        })
+        tasks.push({
+          guestIdx: i,
+          role: 'wet',
+          startMs: compStartMs,
+          endMs: compStartMs + bathDur * 60000,
+          requestedTherapistId: comp.secondaryTherapistId === 'auto' ? null : Number(comp.secondaryTherapistId)
+        })
+      } else {
+        tasks.push({
+          guestIdx: i,
+          role: compPlan.category === 'wet' ? 'wet' : 'dry',
+          startMs: compStartMs,
+          endMs: compStartMs + duration * 60000,
+          requestedTherapistId: comp.therapistId === 'auto' ? null : Number(comp.therapistId)
+        })
+      }
+    }
+
+    // 그리디 배정 시뮬레이션
+    const assignedByGuest = new Map<number, number[]>()
+    for (const task of tasks) {
+      let matchedTherapistId: number | null = null
+      const guestAssignments = assignedByGuest.get(task.guestIdx) || []
+
+      for (const t of therapists) {
+        if (task.requestedTherapistId !== null && t.id !== task.requestedTherapistId) continue
+        if (guestAssignments.includes(t.id)) continue
         if (!t.is_active) continue
         if (task.role === 'wet' && t.massage_type !== 'wet' && t.massage_type !== 'both') continue
         if (task.role === 'dry' && t.massage_type !== 'dry' && t.massage_type !== 'both') continue
@@ -229,22 +397,23 @@ export default function BookingModal({
       const segments = therapistTimelines.get(matchedTherapistId) || []
       segments.push({ startMs: task.startMs, endMs: task.endMs })
       therapistTimelines.set(matchedTherapistId, segments)
+      assignedByGuest.set(task.guestIdx, [...guestAssignments, matchedTherapistId])
     }
 
     return true
   }
 
-  const scanGuestProposals = (): GuestProposal[] => {
+  const scanGuestProposals = (companionsToCheck: typeof companions = companions): GuestProposal[] => {
     const results: GuestProposal[] = []
 
     for (let i = 0; i < personCount; i++) {
-      const comp = companions[i]
+      const comp = companionsToCheck[i]
       const displayName = i === 0 ? customerName : `${customerName} (동반 ${i})`
       const compPlan = pricingPlans.find(p => p.id.toString() === comp.planId)
       if (!compPlan) continue
 
       const compIsCombo = compPlan.category === 'combo'
-      const duration = compPlan.duration_minutes + (compIsCombo ? 30 : 0)
+      const duration = compPlan.duration_minutes + (compIsCombo ? comp.delayMinutes : 0)
 
       let guestStatus: GuestProposal['status'] = 'success'
       // 원래 시점의 가용성 판단
@@ -259,13 +428,13 @@ export default function BookingModal({
         const blocked: number[] = []
         for (let j = 0; j < personCount; j++) {
           if (j === i) continue
-          const other = companions[j]
+          const other = companionsToCheck[j]
           const otherPlan = pricingPlans.find(p => p.id.toString() === other.planId)
           if (!otherPlan) continue
           const otherIsCombo = otherPlan.category === 'combo'
           const otherBaseStartISO = getISOStringFromLocal(other.startHour, other.startMinute)
           const otherBaseStartMs = new Date(otherBaseStartISO).getTime()
-          const otherDur = otherPlan.duration_minutes + (otherIsCombo ? 30 : 0)
+          const otherDur = otherPlan.duration_minutes + (otherIsCombo ? other.delayMinutes : 0)
           const otherEndMs = otherBaseStartMs + otherDur * 60000
 
           const isOtherMain = other.therapistId && other.therapistId !== 'auto'
@@ -279,7 +448,7 @@ export default function BookingModal({
               if (isOtherSub) {
                 otherEndMsVal = otherStartMs + otherBathDur * 60000
               } else {
-                otherStartMs = otherStartMs + (otherBathDur + 30) * 60000
+                otherStartMs = otherStartMs + (otherBathDur + other.delayMinutes) * 60000
               }
             }
             if (otherStartMs < testEndMs && otherEndMsVal > testStartMs) {
@@ -326,7 +495,8 @@ export default function BookingModal({
                 resStartMs = baseStart.getTime()
                 resEndMs = baseStart.getTime() + resBathDur * 60000
               } else {
-                resStartMs = baseStart.getTime() + (resBathDur + 30) * 60000
+                const resDelayMin = (res as any).delay_minutes ?? 30
+                resStartMs = baseStart.getTime() + (resBathDur + resDelayMin) * 60000
                 resEndMs = new Date(res.end_time).getTime()
               }
             }
@@ -341,7 +511,7 @@ export default function BookingModal({
         const bathDur = compPlan.bath_duration_minutes || 60
         const massageDur = compPlan.massage_duration_minutes || 60
         isWetOk = checkAvailabilityForSegment('wet', checkTargetStartMs, bathDur)
-        isDryOk = checkAvailabilityForSegment('dry', checkTargetStartMs + (bathDur + 30) * 60000, massageDur)
+        isDryOk = checkAvailabilityForSegment('dry', checkTargetStartMs + (bathDur + comp.delayMinutes) * 60000, massageDur)
       } else {
         const cat = compPlan.category
         if (cat === 'wet') isWetOk = checkAvailabilityForSegment('wet', checkTargetStartMs, duration)
@@ -378,7 +548,7 @@ export default function BookingModal({
       
       for (const slot of allSlots) {
         // 그룹 전원 배정 시뮬레이션 적용!
-        const pass = simulateGroupAssignment(slot.h, slot.min)
+        const pass = simulateGroupAssignment(slot.h, slot.min, companionsToCheck)
 
         if (pass) {
           const sHourStr = String(slot.h).padStart(2, '0')
@@ -414,7 +584,7 @@ export default function BookingModal({
     setCompanions(prev => {
       const updated = [...prev]
       if (newCount > prev.length) {
-        const base = prev[0] || { planId: '', price: 80, startHour: 9, startMinute: 0, endHour: 10, endMinute: 0, therapistId: 'auto', secondaryTherapistId: 'auto' }
+        const base = prev[0] || { planId: '', price: 80, startHour: 9, startMinute: 0, endHour: 10, endMinute: 0, therapistId: 'auto', secondaryTherapistId: 'auto', delayMinutes: 30 }
         for (let i = prev.length; i < newCount; i++) {
           updated.push({
             planId: isSamePlanApplied ? base.planId : '',
@@ -424,7 +594,8 @@ export default function BookingModal({
             endHour: isSameTimeApplied ? base.endHour : 10,
             endMinute: isSameTimeApplied ? base.endMinute : 0,
             therapistId: 'auto',
-            secondaryTherapistId: 'auto'
+            secondaryTherapistId: 'auto',
+            delayMinutes: isSameTimeApplied ? base.delayMinutes : 30
           })
         }
       } else if (newCount < prev.length) {
@@ -448,7 +619,7 @@ export default function BookingModal({
       updated[guestIdx].startMinute = minute
       
       const plan = pricingPlans.find(p => p.id.toString() === planId)
-      const duration = plan ? (plan.duration_minutes + (plan.category === 'combo' ? 30 : 0)) : 90
+      const duration = plan ? (plan.duration_minutes + (plan.category === 'combo' ? (updated[guestIdx].delayMinutes ?? 30) : 0)) : 90
       
       let eh = hour
       let em = minute + duration
@@ -466,7 +637,7 @@ export default function BookingModal({
           updated[j].startMinute = minute
           
           const otherPlan = pricingPlans.find(p => p.id.toString() === updated[j].planId)
-          const otherDur = otherPlan ? (otherPlan.duration_minutes + (otherPlan.category === 'combo' ? 30 : 0)) : 90
+          const otherDur = otherPlan ? (otherPlan.duration_minutes + (otherPlan.category === 'combo' ? (updated[j].delayMinutes ?? 30) : 0)) : 90
           
           let oeh = hour
           let oem = minute + otherDur
@@ -495,7 +666,7 @@ export default function BookingModal({
       } else if (guestIdx === 0 && isSameTimeApplied && activeTab > 0) {
         // 본인 변경에 따라 현재 활성화된 탭의 시간도 동기화
         const activePlan = pricingPlans.find(p => p.id.toString() === updated[activeTab].planId)
-        const activeDur = activePlan ? (activePlan.duration_minutes + (activePlan.category === 'combo' ? 30 : 0)) : 90
+        const activeDur = activePlan ? (activePlan.duration_minutes + (activePlan.category === 'combo' ? (updated[activeTab].delayMinutes ?? 30) : 0)) : 90
         setStartHour(hour)
         setStartMinute(minute)
         
@@ -532,7 +703,8 @@ export default function BookingModal({
         current.endHour !== endHour ||
         current.endMinute !== endMinute ||
         current.therapistId !== therapistId ||
-        current.secondaryTherapistId !== secondaryTherapistId
+        current.secondaryTherapistId !== secondaryTherapistId ||
+        current.delayMinutes !== delayMinutes
       ) {
         updated[activeTab] = {
           planId: selectedPlanId,
@@ -542,7 +714,8 @@ export default function BookingModal({
           endHour,
           endMinute,
           therapistId,
-          secondaryTherapistId
+          secondaryTherapistId,
+          delayMinutes
         }
         
         // 0번 탭(예약자 본인) 수정 시 일괄 적용 룰 전파
@@ -557,6 +730,7 @@ export default function BookingModal({
               updated[i].startMinute = startMinute
               updated[i].endHour = endHour
               updated[i].endMinute = endMinute
+              updated[i].delayMinutes = delayMinutes
             }
           }
         }
@@ -572,6 +746,7 @@ export default function BookingModal({
     endMinute,
     therapistId,
     secondaryTherapistId,
+    delayMinutes,
     activeTab,
     isOpen,
     isSamePlanApplied,
@@ -590,6 +765,7 @@ export default function BookingModal({
     setEndMinute(current.endMinute)
     setTherapistId(current.therapistId)
     setSecondaryTherapistId(current.secondaryTherapistId)
+    setDelayMinutes(current.delayMinutes)
   }, [activeTab, isOpen])
 
   const [lockerNumber, setLockerNumber] = useState('')
@@ -927,13 +1103,13 @@ export default function BookingModal({
         if (!isCompMain && !isCompSub) continue
 
         let compStartMin = comp.startHour * 60 + comp.startMinute
-        let compEndMin = compStartMin + compPlan.duration_minutes + (compIsCombo ? 30 : 0)
+        let compEndMin = compStartMin + compPlan.duration_minutes + (compIsCombo ? (comp.delayMinutes ?? 30) : 0)
 
         if (compIsCombo) {
           if (isCompSub) {
             compEndMin = compStartMin + compBathDur
           } else {
-            compStartMin = compStartMin + compBathDur + 30
+            compStartMin = compStartMin + compBathDur + (comp.delayMinutes ?? 30)
             compEndMin = compStartMin + compMassageDur
           }
         }
@@ -974,8 +1150,9 @@ export default function BookingModal({
           // 습식 담당 마사지사는 콤보 시작부터 bath_duration 까지만 바쁨
           resEndMin = resStartMin + bathDur
         } else {
-          // 건식 담당 마사지사는 콤보 시작 + bath_duration + 30분 지연시간 이후부터 바쁨
-          resStartMin = resStartMin + bathDur + 30
+          // 건식 담당 마사지사는 콤보 시작 + bath_duration + 지연시간 이후부터 바쁨
+          const resDelayMin = (res as any).delay_minutes ?? 30
+          resStartMin = resStartMin + bathDur + resDelayMin
           resEndMin = resStartMin + massageDur
         }
       }
@@ -1177,8 +1354,10 @@ export default function BookingModal({
           endHour: eh,
           endMinute: em,
           therapistId: selectedReservation.therapist_id?.toString() || 'auto',
-          secondaryTherapistId: (selectedReservation as any).secondary_therapist_id?.toString() || 'auto'
+          secondaryTherapistId: (selectedReservation as any).secondary_therapist_id?.toString() || 'auto',
+          delayMinutes: (selectedReservation as any).delay_minutes ?? 30
         }])
+        setDelayMinutes((selectedReservation as any).delay_minutes ?? 30)
       } else {
         // 신규 등록 모드
         setCustomerName('')
@@ -1219,6 +1398,7 @@ export default function BookingModal({
         setActiveTab(0)
         setIsSamePlanApplied(true)
         setIsSameTimeApplied(true)
+        setDelayMinutes(30)
         setCompanions([{
           planId: '',
           price: 80,
@@ -1227,7 +1407,8 @@ export default function BookingModal({
           endHour: eh,
           endMinute: em,
           therapistId: initialTherapistId?.toString() || 'auto',
-          secondaryTherapistId: 'auto'
+          secondaryTherapistId: 'auto',
+          delayMinutes: 30
         }])
       }
     }
@@ -1260,8 +1441,8 @@ export default function BookingModal({
     const bathEnd = new Date(bathEndMs)
     const bathEndISO = `${date}T${String(bathEnd.getHours()).padStart(2, '0')}:${String(bathEnd.getMinutes()).padStart(2, '0')}:00${offset}`
     
-    // 건식 시작 시각 (습식 종료 + 30)
-    const dryStartMs = bathEndMs + 30 * 60000
+    // 건식 시작 시각 (습식 종료 + delayMinutes)
+    const dryStartMs = bathEndMs + delayMinutes * 60000
     const dryStart = new Date(dryStartMs)
     const dryStartISO = `${date}T${String(dryStart.getHours()).padStart(2, '0')}:${String(dryStart.getMinutes()).padStart(2, '0')}:00${offset}`
     
@@ -1315,8 +1496,9 @@ export default function BookingModal({
             // 습식 타임세그먼트: 시작 시점 ~ 시작 + 습식시간
             end = new Date(start.getTime() + bathDur * 60000)
           } else if (roleType === 'dry' && res.therapist_id === selectedTherapistId) {
-            // 건식 타임세그먼트: 시작 + 습식시간 + 30분 대기 ~ 시작 + 습식시간 + 30분 + 건식시간
-            start = new Date(start.getTime() + (bathDur + 30) * 60000)
+            // 건식 타임세그먼트: 시작 + 습식시간 + 대기시간 ~ 시작 + 습식시간 + 대기시간 + 건식시간
+            const resDelayMin = (res as any).delay_minutes ?? 30
+            start = new Date(start.getTime() + (bathDur + resDelayMin) * 60000)
             end = new Date(start.getTime() + massageDur * 60000)
           }
         }
@@ -1459,6 +1641,51 @@ export default function BookingModal({
       return
     }
 
+    // PIN 입력 전에 그룹 배정 가능 여부 사전 검증 (신규 + 수정 모드 공통)
+    // simulateCurrentAssignment: 각 게스트의 개별 시간으로 그리디 배정 시뮬레이션 수행
+    {
+      const updatedCompanions = [...companions]
+      updatedCompanions[activeTab] = {
+        planId: selectedPlanId,
+        price,
+        startHour,
+        startMinute,
+        endHour,
+        endMinute,
+        therapistId,
+        secondaryTherapistId,
+        delayMinutes
+      }
+
+      // isSameTimeApplied인 경우 다른 탭도 동기화
+      if (activeTab === 0 && isSameTimeApplied) {
+        for (let i = 1; i < updatedCompanions.length; i++) {
+          updatedCompanions[i] = {
+            ...updatedCompanions[i],
+            startHour,
+            startMinute,
+            endHour,
+            endMinute,
+            delayMinutes
+          }
+        }
+      }
+
+      console.log('[handleSubmit] 그룹 배정 시뮬레이션 시작 - isEditMode:', isEditMode, 'personCount:', personCount)
+      const groupOk = simulateCurrentAssignment(updatedCompanions)
+      console.log('[handleSubmit] 그룹 배정 시뮬레이션 결과 - groupOk:', groupOk)
+
+      if (!groupOk) {
+        // 시뮬레이션 실패: 대안 시간 상세 내역 생성
+        const guestProposals = scanGuestProposals(updatedCompanions)
+        console.log('[handleSubmit] 대안 시간 제안 표시 - PIN 모달 열지 않음', JSON.stringify(guestProposals))
+        setErrorMsg(language === 'ko' ? '요청하신 시간에 모든 인원을 배정할 수 없습니다.' : 'Cannot assign all guests at requested time.')
+        setPendingProposal({ guests: guestProposals })
+        return
+      }
+      console.log('[handleSubmit] 사전 검증 통과 - PIN 모달 열기 진행')
+    }
+
     setPinActionTitle(isEditMode ? (language === 'ko' ? '예약 수정 PIN 인증' : 'Update Booking PIN Auth') : (language === 'ko' ? '신규 예약 PIN 인증' : 'New Booking PIN Auth'))
     setPendingAction(() => (performer: PinAuthResult) => executeSubmit(performer))
     setPinModalOpen(true)
@@ -1483,7 +1710,8 @@ export default function BookingModal({
           endHour,
           endMinute,
           therapistId,
-          secondaryTherapistId
+          secondaryTherapistId,
+          delayMinutes
         }
 
         if (activeTab === 0) {
@@ -1497,6 +1725,7 @@ export default function BookingModal({
               activeCompanions[i].startMinute = startMinute
               activeCompanions[i].endHour = endHour
               activeCompanions[i].endMinute = endMinute
+              activeCompanions[i].delayMinutes = delayMinutes
             }
           }
         }
@@ -1656,6 +1885,7 @@ export default function BookingModal({
             pricing_plan_id: selectedPlanId ? Number(selectedPlanId) : null,
             therapist_id: assignedId,
             secondary_therapist_id: assignedSecondaryId,
+            delay_minutes: delayMinutes,
             status: 'confirmed'
           })
           .eq('id', selectedReservation.id)
@@ -1698,7 +1928,8 @@ export default function BookingModal({
         // [신규 등록 모드 - 다중 예약 및 동시 배정 처리]
         // ==========================================
         const insertPayloads: any[] = []
-        const assignedRecords: { therapistId: number; secondaryTherapistId: number | null; startMs: number; endMs: number }[] = []
+        // Store actual service segments so this matches the pre-PIN simulator.
+        const assignedSegments: { therapistId: number; startMs: number; endMs: number }[] = []
 
         for (let i = 0; i < personCount; i++) {
           const comp = activeCompanions[i]
@@ -1731,20 +1962,16 @@ export default function BookingModal({
           const bathEndObj = new Date(compStartMs + bathDur * 60000)
           const bathEnd = `${date}T${String(bathEndObj.getHours()).padStart(2, '0')}:${String(bathEndObj.getMinutes()).padStart(2, '0')}:00${offset}`
           
-          const dryStartObj = new Date(compStartMs + (bathDur + 30) * 60000)
+          const dryStartObj = new Date(compStartMs + (bathDur + (comp.delayMinutes ?? 30)) * 60000)
           const dryStart = `${date}T${String(dryStartObj.getHours()).padStart(2, '0')}:${String(dryStartObj.getMinutes()).padStart(2, '0')}:00${offset}`
           const dryEnd = compEndISO
 
           // 시간대가 겹치는 다른 탭의 선점 마사지사 ID 모으기
-          const blockedTherapists: number[] = []
-          assignedRecords.forEach(rec => {
-            if (rec.startMs < compEndMs && rec.endMs > compStartMs) {
-              blockedTherapists.push(rec.therapistId)
-              if (rec.secondaryTherapistId) {
-                blockedTherapists.push(rec.secondaryTherapistId)
-              }
-            }
-          })
+          const mainStartMs = compIsCombo ? new Date(dryStart).getTime() : compStartMs
+          const mainEndMs = compIsCombo ? new Date(dryEnd).getTime() : compEndMs
+          const blockedTherapists = assignedSegments
+            .filter(segment => segment.startMs < mainEndMs && segment.endMs > mainStartMs)
+            .map(segment => segment.therapistId)
 
           let assignedId: number | null = null
           let assignedName = ''
@@ -1780,7 +2007,14 @@ export default function BookingModal({
 
           if (compIsCombo) {
             const reqSecondaryId = comp.secondaryTherapistId === 'auto' ? undefined : Number(comp.secondaryTherapistId)
-            const secondaryBlocked = [...blockedTherapists, assignedId]
+            const bathStartMs = compStartMs
+            const bathEndMs = new Date(bathEnd).getTime()
+            const secondaryBlocked = [
+              ...assignedSegments
+                .filter(segment => segment.startMs < bathEndMs && segment.endMs > bathStartMs)
+                .map(segment => segment.therapistId),
+              assignedId
+            ]
 
             const assignSecondaryResult = await assignTherapist({
               supabase,
@@ -1807,12 +2041,14 @@ export default function BookingModal({
             assignedSecondaryName = assignSecondaryResult.therapistName || ''
           }
 
-          assignedRecords.push({
-            therapistId: assignedId,
-            secondaryTherapistId: assignedSecondaryId,
-            startMs: compStartMs,
-            endMs: compEndMs
-          })
+          assignedSegments.push({ therapistId: assignedId, startMs: mainStartMs, endMs: mainEndMs })
+          if (assignedSecondaryId) {
+            assignedSegments.push({
+              therapistId: assignedSecondaryId,
+              startMs: compStartMs,
+              endMs: new Date(bathEnd).getTime()
+            })
+          }
 
           const targetName = i === 0 ? customerName : `${customerName} (동반 ${i})`
           insertPayloads.push({
@@ -1824,6 +2060,7 @@ export default function BookingModal({
             pricing_plan_id: Number(comp.planId),
             therapist_id: assignedId,
             secondary_therapist_id: assignedSecondaryId,
+            delay_minutes: comp.delayMinutes,
             created_by: performerUuid,
             status: 'confirmed'
           })
@@ -2517,6 +2754,33 @@ export default function BookingModal({
             </div>
           </div>
 
+          {/* 콤보 요금제 - 대기시간 설정 */}
+          {isCombo && (
+            <div className="flex items-center gap-3">
+              <label className="text-xs font-bold text-stone-600 uppercase tracking-wider">
+                {t('booking.modal.delay_minutes')}
+              </label>
+              <input
+                type="number"
+                min="5"
+                max="120"
+                value={delayMinutesDraft}
+                onChange={(e) => {
+                  const nextValue = e.target.value
+                  setDelayMinutesDraft(nextValue)
+                  if (nextValue !== '') {
+                    const parsed = Number(nextValue)
+                    if (Number.isFinite(parsed)) setDelayMinutes(parsed)
+                  }
+                }}
+                onBlur={commitDelayMinutes}
+                disabled={!canModify || isFormLocked}
+                className="w-16 bg-white border border-stone-200 rounded-lg px-2 py-2 text-xs text-stone-800 focus:outline-none focus:border-emerald-500/80 transition-colors disabled:opacity-50"
+              />
+              <span className="text-xs text-stone-500">분</span>
+            </div>
+          )}
+
           {/* 마사지사 배정 (버튼 리스트 형태) */}
           <div className="space-y-3">
             <label className="block text-xs font-bold text-stone-600 mb-1.5 uppercase tracking-wider">
@@ -2676,7 +2940,7 @@ export default function BookingModal({
                       const startMin = startHour * 60 + startMinute
                       const bathDur = selectedPlan?.bath_duration_minutes || 60
                       const massageDur = selectedPlan?.massage_duration_minutes || 60
-                      const dryStartMin = startMin + bathDur + 30
+                      const dryStartMin = startMin + bathDur + delayMinutes
                       const avail = checkTherapistAvailability(t.id, dryStartMin, dryStartMin + massageDur)
                       const isDbActive = t.is_active
                       const isAssignedToOther = secondaryTherapistId === t.id.toString()

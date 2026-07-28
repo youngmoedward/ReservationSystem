@@ -61,7 +61,11 @@ export default function CalendarView({
   const isTherapist = currentUser.role === 'therapist' || currentUser.role === 'msg1' || currentUser.role === 'msg2'
   const { language, t } = useLanguage()
   const [popoverDate, setPopoverDate] = useState<string | null>(null)
-  const hours = Array.from({ length: 16 }, (_, i) => i + 9) // 09:00 ~ 24:00
+  // 예약 접수에서 선택 가능한 가장 이른 시간(08:00)부터 표시한다.
+  // 08:30 같은 예약은 첫 시간 칸 안에서 실제 분 단위 위치로 렌더링된다.
+  const calendarStartHour = 8
+  const calendarEndHour = 24
+  const hours = Array.from({ length: calendarEndHour - calendarStartHour }, (_, i) => i + calendarStartHour)
 
   const supabase = createClient()
   const [pricingPlans, setPricingPlans] = useState<any[]>([])
@@ -216,8 +220,9 @@ export default function CalendarView({
               display_name: `${r.customer_name} (Combo-Wet)`
             }
           } else {
-            // 건식 담당: [시작시간 + bathDur + 30] ~ [시작시간 + bathDur + 30 + massageDur]
-            const startTime = new Date(baseStart.getTime() + (bathDur + 30) * 60000)
+            // 건식 담당: [시작시간 + bathDur + delay] ~ [시작시간 + bathDur + delay + massageDur]
+            const delay = (r as any).delay_minutes ?? 30;
+            const startTime = new Date(baseStart.getTime() + (bathDur + delay) * 60000)
             const endTime = new Date(startTime.getTime() + massageDur * 60000)
             return {
               ...r,
@@ -263,12 +268,12 @@ export default function CalendarView({
             const startTime = new Date(res.start_time)
             const endTime = new Date(res.end_time)
             
-            const startHourSlot = Math.max(9, Math.min(24, startTime.getHours()))
+            const startHourSlot = Math.max(calendarStartHour, Math.min(calendarEndHour, startTime.getHours()))
             let endHourSlot = endTime.getHours()
             if (endTime.getMinutes() === 0) {
               endHourSlot = endHourSlot - 1
             }
-            endHourSlot = Math.max(9, Math.min(24, endHourSlot))
+            endHourSlot = Math.max(calendarStartHour, Math.min(calendarEndHour, endHourSlot))
             
             const colSpan = Math.max(1, endHourSlot - startHourSlot + 1)
             

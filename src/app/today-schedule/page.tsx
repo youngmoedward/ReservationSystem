@@ -331,9 +331,39 @@ export default function TodaySchedulePage() {
   const show1F = !isTherapistUser || currentTherapistType === 'wet' || currentTherapistType === 'both'
   const show2F = !isTherapistUser || currentTherapistType === 'dry' || currentTherapistType === 'both'
 
-  // 마사지사 목록 필터링
-  const wetTherapists = therapists.filter(t => t.massage_type === 'wet' || t.massage_type === 'both')
-  const dryTherapists = therapists.filter(t => t.massage_type === 'dry' || t.massage_type === 'both')
+  // 마사지사 목록 필터링 및 우선순위 정렬
+  const sortTherapistsByPriority = (therapistsList: Therapist[], serviceType: 'wet' | 'dry') => {
+    return [...therapistsList].sort((a, b) => {
+      const schedTypeA = schedulesState[a.id]
+      const pValA = prioritiesState[a.id]?.[serviceType]
+      const isOffA = schedTypeA === 'off' || pValA === 'x'
+
+      const schedTypeB = schedulesState[b.id]
+      const pValB = prioritiesState[b.id]?.[serviceType]
+      const isOffB = schedTypeB === 'off' || pValB === 'x'
+
+      // 1. 휴무 여부 비교 (휴무면 뒤로)
+      if (isOffA && !isOffB) return 1
+      if (!isOffA && isOffB) return -1
+
+      // 2. 우선순위 값 비교 (P: 1이 제일 높은 우선순위이므로 오름차순)
+      const aNum = pValA && pValA !== 'x' ? parseInt(pValA, 10) : 9999
+      const bNum = pValB && pValB !== 'x' ? parseInt(pValB, 10) : 9999
+
+      if (aNum !== bNum) {
+        return aNum - bNum
+      }
+
+      // 3. 이름순 정렬
+      return a.name.localeCompare(b.name)
+    })
+  }
+
+  const rawWetTherapists = therapists.filter(t => t.massage_type === 'wet' || t.massage_type === 'both')
+  const rawDryTherapists = therapists.filter(t => t.massage_type === 'dry' || t.massage_type === 'both')
+
+  const wetTherapists = sortTherapistsByPriority(rawWetTherapists, 'wet')
+  const dryTherapists = sortTherapistsByPriority(rawDryTherapists, 'dry')
 
   if (loading) {
     return (
@@ -440,7 +470,7 @@ export default function TodaySchedulePage() {
                           <div className="w-5 h-5 bg-sky-600 text-white rounded-md flex items-center justify-center text-[10px] font-bold shadow-sm flex-shrink-0">
                             <User className="w-3 h-3" />
                           </div>
-                          <span className="text-[11px] font-black text-stone-850 truncate">{index + 1}. {th.name}</span>
+                          <span className="text-[11px] font-black text-stone-850 truncate">{th.name}</span>
                           {statusLabel && (
                             <span className={`text-[9px] font-bold flex-shrink-0 ${isOff ? 'text-rose-600' : 'text-stone-500'}`}>
                               {statusLabel}
@@ -467,7 +497,7 @@ export default function TodaySchedulePage() {
                         <table className="w-full text-left border-collapse table-fixed">
                           <thead>
                             <tr className="bg-stone-50 text-[10px] font-black text-stone-400 uppercase border-b border-stone-150">
-                              <th className="p-1.5 w-[20%] text-center border-r border-stone-150">Locker</th>
+                              <th className="p-1.5 w-[20%] text-center border-r border-stone-150">🔑</th>
                               <th className="p-1.5 w-[25%] text-center border-r border-stone-150">Time</th>
                               <th className="p-1.5 w-[37%] border-r border-stone-150 text-center">Price</th>
                               <th className="p-1.5 w-[18%] text-center">Pt</th>
@@ -503,8 +533,8 @@ export default function TodaySchedulePage() {
                                   >
                                     <td className="p-1.5 text-center border-r border-stone-100 text-[10.5px] font-bold text-stone-700">
                                       {isCheckedIn && lockerNo ? (
-                                        <span className="inline-flex items-center px-1 py-0.5 rounded bg-emerald-50 text-emerald-850 border border-emerald-100/50 text-[9.5px] font-black leading-none">
-                                          🔑{lockerNo}
+                                        <span className="inline-flex items-center px-1 py-0.5 rounded bg-emerald-50 text-emerald-850 border border-emerald-100/50 text-[10px] font-black leading-none">
+                                          {lockerNo}
                                         </span>
                                       ) : (
                                         <span className="text-stone-300">-</span>
@@ -566,7 +596,7 @@ export default function TodaySchedulePage() {
                           <div className="w-5 h-5 bg-amber-600 text-white rounded-md flex items-center justify-center text-[10px] font-bold shadow-sm flex-shrink-0">
                             <User className="w-3 h-3" />
                           </div>
-                          <span className="text-[11px] font-black text-stone-850 truncate">{index + 1}. {th.name}</span>
+                          <span className="text-[11px] font-black text-stone-850 truncate">{th.name}</span>
                           {statusLabel && (
                             <span className={`text-[9px] font-bold flex-shrink-0 ${isOff ? 'text-rose-600' : 'text-stone-500'}`}>
                               {statusLabel}
@@ -593,7 +623,7 @@ export default function TodaySchedulePage() {
                         <table className="w-full text-left border-collapse table-fixed">
                           <thead>
                             <tr className="bg-stone-50 text-[10px] font-black text-stone-400 uppercase border-b border-stone-150">
-                              <th className="p-1.5 w-[20%] text-center border-r border-stone-150">Locker</th>
+                              <th className="p-1.5 w-[20%] text-center border-r border-stone-150">🔑</th>
                               <th className="p-1.5 w-[25%] text-center border-r border-stone-150">Time</th>
                               <th className="p-1.5 w-[37%] border-r border-stone-150 text-center">Price</th>
                               <th className="p-1.5 w-[18%] text-center">Pt</th>
@@ -629,8 +659,8 @@ export default function TodaySchedulePage() {
                                   >
                                     <td className="p-1.5 text-center border-r border-stone-100 text-[10.5px] font-bold text-stone-700">
                                       {isCheckedIn && lockerNo ? (
-                                        <span className="inline-flex items-center px-1 py-0.5 rounded bg-emerald-50 text-emerald-850 border border-emerald-100/50 text-[9.5px] font-black leading-none">
-                                          🔑{lockerNo}
+                                        <span className="inline-flex items-center px-1 py-0.5 rounded bg-emerald-50 text-emerald-850 border border-emerald-100/50 text-[10px] font-black leading-none">
+                                          {lockerNo}
                                         </span>
                                       ) : (
                                         <span className="text-stone-300">-</span>
