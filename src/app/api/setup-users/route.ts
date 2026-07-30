@@ -59,19 +59,22 @@ export async function GET() {
       // We check if old manager exists and update references
       const oldMgrId = 'a0eebc99-9c0b-4ef8-bb6d-6bb9bd380a11'
       
-      // Temporarily set references to NULL
-      await supabase.from('reservations').update({ created_by: null }).eq('created_by', oldMgrId)
-      await supabase.from('reservation_logs').update({ performed_by: null }).eq('performed_by', oldMgrId)
+      if (oldMgrId !== mgrUser.id) {
+        // Temporarily set references to NULL
+        await supabase.from('reservations').update({ created_by: null }).eq('created_by', oldMgrId)
+        await supabase.from('reservation_logs').update({ performed_by: null }).eq('performed_by', oldMgrId)
+        
+        // Delete old manager profile if exists
+        await supabase.from('employee').delete().eq('id', oldMgrId)
+      }
       
-      // Delete old manager profile if exists
-      await supabase.from('employee').delete().eq('id', oldMgrId)
-      
-      // Upsert new manager profile
+      // Upsert manager profile
       const { error: dbErr } = await supabase.from('employee').upsert({
         id: mgrUser.id,
         name: '관리자(홍길동)',
         role: 'manager',
-        email: 'manager@spa.com'
+        email: 'manager@spa.com',
+        pin_code: '1002'
       })
       if (dbErr) logs.push(`Error upserting manager profile: ${dbErr.message}`)
       else logs.push(`Manager profile successfully linked.`)
@@ -83,20 +86,23 @@ export async function GET() {
       logs.push(`Staff 1 registered: ${staff1User.id}`)
       const oldStaff1Id = 'b0eebc99-9c0b-4ef8-bb6d-6bb9bd380a12'
       
-      // Temporarily set references to NULL
-      await supabase.from('reservations').update({ created_by: null }).eq('created_by', oldStaff1Id)
-      await supabase.from('reservation_logs').update({ performed_by: null }).eq('performed_by', oldStaff1Id)
-      await supabase.from('employee').delete().eq('id', oldStaff1Id)
+      if (oldStaff1Id !== staff1User.id) {
+        // Temporarily set references to NULL
+        await supabase.from('reservations').update({ created_by: null }).eq('created_by', oldStaff1Id)
+        await supabase.from('reservation_logs').update({ performed_by: null }).eq('performed_by', oldStaff1Id)
+        await supabase.from('employee').delete().eq('id', oldStaff1Id)
+      }
       
-      // Upsert new staff 1
+      // Upsert staff 1
       const { error: dbErr } = await supabase.from('employee').upsert({
         id: staff1User.id,
         name: '직원A(이순신)',
         role: 'staff',
-        email: 'staff1@spa.com'
+        email: 'staff1@spa.com',
+        pin_code: '1003'
       })
       if (dbErr) logs.push(`Error upserting staff 1 profile: ${dbErr.message}`)
-      else {
+      else if (oldStaff1Id !== staff1User.id) {
         logs.push(`Staff 1 profile linked. Re-assigning references to new ID.`)
         await supabase.from('reservations').update({ created_by: staff1User.id }).is('created_by', null)
         await supabase.from('reservation_logs').update({ performed_by: staff1User.id }).is('performed_by', null)
@@ -109,13 +115,16 @@ export async function GET() {
       logs.push(`Staff 2 registered: ${staff2User.id}`)
       const oldStaff2Id = 'c0eebc99-9c0b-4ef8-bb6d-6bb9bd380a13'
       
-      await supabase.from('employee').delete().eq('id', oldStaff2Id)
+      if (oldStaff2Id !== staff2User.id) {
+        await supabase.from('employee').delete().eq('id', oldStaff2Id)
+      }
       
       const { error: dbErr } = await supabase.from('employee').upsert({
         id: staff2User.id,
         name: '직원B(강감찬)',
         role: 'staff',
-        email: 'staff2@spa.com'
+        email: 'staff2@spa.com',
+        pin_code: '1005'
       })
       if (dbErr) logs.push(`Error upserting staff 2 profile: ${dbErr.message}`)
       else logs.push(`Staff 2 profile linked.`)

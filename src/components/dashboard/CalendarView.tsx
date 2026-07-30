@@ -239,62 +239,6 @@ export default function CalendarView({
         }
       }).filter((r): r is NonNullable<typeof r> => r !== null)
 
-      const segments: {
-        type: 'empty' | 'reservation'
-        hour: number
-        colSpan: number
-        reservation?: Reservation
-      }[] = []
-
-      for (let i = 0; i < hours.length; i++) {
-        const hour = hours[i]
-        
-        const res = therapistResList.find(r => {
-          const resStart = new Date(r.start_time).getTime()
-          const resEnd = new Date(r.end_time).getTime()
-          
-          const slotStart = new Date(currentDate)
-          slotStart.setHours(hour, 0, 0, 0)
-          const slotEnd = new Date(currentDate)
-          slotEnd.setHours(hour + 1, 0, 0, 0)
-          
-          return resStart < slotEnd.getTime() && resEnd > slotStart.getTime()
-        })
-
-        if (res) {
-          const alreadyProcessed = segments.find(seg => seg.type === 'reservation' && seg.reservation?.id === res.id)
-          
-          if (!alreadyProcessed) {
-            const startTime = new Date(res.start_time)
-            const endTime = new Date(res.end_time)
-            
-            const startHourSlot = Math.max(calendarStartHour, Math.min(calendarEndHour, startTime.getHours()))
-            let endHourSlot = endTime.getHours()
-            if (endTime.getMinutes() === 0) {
-              endHourSlot = endHourSlot - 1
-            }
-            endHourSlot = Math.max(calendarStartHour, Math.min(calendarEndHour, endHourSlot))
-            
-            const colSpan = Math.max(1, endHourSlot - startHourSlot + 1)
-            
-            segments.push({
-              type: 'reservation',
-              hour,
-              colSpan,
-              reservation: res
-            })
-            
-            i += colSpan - 1
-          }
-        } else {
-          segments.push({
-            type: 'empty',
-            hour,
-            colSpan: 1
-          })
-        }
-      }
-
       const schedType = daySchedules[therapist.id]
       const isOffDuty = !therapist.is_active || schedType === 'off' || !schedType
 
@@ -327,10 +271,33 @@ export default function CalendarView({
             </span>
           </div>
 
-          {segments.map((seg, idx) => {
-            if (seg.type === 'reservation' && seg.reservation) {
-              const res = seg.reservation
-              
+          <div className="h-full relative" style={{ gridColumn: 'span 16 / span 16' }}>
+            {/* 1. Background Grid Cells */}
+            <div 
+              className="absolute inset-0" 
+              style={{ display: 'grid', gridTemplateColumns: 'repeat(16, minmax(0, 1fr))' }}
+            >
+              {hours.map((hour, idx) => (
+                <div
+                  key={`empty-${hour}-${idx}`}
+                  onClick={() => {
+                    if (isTherapist) return
+                    const bookingTime = new Date(currentDate)
+                    bookingTime.setHours(hour, 0, 0, 0)
+                    onAddReservationAt(bookingTime, therapist.id)
+                  }}
+                  className="h-full border-r border-stone-200/60 flex items-center justify-center p-1 cursor-pointer transition-all hover:bg-stone-200/50"
+                  style={{ gridColumn: 'span 1 / span 1' }}
+                >
+                  {!isTherapist && (
+                    <Plus className="w-3.5 h-3.5 text-stone-400 opacity-0 hover:opacity-100 transition-opacity" />
+                  )}
+                </div>
+              ))}
+            </div>
+
+            {/* 2. Absolute-Positioned Reservations */}
+            {therapistResList.map((res, idx) => {
               const plan = res.pricing_plan_id ? pricingPlans.find(p => p.id === res.pricing_plan_id) : null
               const isCombo = plan?.category === 'combo'
               
@@ -345,35 +312,39 @@ export default function CalendarView({
               const colorClass = isWetPart
                 ? 'bg-gradient-to-r from-sky-600 to-blue-700 text-white shadow-sm shadow-blue-900/10 hover:from-sky-550 hover:to-blue-650'
                 : 'bg-gradient-to-r from-amber-600 to-orange-700 text-white shadow-sm shadow-amber-900/10 hover:from-amber-550 hover:to-orange-650'
-              
-              const segmentStart = new Date(currentDate)
-              segmentStart.setHours(seg.hour, 0, 0, 0)
-              const segmentEnd = new Date(currentDate)
-              segmentEnd.setHours(seg.hour + seg.colSpan, 0, 0, 0)
-              
+
+              const timelineStart = new Date(currentDate)
+              timelineStart.setHours(calendarStartHour, 0, 0, 0)
+              const timelineEnd = new Date(currentDate)
+              timelineEnd.setHours(calendarEndHour, 0, 0, 0)
+
               const resStart = new Date(res.start_time).getTime()
               const resEnd = new Date(res.end_time).getTime()
-              
-              const clippedStart = Math.max(segmentStart.getTime(), resStart)
-              const clippedEnd = Math.min(segmentEnd.getTime(), resEnd)
-              
-              const totalMs = segmentEnd.getTime() - segmentStart.getTime()
-              const leftOffsetPercent = totalMs > 0 ? ((clippedStart - segmentStart.getTime()) / totalMs) * 100 : 0
-              const widthPercent = totalMs > 0 ? ((clippedEnd - clippedStart) / totalMs) * 100 : 100
+
+              const clippedStart = Math.max(timelineStart.getTime(), resStart)
+              const clippedEnd = Math.min(timelineEnd.getTime(), resEnd)
+
+              if (clippedStart >= clippedEnd) return null
+
+              const totalMs = timelineEnd.getTime() - timelineStart.getTime()
+              const leftPercent = ((clippedStart - timelineStart.getTime()) / totalMs) * 100
+              const widthPercent = ((clippedEnd - clippedStart) / totalMs) * 100
+
+              const timeTooltip = `${res.customer_name}\n${toLocalTimeString(new Date(res.start_time))} ~ ${toLocalTimeString(new Date(res.end_time))}`
 
               return (
                 <div
                   key={`res-${res.id}-${idx}`}
                   onClick={() => onSelectReservation(res)}
-                  className="h-full border-r border-stone-200/60 relative flex items-center p-1 cursor-pointer transition-all"
-                  style={{ gridColumn: `span ${seg.colSpan} / span ${seg.colSpan}` }}
+                  className="absolute top-1 bottom-1 p-0.5 cursor-pointer z-10 transition-all"
+                  style={{
+                    left: `${leftPercent}%`,
+                    width: `${widthPercent}%`
+                  }}
+                  title={timeTooltip}
                 >
                   <div
-                    className={`h-full rounded flex flex-col justify-center px-2 py-1 text-[11px] font-medium transition-transform active:scale-[0.98] ${colorClass}`}
-                    style={{
-                      width: `${widthPercent}%`,
-                      marginLeft: `${leftOffsetPercent}%`
-                    }}
+                    className={`h-full w-full rounded flex flex-col justify-center px-2 py-1 text-[11px] font-medium transition-transform active:scale-[0.98] ${colorClass}`}
                   >
                     <span className="truncate flex items-center gap-0.5">
                       {res.locker_number && <span className="mr-0.5">🔑{res.locker_number}</span>}
@@ -385,26 +356,8 @@ export default function CalendarView({
                   </div>
                 </div>
               )
-            } else {
-              return (
-                <div
-                  key={`empty-${seg.hour}-${idx}`}
-                  onClick={() => {
-                    if (isTherapist) return
-                    const bookingTime = new Date(currentDate)
-                    bookingTime.setHours(seg.hour, 0, 0, 0)
-                    onAddReservationAt(bookingTime, therapist.id)
-                  }}
-                  className="h-full border-r border-stone-200/60 relative flex items-center justify-center p-1 cursor-pointer transition-all hover:bg-stone-200/50"
-                  style={{ gridColumn: 'span 1 / span 1' }}
-                >
-                  {!isTherapist && (
-                    <Plus className="w-3.5 h-3.5 text-stone-400 opacity-0 hover:opacity-100 transition-opacity" />
-                  )}
-                </div>
-              )
-            }
-          })}
+            })}
+          </div>
         </div>
       )
     }

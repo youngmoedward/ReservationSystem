@@ -20,7 +20,7 @@ interface BookingModalProps {
   reservations: Reservation[]
   currentUserId: string
   currentUserRole: UserSim['role']
-  
+
   // 수정 모드일 때 전달받을 예약 정보
   selectedReservation?: Reservation | null
   // 신규 등록 시 미리 클릭한 시간/마사지사 정보
@@ -125,7 +125,7 @@ export default function BookingModal({
     for (const res of reservations) {
       if (res.status !== 'confirmed') continue
       if (isEditMode && selectedReservation && res.id === selectedReservation.id) continue
-      
+
       const resStartObj = new Date(res.start_time)
       const resDateStr = toLocalDateString(resStartObj)
       if (resDateStr !== date) continue
@@ -373,13 +373,13 @@ export default function BookingModal({
         const h = testDate.getHours()
         const min = testDate.getMinutes()
         const segDur = (task.endMs - task.startMs) / 60000
-        
+
         const schedType = daySchedules[t.id]
         let scheduleOk = false
         if (schedType === 'full') scheduleOk = true
         else if (schedType === 'am_half' && (h * 60 + min) >= 990) scheduleOk = true
         else if (schedType === 'pm_half' && (h * 60 + min + segDur) <= 990) scheduleOk = true
-        
+
         if (!scheduleOk) continue
 
         const currentSegments = therapistTimelines.get(t.id) || []
@@ -419,7 +419,7 @@ export default function BookingModal({
       // 원래 시점의 가용성 판단
       const checkTargetStartISO = getISOStringFromLocal(comp.startHour, comp.startMinute)
       const checkTargetStartMs = new Date(checkTargetStartISO).getTime()
-      
+
       let isWetOk = false
       let isDryOk = false
 
@@ -439,7 +439,7 @@ export default function BookingModal({
 
           const isOtherMain = other.therapistId && other.therapistId !== 'auto'
           const isOtherSub = other.secondaryTherapistId && other.secondaryTherapistId !== 'auto'
-          
+
           if (isOtherMain || isOtherSub) {
             let otherStartMs = otherBaseStartMs
             let otherEndMsVal = otherEndMs
@@ -466,7 +466,7 @@ export default function BookingModal({
           const testDate = new Date(testStartMs)
           const h = testDate.getHours()
           const min = testDate.getMinutes()
-          
+
           const schedType = daySchedules[t.id]
           if (schedType === 'full') return true
           if (schedType === 'am_half') return (h * 60 + min) >= 990
@@ -529,7 +529,7 @@ export default function BookingModal({
 
       const allSlots: { h: number; min: number; diff: number }[] = []
       const targetMinVal = comp.startHour * 60 + comp.startMinute
-      
+
       for (let currentMin = 540; currentMin <= 1440; currentMin += 10) {
         const h = Math.floor(currentMin / 60)
         const min = currentMin % 60
@@ -545,7 +545,7 @@ export default function BookingModal({
       allSlots.sort((a, b) => a.diff - b.diff)
 
       const proposals: GuestProposal['proposals'] = []
-      
+
       for (const slot of allSlots) {
         // 그룹 전원 배정 시뮬레이션 적용!
         const pass = simulateGroupAssignment(slot.h, slot.min, companionsToCheck)
@@ -553,7 +553,7 @@ export default function BookingModal({
         if (pass) {
           const sHourStr = String(slot.h).padStart(2, '0')
           const sMinStr = String(slot.min).padStart(2, '0')
-          
+
           const scanStartISO = getISOStringFromLocal(slot.h, slot.min)
           const scanStartMs = new Date(scanStartISO).getTime()
           const endObj = new Date(scanStartMs + duration * 60000)
@@ -614,13 +614,13 @@ export default function BookingModal({
       if (prev.length <= guestIdx) return prev
       const updated = [...prev]
       const planId = updated[guestIdx].planId
-      
+
       updated[guestIdx].startHour = hour
       updated[guestIdx].startMinute = minute
-      
+
       const plan = pricingPlans.find(p => p.id.toString() === planId)
       const duration = plan ? (plan.duration_minutes + (plan.category === 'combo' ? (updated[guestIdx].delayMinutes ?? 30) : 0)) : 90
-      
+
       let eh = hour
       let em = minute + duration
       if (em >= 60) {
@@ -635,10 +635,10 @@ export default function BookingModal({
         for (let j = 1; j < updated.length; j++) {
           updated[j].startHour = hour
           updated[j].startMinute = minute
-          
+
           const otherPlan = pricingPlans.find(p => p.id.toString() === updated[j].planId)
           const otherDur = otherPlan ? (otherPlan.duration_minutes + (otherPlan.category === 'combo' ? (updated[j].delayMinutes ?? 30) : 0)) : 90
-          
+
           let oeh = hour
           let oem = minute + otherDur
           if (oem >= 60) {
@@ -654,7 +654,7 @@ export default function BookingModal({
       if (guestIdx === activeTab) {
         setStartHour(hour)
         setStartMinute(minute)
-        
+
         let activeEh = hour
         let activeEm = minute + duration
         if (activeEm >= 60) {
@@ -669,7 +669,7 @@ export default function BookingModal({
         const activeDur = activePlan ? (activePlan.duration_minutes + (activePlan.category === 'combo' ? (updated[activeTab].delayMinutes ?? 30) : 0)) : 90
         setStartHour(hour)
         setStartMinute(minute)
-        
+
         let activeEh = hour
         let activeEm = minute + activeDur
         if (activeEm >= 60) {
@@ -717,7 +717,7 @@ export default function BookingModal({
           secondaryTherapistId,
           delayMinutes
         }
-        
+
         // 0번 탭(예약자 본인) 수정 시 일괄 적용 룰 전파
         if (activeTab === 0) {
           for (let i = 1; i < updated.length; i++) {
@@ -774,11 +774,11 @@ export default function BookingModal({
   const [loading, setLoading] = useState(false)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
   const { language, t } = useLanguage()
-  
+
   // 취소 조작 관련 상태
   const [isCancelling, setIsCancelling] = useState(false)
   const [selectedCancelType, setSelectedCancelType] = useState<'request' | 'noshow' | 'normal'>('normal')
-  
+
   // 마사지사 날짜별 근무 일정 맵핑 상태
   const [daySchedules, setDaySchedules] = useState<Record<number, string | null>>({})
 
@@ -1039,7 +1039,7 @@ export default function BookingModal({
         .eq('date', targetDate)
 
       if (error) throw error
-      
+
       const mapping: Record<number, string | null> = {}
       if (data) {
         data.forEach((s: any) => {
@@ -1067,11 +1067,11 @@ export default function BookingModal({
     function handleClickOutside(event: MouseEvent) {
       const target = event.target as Node
       if (
-        suggestionsContainerRef.current && 
+        suggestionsContainerRef.current &&
         !suggestionsContainerRef.current.contains(target) &&
-        nameInputRef.current && 
+        nameInputRef.current &&
         !nameInputRef.current.contains(target) &&
-        phoneInputRef.current && 
+        phoneInputRef.current &&
         !phoneInputRef.current.contains(target)
       ) {
         setShowSuggestions(false)
@@ -1097,7 +1097,7 @@ export default function BookingModal({
         const compIsCombo = compPlan.category === 'combo'
         const compBathDur = compPlan.bath_duration_minutes || 60
         const compMassageDur = compPlan.massage_duration_minutes || 60
-        
+
         const isCompMain = comp.therapistId === tId.toString()
         const isCompSub = comp.secondaryTherapistId === tId.toString()
         if (!isCompMain && !isCompSub) continue
@@ -1128,7 +1128,7 @@ export default function BookingModal({
       if (!isMain && !isSub) return false
       if (res.status !== 'confirmed') return false
       if (isEditMode && selectedReservation && res.id === selectedReservation.id) return false
-      
+
       const resStartObj = new Date(res.start_time)
       const resEndObj = new Date(res.end_time)
 
@@ -1156,7 +1156,7 @@ export default function BookingModal({
           resEndMin = resStartMin + massageDur
         }
       }
-      
+
       return resStartMin < targetEndMin && resEndMin > targetStartMin
     })
     return overlapping.length > 0
@@ -1164,7 +1164,7 @@ export default function BookingModal({
 
   const checkTherapistAvailability = (tId: number, specificStartMin?: number, specificEndMin?: number) => {
     const type = daySchedules[tId]
-    
+
     // 기본은 미정(null), 미정일 때는 가용하지 않음
     if (!type) {
       return { available: false, reason: language === 'ko' ? '미정' : 'TBD' }
@@ -1172,7 +1172,7 @@ export default function BookingModal({
     if (type === 'off') {
       return { available: false, reason: t('schedule.off_duty') }
     }
-    
+
     let startMinutes = specificStartMin
     let endMinutes = specificEndMin
 
@@ -1185,18 +1185,18 @@ export default function BookingModal({
 
     if (type === 'am_half') {
       if (startMinutes < boundary) {
-        return { 
-          available: false, 
-          reason: language === 'ko' ? '오전반차 (반차휴무)' : 'AM Off (Half-day)' 
+        return {
+          available: false,
+          reason: language === 'ko' ? '오전반차 (반차휴무)' : 'AM Off (Half-day)'
         }
       }
     }
-    
+
     if (type === 'pm_half') {
       if (endMinutes > boundary) {
-        return { 
-          available: false, 
-          reason: language === 'ko' ? '오후반차 (반차휴무)' : 'PM Off (Half-day)' 
+        return {
+          available: false,
+          reason: language === 'ko' ? '오후반차 (반차휴무)' : 'PM Off (Half-day)'
         }
       }
     }
@@ -1206,10 +1206,10 @@ export default function BookingModal({
     if (isBusy) {
       return { available: false, reason: language === 'ko' ? '시간 중복' : 'Time Conflict' }
     }
-    
+
     return { available: true, reason: t('schedule.on_duty') }
   }
-  
+
   // 예약 성공 결과를 저장하는 상태 (결과 화면 전환용)
   interface SuccessResultItem {
     customerName: string
@@ -1221,9 +1221,9 @@ export default function BookingModal({
     items: SuccessResultItem[]
     isEdit: boolean
   } | null>(null)
-  
+
   const isEditMode = !!selectedReservation
-  
+
   const getDefaultEndTime = (h: number, m: number) => {
     let eh = h + 1
     let em = m + 30
@@ -1274,10 +1274,10 @@ export default function BookingModal({
     const plan = pricingPlans.find(p => p.id.toString() === planIdStr)
     if (plan) {
       setPrice(Number(plan.price))
-      
+
       const isPlanCombo = plan.category === 'combo'
       const duration = plan.duration_minutes + (isPlanCombo ? 30 : 0)
-      
+
       const startTotalMinutes = startHour * 60 + startMinute
       const endTotalMinutes = startTotalMinutes + duration
       let eh = Math.floor(endTotalMinutes / 60)
@@ -1305,11 +1305,11 @@ export default function BookingModal({
       setSuccessResult(null) // 매번 모달이 새로 열릴 때 성공 팝업 초기화
       setIsCancelling(false)
       setSelectedCancelType('normal')
- 
+
       if (isEditMode && selectedReservation) {
         // 수정 모드
         setCustomerName(selectedReservation.customer_name)
-        
+
         let phoneVal = selectedReservation.customer_phone || ''
         if (!phoneVal) {
           // 동반인의 경우 주 예약자의 번호 찾기 (동반 표시 괄호 패턴 제거)
@@ -1327,15 +1327,15 @@ export default function BookingModal({
         setSelectedPlanId(selectedReservation.pricing_plan_id?.toString() || '')
         setLockerNumber((selectedReservation as any).locker_number || '')
         setIsCheckedIn(!!(selectedReservation as any).is_checked_in)
-        
+
         const start = new Date(selectedReservation.start_time)
         const end = new Date(selectedReservation.end_time)
-        
+
         const sh = start.getHours()
         const sm = roundTo10Minutes(start.getMinutes())
         const eh = end.getHours()
         const em = roundTo10Minutes(end.getMinutes())
-        
+
         setDate(toLocalDateString(start))
         setStartHour(sh)
         setStartMinute(sm)
@@ -1368,19 +1368,19 @@ export default function BookingModal({
         setSecondaryTherapistId('auto')
         setLockerNumber('')
         setIsCheckedIn(false)
-        
+
         let sh = 9
         let sm = 0
         let eh = 10
         let em = 30
-        
+
         if (initialTime) {
           sh = initialTime.getHours()
           sm = roundTo10Minutes(initialTime.getMinutes())
           setDate(toLocalDateString(initialTime))
           setStartHour(sh)
           setStartMinute(sm)
-          
+
           const defaultEnd = getDefaultEndTime(sh, sm)
           eh = defaultEnd.endHour
           em = defaultEnd.endMinute
@@ -1429,28 +1429,28 @@ export default function BookingModal({
     if (!selectedPlan || selectedPlan.category !== 'combo') return null
     const bathDur = selectedPlan.bath_duration_minutes || 60
     const massageDur = selectedPlan.massage_duration_minutes || 60
-    
+
     // 시작 시각
     const bathStartISO = getISOStringFromLocal(startHour, startMinute)
     const bathStartMs = new Date(bathStartISO).getTime()
-    
+
     const offset = getLocalTimezoneOffsetString()
 
     // 습식 종료 시각 (시작 + bathDur)
     const bathEndMs = bathStartMs + bathDur * 60000
     const bathEnd = new Date(bathEndMs)
     const bathEndISO = `${date}T${String(bathEnd.getHours()).padStart(2, '0')}:${String(bathEnd.getMinutes()).padStart(2, '0')}:00${offset}`
-    
+
     // 건식 시작 시각 (습식 종료 + delayMinutes)
     const dryStartMs = bathEndMs + delayMinutes * 60000
     const dryStart = new Date(dryStartMs)
     const dryStartISO = `${date}T${String(dryStart.getHours()).padStart(2, '0')}:${String(dryStart.getMinutes()).padStart(2, '0')}:00${offset}`
-    
+
     // 건식 종료 시각 (건식 시작 + massageDur)
     const dryEndMs = dryStartMs + massageDur * 60000
     const dryEnd = new Date(dryEndMs)
     const dryEndISO = `${date}T${String(dryEnd.getHours()).padStart(2, '0')}:${String(dryEnd.getMinutes()).padStart(2, '0')}:00${offset}`
-    
+
     return {
       bathStartISO,
       bathEndISO,
@@ -1462,25 +1462,26 @@ export default function BookingModal({
   // 2. 권한 검사 (모든 가입된 직원 상호 수정 허용)
   const isOwner = selectedReservation?.created_by === currentUserId
   const isManager = currentUserRole === 'manager'
+  const isLeader = currentUserRole === 'leader'
   const isStaff = currentUserRole === 'staff'
-  const canModify = isManager || isStaff
+  const canModify = isManager || isLeader || isStaff
 
   // 선택된 마사지사의 오늘자 예약 범위 리스트 반환
   const getTherapistScheduleList = (targetId: string, roleType: 'wet' | 'dry') => {
     if (targetId === 'auto' || !date) return []
- 
+
     const selectedTherapistId = Number(targetId)
-    
+
     // 이 날짜의 이 마사지사의 확정된 예약들 필터링
     const selectedDayRes = reservations.filter(res => {
       const isMain = res.therapist_id === selectedTherapistId
       const isSub = (res as any).secondary_therapist_id === selectedTherapistId
       if ((!isMain && !isSub) || res.status !== 'confirmed') return false
-      
+
       const resDateStr = toLocalDateString(new Date(res.start_time))
       return resDateStr === date
     })
- 
+
     return selectedDayRes
       .map(res => {
         let start = new Date(res.start_time)
@@ -1491,7 +1492,7 @@ export default function BookingModal({
         if (resPlan && resPlan.category === 'combo') {
           const bathDur = resPlan.bath_duration_minutes || 60
           const massageDur = resPlan.massage_duration_minutes || 60
-          
+
           if (roleType === 'wet' && (res as any).secondary_therapist_id === selectedTherapistId) {
             // 습식 타임세그먼트: 시작 시점 ~ 시작 + 습식시간
             end = new Date(start.getTime() + bathDur * 60000)
@@ -1514,7 +1515,7 @@ export default function BookingModal({
       })
       .sort((a, b) => a.timeStr.localeCompare(b.timeStr))
   }
- 
+
   const scheduleList = getTherapistScheduleList(therapistId, planCategory === 'wet' ? 'wet' : 'dry')
 
   // 3. 시간 포맷 도우미 (ISO String 변환 - 브라우저 타임존 오차 방지 수동 조합)
@@ -1531,7 +1532,7 @@ export default function BookingModal({
     }
   }
 
-  const isFormLocked = isEditMode && isCheckedIn && currentUserRole !== 'manager'
+  const isFormLocked = isEditMode && isCheckedIn && !canModify
 
   // PIN을 사용하여 실제 DB의 employee.id (UUID)를 찾는 함수
   const getEmployeeUuidByPin = async (pin: string): Promise<string | null> => {
@@ -1824,9 +1825,9 @@ export default function BookingModal({
         if (stripPhone(selectedReservation.customer_phone || '') !== stripPhone(customerPhone)) {
           changesList.push({
             key: 'log.reservation.val.change_phone',
-            params: { 
-              old: formatUSPhone(selectedReservation.customer_phone || ''), 
-              new: formatUSPhone(customerPhone) 
+            params: {
+              old: formatUSPhone(selectedReservation.customer_phone || ''),
+              new: formatUSPhone(customerPhone)
             }
           })
         }
@@ -1841,10 +1842,10 @@ export default function BookingModal({
           const oldEnd = toLocalTimeString(new Date(selectedReservation.end_time))
           const newStart = toLocalTimeString(new Date(startTimeISO))
           const newEnd = toLocalTimeString(new Date(endTimeISO))
-          
+
           const oldDateStr = toLocalDateString(new Date(selectedReservation.start_time))
           const newDateStr = toLocalDateString(new Date(startTimeISO))
-          
+
           if (oldDateStr === newDateStr) {
             changesList.push({
               key: 'log.reservation.val.change_time',
@@ -1902,10 +1903,10 @@ export default function BookingModal({
 
         const editTherapist = therapists.find(t => t.id === assignedId)
         const editSecTherapist = assignedSecondaryId ? therapists.find(t => t.id === assignedSecondaryId) : null
-        
+
         // 습식 & 건식 마사지사 순서 정렬
-        const editTherapistName = editSecTherapist 
-          ? `${editSecTherapist.name} & ${editTherapist?.name || ''}` 
+        const editTherapistName = editSecTherapist
+          ? `${editSecTherapist.name} & ${editTherapist?.name || ''}`
           : (editTherapist?.name || '')
 
         const sHourStr = String(startHour).padStart(2, '0')
@@ -1941,7 +1942,7 @@ export default function BookingModal({
           }
 
           const compIsCombo = compPlan.category === 'combo'
-          
+
           // 시간대 빌드 (브라우저 타임존 오차 방지 수동 조합)
           const sHourStr = String(comp.startHour).padStart(2, '0')
           const sMinStr = String(comp.startMinute).padStart(2, '0')
@@ -1951,17 +1952,17 @@ export default function BookingModal({
 
           const compStartISO = `${date}T${sHourStr}:${sMinStr}:00${offset}`
           const compEndISO = `${date}T${eHourStr}:${eMinStr}:00${offset}`
-          
+
           const compStartMs = new Date(compStartISO).getTime()
           const compEndMs = new Date(compEndISO).getTime()
 
           // 콤보의 내부 세그먼트 빌드
           const bathDur = compPlan.bath_duration_minutes || 60
           const bathStart = compStartISO
-          
+
           const bathEndObj = new Date(compStartMs + bathDur * 60000)
           const bathEnd = `${date}T${String(bathEndObj.getHours()).padStart(2, '0')}:${String(bathEndObj.getMinutes()).padStart(2, '0')}:00${offset}`
-          
+
           const dryStartObj = new Date(compStartMs + (bathDur + (comp.delayMinutes ?? 30)) * 60000)
           const dryStart = `${date}T${String(dryStartObj.getHours()).padStart(2, '0')}:${String(dryStartObj.getMinutes()).padStart(2, '0')}:00${offset}`
           const dryEnd = compEndISO
@@ -2089,10 +2090,10 @@ export default function BookingModal({
         const successItems = insertPayloads.map(payload => {
           const mainTherapist = therapists.find(t => t.id === payload.therapist_id)
           const mainSecTherapist = payload.secondary_therapist_id ? therapists.find(t => t.id === payload.secondary_therapist_id) : null
-          
+
           // 습식 & 건식 마사지사 순서 정렬
-          const therapistDisplayName = mainSecTherapist 
-            ? `${mainSecTherapist.name} & ${mainTherapist?.name || ''}` 
+          const therapistDisplayName = mainSecTherapist
+            ? `${mainSecTherapist.name} & ${mainTherapist?.name || ''}`
             : (mainTherapist?.name || '')
 
           const payloadStart = new Date(payload.start_time)
@@ -2141,7 +2142,7 @@ export default function BookingModal({
 
       const { error } = await supabase
         .from('reservations')
-        .update({ 
+        .update({
           status: 'cancelled',
           cancellation_type: selectedCancelType,
           penalty_points: penaltyPoints
@@ -2214,11 +2215,11 @@ export default function BookingModal({
               <UserCheck className="w-7 h-7" />
             </div>
           </div>
-          
+
           <div className="space-y-1.5">
             <h2 className="text-lg font-bold text-stone-800">
-              {successResult.isEdit 
-                ? (language === 'ko' ? '예약 변경 완료' : 'Booking Updated') 
+              {successResult.isEdit
+                ? (language === 'ko' ? '예약 변경 완료' : 'Booking Updated')
                 : (language === 'ko' ? '예약 접수 완료' : 'Booking Registered')}
             </h2>
             <p className="text-xs text-stone-500">
@@ -2230,15 +2231,15 @@ export default function BookingModal({
           <div className="w-full bg-white border border-stone-200 rounded-2xl p-5 text-xs text-stone-600 leading-relaxed text-left space-y-3.5 shadow-inner max-h-72 overflow-y-auto scrollbar-thin">
             <div className="flex justify-between items-center pb-2.5 border-b border-stone-200">
               <span className="font-bold text-stone-700">
-                {successResult.isEdit 
-                  ? (language === 'ko' ? '✏️ 변경 완료 정보' : '✏️ Updated Info') 
+                {successResult.isEdit
+                  ? (language === 'ko' ? '✏️ 변경 완료 정보' : '✏️ Updated Info')
                   : (language === 'ko' ? '📋 접수 완료 정보' : '📋 Registered Info')}
               </span>
               <span className="text-[10px] text-stone-400 font-mono font-semibold">
                 {toUIDateString(successResult.date)}
               </span>
             </div>
-            
+
             <div className="flex flex-col gap-3">
               {successResult.items.map((item, idx) => (
                 <div key={idx} className="flex flex-col gap-1 p-3.5 bg-stone-50/50 rounded-xl border border-stone-200/50">
@@ -2271,9 +2272,9 @@ export default function BookingModal({
   // ==========================================
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-stone-900/30 backdrop-blur-sm animate-in fade-in duration-200">
-      <div className="w-full max-w-3xl bg-stone-50 border border-stone-200 rounded-2xl shadow-2xl flex flex-col max-h-[90vh] overflow-hidden">
+      <div className="w-full max-w-3xl bg-stone-50 border border-stone-200 rounded-2xl shadow-2xl flex flex-col max-h-[80vh] overflow-hidden">
         {/* 헤더 */}
-        <div className="flex items-center justify-between p-5 border-b border-stone-200 bg-stone-100">
+        <div className="flex items-center justify-between py-3.5 px-5 border-b border-stone-200 bg-stone-100">
           <h2 className="text-lg font-bold tracking-tight text-stone-800 flex items-center gap-2">
             <Calendar className="w-5 h-5 text-emerald-700" />
             {isEditMode ? t('booking.modal.edit') : t('booking.modal.new')}
@@ -2288,22 +2289,10 @@ export default function BookingModal({
         </div>
 
         {/* 폼 */}
-        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 space-y-4">
+        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto py-4 px-5 space-y-3.5">
           {errorMsg && (
             <div className="p-3 text-xs font-semibold rounded-lg bg-rose-500/10 text-rose-400 border border-rose-500/20">
               ⚠️ {errorMsg}
-            </div>
-          )}
-
-          {/* 권한 수정 제한 안내 */}
-          {isEditMode && !canModify && (
-            <div className="p-3 text-xs rounded-lg bg-amber-500/10 text-amber-400 border border-amber-500/20 flex items-center gap-1.5 font-medium">
-              <Ban className="w-4 h-4 flex-shrink-0" />
-              <span>
-                {language === 'ko' 
-                  ? '본인 등록 예약이 아니므로 상세 수정이나 마사지사 재배치가 불가능합니다. (조회만 가능)' 
-                  : 'This booking was registered by another staff; editing or re-assigning therapist is restricted. (Read-only)'}
-              </span>
             </div>
           )}
 
@@ -2335,7 +2324,7 @@ export default function BookingModal({
 
             {/* 이름 기준 검색 결과 제안 */}
             {activeInput === 'name' && showSuggestions && suggestions.length > 0 && (
-              <div 
+              <div
                 ref={suggestionsContainerRef}
                 className="absolute left-0 right-0 z-50 mt-1 bg-white border border-stone-200 rounded-xl shadow-xl max-h-48 overflow-y-auto divide-y divide-stone-100"
               >
@@ -2414,7 +2403,7 @@ export default function BookingModal({
 
             {/* 전화번호 기준 검색 결과 제안 */}
             {activeInput === 'phone' && showSuggestions && suggestions.length > 0 && (
-              <div 
+              <div
                 ref={suggestionsContainerRef}
                 className="absolute left-0 right-0 z-50 mt-1 bg-white border border-stone-200 rounded-xl shadow-xl max-h-48 overflow-y-auto divide-y divide-stone-100"
               >
@@ -2466,13 +2455,12 @@ export default function BookingModal({
 
           {/* 고객 통계 및 주의 대상 실시간 표시 */}
           {clientStats && (
-            <div className={`p-3.5 rounded-xl border text-xs flex flex-col gap-1.5 transition-all ${
-              clientStats.level === 'danger' 
-                ? 'bg-rose-50 border-rose-200 text-rose-800' 
+            <div className={`p-3.5 rounded-xl border text-xs flex flex-col gap-1.5 transition-all ${clientStats.level === 'danger'
+                ? 'bg-rose-50 border-rose-200 text-rose-800'
                 : clientStats.level === 'warning'
-                ? 'bg-amber-50 border-amber-200 text-amber-800'
-                : 'bg-emerald-50/50 border-emerald-200/60 text-emerald-800'
-            }`}>
+                  ? 'bg-amber-50 border-amber-200 text-amber-800'
+                  : 'bg-emerald-50/50 border-emerald-200/60 text-emerald-800'
+              }`}>
               <div className="flex items-center justify-between font-bold">
                 <span className="flex items-center gap-1.5">
                   <span className="text-stone-700">👤 {clientStats.name} ({clientStats.phone || '-'})</span>
@@ -2591,13 +2579,12 @@ export default function BookingModal({
                         key={idx}
                         type="button"
                         onClick={() => setActiveTab(idx)}
-                        className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${
-                          isSelected
+                        className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${isSelected
                             ? 'bg-white text-emerald-850 shadow-xs border border-stone-200/20'
                             : 'text-stone-500 hover:text-stone-850 hover:bg-stone-50/50'
-                        }`}
+                          }`}
                       >
-                        👤 {idx === 0 
+                        👤 {idx === 0
                           ? (customerName.trim() || (language === 'ko' ? '예약자 본인' : 'Main Guest'))
                           : (language === 'ko' ? `동반인 ${idx}` : `Guest ${idx}`)}
                       </button>
@@ -2677,7 +2664,7 @@ export default function BookingModal({
             </div>
             {selectedPlanId && (
               <p className="text-[10px] text-emerald-700 mt-1.5 font-bold">
-                {language === 'ko' 
+                {language === 'ko'
                   ? `✓ 금액: $${price} / 서비스 시간: ${pricingPlans.find(p => p.id.toString() === selectedPlanId)?.duration_minutes}분 (종료시간 자동 설정)`
                   : `✓ Price: $${price} / Duration: ${pricingPlans.find(p => p.id.toString() === selectedPlanId)?.duration_minutes} mins (End time set automatically)`}
               </p>
@@ -2805,11 +2792,10 @@ export default function BookingModal({
                     type="button"
                     disabled={!canModify || isFormLocked}
                     onClick={() => setTherapistId('auto')}
-                    className={`px-3 py-2.5 rounded-xl border text-xs font-extrabold text-center transition-all ${
-                      therapistId === 'auto'
+                    className={`px-3 py-2.5 rounded-xl border text-xs font-extrabold text-center transition-all ${therapistId === 'auto'
                         ? 'bg-emerald-50 border-emerald-500 text-emerald-700 shadow-xs'
                         : 'bg-white border-stone-200 text-stone-600 hover:bg-stone-50'
-                    }`}
+                      }`}
                   >
                     ✨ {language === 'ko' ? '자동 선택' : 'Auto Assign'}
                   </button>
@@ -2834,13 +2820,12 @@ export default function BookingModal({
                         type="button"
                         disabled={!canModify || !isSelectable || isFormLocked}
                         onClick={() => setTherapistId(t.id.toString())}
-                        className={`px-3 py-2.5 rounded-xl border text-xs font-bold text-center transition-all relative ${
-                          isSelected
+                        className={`px-3 py-2.5 rounded-xl border text-xs font-bold text-center transition-all relative ${isSelected
                             ? 'bg-emerald-50 border-emerald-500 text-emerald-700 shadow-xs'
                             : !isSelectable
-                            ? 'bg-stone-100 border-stone-200 text-stone-400 cursor-not-allowed line-through'
-                            : 'bg-white border-stone-200 text-stone-700 hover:bg-stone-50'
-                        }`}
+                              ? 'bg-stone-100 border-stone-200 text-stone-400 cursor-not-allowed line-through'
+                              : 'bg-white border-stone-200 text-stone-700 hover:bg-stone-50'
+                          }`}
                       >
                         <div>{t.name}</div>
                         {statusText && (
@@ -2867,11 +2852,10 @@ export default function BookingModal({
                       type="button"
                       disabled={!canModify || isFormLocked}
                       onClick={() => setSecondaryTherapistId('auto')}
-                      className={`px-3 py-2.5 rounded-xl border text-xs font-extrabold text-center transition-all ${
-                        secondaryTherapistId === 'auto'
+                      className={`px-3 py-2.5 rounded-xl border text-xs font-extrabold text-center transition-all ${secondaryTherapistId === 'auto'
                           ? 'bg-sky-50 border-sky-500 text-sky-700 shadow-xs'
                           : 'bg-white border-stone-200 text-stone-600 hover:bg-stone-50'
-                      }`}
+                        }`}
                     >
                       ✨ {language === 'ko' ? '습식 자동 선택' : 'Wet Auto'}
                     </button>
@@ -2896,13 +2880,12 @@ export default function BookingModal({
                           type="button"
                           disabled={!canModify || !isSelectable || isFormLocked}
                           onClick={() => setSecondaryTherapistId(t.id.toString())}
-                          className={`px-3 py-2.5 rounded-xl border text-xs font-bold text-center transition-all relative ${
-                            isSelected
+                          className={`px-3 py-2.5 rounded-xl border text-xs font-bold text-center transition-all relative ${isSelected
                               ? 'bg-sky-50 border-sky-500 text-sky-700 shadow-xs'
                               : !isSelectable
-                              ? 'bg-stone-100 border-stone-200 text-stone-400 cursor-not-allowed line-through'
-                              : 'bg-white border-stone-200 text-sky-700 hover:bg-stone-50'
-                          }`}
+                                ? 'bg-stone-100 border-stone-200 text-stone-400 cursor-not-allowed line-through'
+                                : 'bg-white border-stone-200 text-sky-700 hover:bg-stone-50'
+                            }`}
                         >
                           <div>{t.name}</div>
                           {statusText && (
@@ -2927,11 +2910,10 @@ export default function BookingModal({
                       type="button"
                       disabled={!canModify || isFormLocked}
                       onClick={() => setTherapistId('auto')}
-                      className={`px-3 py-2.5 rounded-xl border text-xs font-extrabold text-center transition-all ${
-                        therapistId === 'auto'
+                      className={`px-3 py-2.5 rounded-xl border text-xs font-extrabold text-center transition-all ${therapistId === 'auto'
                           ? 'bg-amber-50 border-amber-500 text-amber-700 shadow-xs'
                           : 'bg-white border-stone-200 text-stone-600 hover:bg-stone-50'
-                      }`}
+                        }`}
                     >
                       ✨ {language === 'ko' ? '건식 자동 선택' : 'Dry Auto'}
                     </button>
@@ -2958,13 +2940,12 @@ export default function BookingModal({
                           type="button"
                           disabled={!canModify || !isSelectable || isFormLocked}
                           onClick={() => setTherapistId(t.id.toString())}
-                          className={`px-3 py-2.5 rounded-xl border text-xs font-bold text-center transition-all relative ${
-                            isSelected
+                          className={`px-3 py-2.5 rounded-xl border text-xs font-bold text-center transition-all relative ${isSelected
                               ? 'bg-amber-50 border-amber-500 text-amber-700 shadow-xs'
                               : !isSelectable
-                              ? 'bg-stone-100 border-stone-200 text-stone-400 cursor-not-allowed line-through'
-                              : 'bg-white border-stone-200 text-stone-700 hover:bg-stone-50'
-                          }`}
+                                ? 'bg-stone-100 border-stone-200 text-stone-400 cursor-not-allowed line-through'
+                                : 'bg-white border-stone-200 text-stone-700 hover:bg-stone-50'
+                            }`}
                         >
                           <div>{t.name}</div>
                           {statusText && (
@@ -2997,11 +2978,10 @@ export default function BookingModal({
                     {getTherapistScheduleList(therapistId, planCategory === 'wet' ? 'wet' : 'dry').map(item => (
                       <div
                         key={item.id}
-                        className={`flex items-center justify-between text-xs rounded-lg p-2 font-medium border ${
-                          item.isSelf
+                        className={`flex items-center justify-between text-xs rounded-lg p-2 font-medium border ${item.isSelf
                             ? 'bg-emerald-50 border-emerald-200 text-emerald-700 font-bold'
                             : 'bg-rose-50 border border-rose-200 text-rose-700'
-                        }`}
+                          }`}
                       >
                         <span>{language === 'ko' ? `👤 ${item.customerName} 고객님` : `👤 Client ${item.customerName}`}</span>
                         <span className="font-mono text-[11px] font-semibold">{item.timeStr}</span>
@@ -3028,11 +3008,10 @@ export default function BookingModal({
                       {getTherapistScheduleList(secondaryTherapistId, 'wet').map(item => (
                         <div
                           key={item.id}
-                          className={`flex items-center justify-between text-[11px] rounded-lg p-1.5 font-medium border ${
-                            item.isSelf
+                          className={`flex items-center justify-between text-[11px] rounded-lg p-1.5 font-medium border ${item.isSelf
                               ? 'bg-emerald-50 border-emerald-200 text-emerald-700 font-bold'
                               : 'bg-rose-50/75 border-rose-200 text-rose-700'
-                          }`}
+                            }`}
                         >
                           <span>{item.customerName}</span>
                           <span className="font-mono text-[10px]">{item.timeStr}</span>
@@ -3057,11 +3036,10 @@ export default function BookingModal({
                       {getTherapistScheduleList(therapistId, 'dry').map(item => (
                         <div
                           key={item.id}
-                          className={`flex items-center justify-between text-[11px] rounded-lg p-1.5 font-medium border ${
-                            item.isSelf
+                          className={`flex items-center justify-between text-[11px] rounded-lg p-1.5 font-medium border ${item.isSelf
                               ? 'bg-emerald-50 border-emerald-200 text-emerald-700 font-bold'
                               : 'bg-rose-50/75 border-rose-200 text-rose-700'
-                          }`}
+                            }`}
                         >
                           <span>{item.customerName}</span>
                           <span className="font-mono text-[10px]">{item.timeStr}</span>
@@ -3077,40 +3055,37 @@ export default function BookingModal({
 
         {/* 푸터 액션 */}
         {isCancelling ? (
-          <div className="p-5 border-t border-stone-200 bg-stone-100 flex flex-col gap-3 w-full animate-in slide-in-from-bottom duration-250">
+          <div className="py-3.5 px-5 border-t border-stone-200 bg-stone-100 flex flex-col gap-3 w-full animate-in slide-in-from-bottom duration-250">
             <div className="flex flex-col gap-1.5 text-xs">
               <span className="font-bold text-rose-700">⚠️ {t('booking.modal.cancel.type_label')}</span>
               <div className="grid grid-cols-3 gap-3 mt-1.5">
                 <button
                   type="button"
                   onClick={() => setSelectedCancelType('normal')}
-                  className={`flex flex-col items-center justify-center rounded-xl p-3 border text-xs font-bold transition-all ${
-                    selectedCancelType === 'normal'
+                  className={`flex flex-col items-center justify-center rounded-xl p-3 border text-xs font-bold transition-all ${selectedCancelType === 'normal'
                       ? 'border-blue-600 bg-blue-50 text-blue-800'
                       : 'border-stone-200 bg-white hover:bg-stone-100 text-stone-600'
-                  }`}
+                    }`}
                 >
                   <span>{t('booking.modal.cancel.type_normal')}</span>
                 </button>
                 <button
                   type="button"
                   onClick={() => setSelectedCancelType('request')}
-                  className={`flex flex-col items-center justify-center rounded-xl p-3 border text-xs font-bold transition-all ${
-                    selectedCancelType === 'request'
+                  className={`flex flex-col items-center justify-center rounded-xl p-3 border text-xs font-bold transition-all ${selectedCancelType === 'request'
                       ? 'border-emerald-600 bg-emerald-50 text-emerald-800'
                       : 'border-stone-200 bg-white hover:bg-stone-100 text-stone-600'
-                  }`}
+                    }`}
                 >
                   <span>{t('booking.modal.cancel.type_request')}</span>
                 </button>
                 <button
                   type="button"
                   onClick={() => setSelectedCancelType('noshow')}
-                  className={`flex flex-col items-center justify-center rounded-xl p-3 border text-xs font-bold transition-all ${
-                    selectedCancelType === 'noshow'
+                  className={`flex flex-col items-center justify-center rounded-xl p-3 border text-xs font-bold transition-all ${selectedCancelType === 'noshow'
                       ? 'border-rose-600 bg-rose-50 text-rose-700'
                       : 'border-stone-200 bg-white hover:bg-stone-100 text-stone-600'
-                  }`}
+                    }`}
                 >
                   <span>{t('booking.modal.cancel.type_noshow')}</span>
                 </button>
@@ -3136,9 +3111,9 @@ export default function BookingModal({
             </div>
           </div>
         ) : (
-          <div className="p-5 border-t border-stone-200 bg-stone-100 flex flex-col md:flex-row md:items-center justify-between gap-3">
-            {/* 예약 취소 버튼 (수정 모드이면서 RLS 권한 권한 소지 시, 그리고 체크인이 안 되었거나 매니저일 때만 노출) */}
-            {isEditMode && canModify && selectedReservation.status === 'confirmed' && (!isCheckedIn || currentUserRole === 'manager') ? (
+          <div className="py-3.5 px-5 border-t border-stone-200 bg-stone-100 flex flex-col md:flex-row md:items-center justify-between gap-3">
+            {/* 예약 취소 버튼 (수정 모드이면서 RLS 권한 권한 소지 시 노출) */}
+            {isEditMode && canModify && selectedReservation.status === 'confirmed' ? (
               <button
                 type="button"
                 onClick={handleCancelReservation}
@@ -3196,10 +3171,10 @@ export default function BookingModal({
                   disabled={loading}
                   className="rounded-xl bg-emerald-700 hover:bg-emerald-600 text-white shadow-sm shadow-emerald-900/10 px-6 py-3 text-xs font-bold transition-all disabled:opacity-50 flex items-center justify-center"
                 >
-                  {loading 
-                    ? (language === 'ko' ? '처리 중...' : 'Processing...') 
-                    : isEditMode 
-                      ? t('therapist.save') 
+                  {loading
+                    ? (language === 'ko' ? '처리 중...' : 'Processing...')
+                    : isEditMode
+                      ? t('therapist.save')
                       : (language === 'ko' ? '예약 접수하기' : 'Book Now')}
                 </button>
               )}
@@ -3212,7 +3187,7 @@ export default function BookingModal({
       {pendingProposal && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-in fade-in duration-200">
           <div className="bg-stone-50 rounded-3xl p-6 shadow-2xl max-w-lg w-full border border-stone-200/60 animate-in zoom-in-95 duration-200 flex flex-col gap-5 relative">
-            
+
             {/* Header */}
             <div className="flex items-center justify-between border-b border-stone-200/50 pb-3 pr-8">
               <div className="flex items-center gap-3">
@@ -3261,7 +3236,7 @@ export default function BookingModal({
 
                 // 현재 이 손님의 시간대 폼 상태값 가져오기
                 const currentComp = companions[idx]
-                const currentStr = currentComp 
+                const currentStr = currentComp
                   ? `${String(currentComp.startHour).padStart(2, '0')}:${String(currentComp.startMinute).padStart(2, '0')} ~ ${String(currentComp.endHour).padStart(2, '0')}:${String(currentComp.endMinute).padStart(2, '0')}`
                   : ''
 
@@ -3296,11 +3271,10 @@ export default function BookingModal({
                                 key={pIdx}
                                 type="button"
                                 onClick={() => handleApplyGuestProposal(idx, p.hour, p.minute)}
-                                className={`flex-1 py-2 px-2.5 rounded-xl border text-[11px] font-mono font-bold text-center transition-all ${
-                                  isCurrentlySelected
+                                className={`flex-1 py-2 px-2.5 rounded-xl border text-[11px] font-mono font-bold text-center transition-all ${isCurrentlySelected
                                     ? 'bg-emerald-50 border-emerald-500 text-emerald-700 shadow-inner'
                                     : 'bg-stone-50 border-stone-200 text-stone-700 hover:bg-stone-100 hover:border-stone-300'
-                                }`}
+                                  }`}
                               >
                                 {p.timeStr}
                               </button>

@@ -138,8 +138,9 @@ export default function ListView({
               const therapist = therapists.find(t => t.id === res.therapist_id)
               const isOwner = res.created_by === currentUserId
               const isManager = currentUserRole === 'manager'
+              const isLeader = currentUserRole === 'leader'
               const isStaff = currentUserRole === 'staff'
-              const canModify = isManager || isStaff
+              const canModify = isManager || isLeader || isStaff
 
               return (
                 <tr
@@ -240,8 +241,9 @@ export default function ListView({
           const therapist = therapists.find(t => t.id === res.therapist_id)
           const isOwner = res.created_by === currentUserId
           const isManager = currentUserRole === 'manager'
+          const isLeader = currentUserRole === 'leader'
           const isStaff = currentUserRole === 'staff'
-          const canModify = isManager || isStaff
+          const canModify = isManager || isLeader || isStaff
 
           return (
             <div
