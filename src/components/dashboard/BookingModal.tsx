@@ -1,7 +1,7 @@
 'use client'
 
 import React, { useState, useEffect, useRef } from 'react'
-import { X, Calendar, User, Phone, DollarSign, UserCheck, Trash2, Ban } from 'lucide-react'
+import { X, Calendar, User, Phone, DollarSign, UserCheck, Trash2, Ban, Key } from 'lucide-react'
 import { assignTherapist } from '@/utils/booking/assignTherapist'
 import { Reservation, Therapist } from './CalendarView'
 import { SupabaseClient } from '@supabase/supabase-js'
@@ -20,6 +20,7 @@ interface BookingModalProps {
   reservations: Reservation[]
   currentUserId: string
   currentUserRole: UserSim['role']
+  isWalkIn?: boolean
 
   // 수정 모드일 때 전달받을 예약 정보
   selectedReservation?: Reservation | null
@@ -41,7 +42,8 @@ export default function BookingModal({
   selectedReservation,
   initialTime,
   initialTherapistId,
-  defaultDate
+  defaultDate,
+  isWalkIn = false
 }: BookingModalProps) {
   const [customerName, setCustomerName] = useState('')
   const [customerPhone, setCustomerPhone] = useState('')
@@ -76,11 +78,14 @@ export default function BookingModal({
     therapistId: string
     secondaryTherapistId: string
     delayMinutes: number
+    lockerNumber?: string
   }[]>([
-    { planId: '', price: 80, startHour: 9, startMinute: 0, endHour: 10, endMinute: 0, therapistId: 'auto', secondaryTherapistId: 'auto', delayMinutes: 30 }
+    { planId: '', price: 80, startHour: 9, startMinute: 0, endHour: 10, endMinute: 0, therapistId: 'auto', secondaryTherapistId: 'auto', delayMinutes: 30, lockerNumber: '' }
   ])
   const [isSamePlanApplied, setIsSamePlanApplied] = useState(true)
   const [isSameTimeApplied, setIsSameTimeApplied] = useState(true)
+  const [lockerNumber, setLockerNumber] = useState('')
+  const [isCheckedIn, setIsCheckedIn] = useState(false)
 
   interface GuestProposal {
     name: string
@@ -584,7 +589,7 @@ export default function BookingModal({
     setCompanions(prev => {
       const updated = [...prev]
       if (newCount > prev.length) {
-        const base = prev[0] || { planId: '', price: 80, startHour: 9, startMinute: 0, endHour: 10, endMinute: 0, therapistId: 'auto', secondaryTherapistId: 'auto', delayMinutes: 30 }
+        const base = prev[0] || { planId: '', price: 80, startHour: 9, startMinute: 0, endHour: 10, endMinute: 0, therapistId: 'auto', secondaryTherapistId: 'auto', delayMinutes: 30, lockerNumber: '' }
         for (let i = prev.length; i < newCount; i++) {
           updated.push({
             planId: isSamePlanApplied ? base.planId : '',
@@ -595,7 +600,8 @@ export default function BookingModal({
             endMinute: isSameTimeApplied ? base.endMinute : 0,
             therapistId: 'auto',
             secondaryTherapistId: 'auto',
-            delayMinutes: isSameTimeApplied ? base.delayMinutes : 30
+            delayMinutes: isSameTimeApplied ? base.delayMinutes : 30,
+            lockerNumber: ''
           })
         }
       } else if (newCount < prev.length) {
@@ -704,7 +710,8 @@ export default function BookingModal({
         current.endMinute !== endMinute ||
         current.therapistId !== therapistId ||
         current.secondaryTherapistId !== secondaryTherapistId ||
-        current.delayMinutes !== delayMinutes
+        current.delayMinutes !== delayMinutes ||
+        current.lockerNumber !== lockerNumber
       ) {
         updated[activeTab] = {
           planId: selectedPlanId,
@@ -715,7 +722,8 @@ export default function BookingModal({
           endMinute,
           therapistId,
           secondaryTherapistId,
-          delayMinutes
+          delayMinutes,
+          lockerNumber
         }
 
         // 0번 탭(예약자 본인) 수정 시 일괄 적용 룰 전파
@@ -747,6 +755,7 @@ export default function BookingModal({
     therapistId,
     secondaryTherapistId,
     delayMinutes,
+    lockerNumber,
     activeTab,
     isOpen,
     isSamePlanApplied,
@@ -766,10 +775,10 @@ export default function BookingModal({
     setTherapistId(current.therapistId)
     setSecondaryTherapistId(current.secondaryTherapistId)
     setDelayMinutes(current.delayMinutes)
+    setLockerNumber(current.lockerNumber || '')
   }, [activeTab, isOpen])
 
-  const [lockerNumber, setLockerNumber] = useState('')
-  const [isCheckedIn, setIsCheckedIn] = useState(false)
+
 
   const [loading, setLoading] = useState(false)
   const [errorMsg, setErrorMsg] = useState<string | null>(null)
@@ -1271,6 +1280,11 @@ export default function BookingModal({
     setSelectedPlanId(planIdStr)
     setTherapistId('auto')
     setSecondaryTherapistId('auto')
+    
+    if (activeTab > 0) {
+      setIsSamePlanApplied(false)
+    }
+
     const plan = pricingPlans.find(p => p.id.toString() === planIdStr)
     if (plan) {
       setPrice(Number(plan.price))
@@ -1399,6 +1413,7 @@ export default function BookingModal({
         setIsSamePlanApplied(true)
         setIsSameTimeApplied(true)
         setDelayMinutes(30)
+        setLockerNumber('')
         setCompanions([{
           planId: '',
           price: 80,
@@ -1408,7 +1423,8 @@ export default function BookingModal({
           endMinute: em,
           therapistId: initialTherapistId?.toString() || 'auto',
           secondaryTherapistId: 'auto',
-          delayMinutes: 30
+          delayMinutes: 30,
+          lockerNumber: ''
         }])
       }
     }
@@ -1617,7 +1633,7 @@ export default function BookingModal({
   // 4. 예약 등록 / 수정 처리 핸들러
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!customerName.trim()) {
+    if (!isWalkIn && !customerName.trim()) {
       setErrorMsg(language === 'ko' ? '고객 이름을 입력해 주세요.' : 'Please enter client name.')
       return
     }
@@ -1642,6 +1658,37 @@ export default function BookingModal({
       return
     }
 
+    // Walk-in 접수 시 라커번호 입력 검증
+    if (isWalkIn && !isEditMode) {
+      const activeCompanions = [...companions]
+      if (activeCompanions.length > activeTab) {
+        activeCompanions[activeTab] = {
+          planId: selectedPlanId,
+          price,
+          startHour,
+          startMinute,
+          endHour,
+          endMinute,
+          therapistId,
+          secondaryTherapistId,
+          delayMinutes,
+          lockerNumber
+        }
+      }
+      for (let i = 0; i < personCount; i++) {
+        const comp = activeCompanions[i]
+        const compLocker = comp.lockerNumber
+        if (!compLocker || !compLocker.trim()) {
+          setErrorMsg(
+            language === 'ko'
+              ? `${i === 0 ? '예약자' : `동반인 ${i}`}의 라커 번호를 입력해 주세요.`
+              : `Please enter locker number for ${i === 0 ? 'main guest' : `guest ${i}`}.`
+          )
+          return
+        }
+      }
+    }
+
     // PIN 입력 전에 그룹 배정 가능 여부 사전 검증 (신규 + 수정 모드 공통)
     // simulateCurrentAssignment: 각 게스트의 개별 시간으로 그리디 배정 시뮬레이션 수행
     {
@@ -1655,7 +1702,8 @@ export default function BookingModal({
         endMinute,
         therapistId,
         secondaryTherapistId,
-        delayMinutes
+        delayMinutes,
+        lockerNumber
       }
 
       // isSameTimeApplied인 경우 다른 탭도 동기화
@@ -1687,7 +1735,13 @@ export default function BookingModal({
       console.log('[handleSubmit] 사전 검증 통과 - PIN 모달 열기 진행')
     }
 
-    setPinActionTitle(isEditMode ? (language === 'ko' ? '예약 수정 PIN 인증' : 'Update Booking PIN Auth') : (language === 'ko' ? '신규 예약 PIN 인증' : 'New Booking PIN Auth'))
+    setPinActionTitle(
+      isEditMode
+        ? (language === 'ko' ? '예약 수정 PIN 인증' : 'Update Booking PIN Auth')
+        : isWalkIn
+          ? (language === 'ko' ? 'Walk-in 접수 PIN 인증' : 'Walk-In Booking PIN Auth')
+          : (language === 'ko' ? '신규 예약 PIN 인증' : 'New Booking PIN Auth')
+    )
     setPendingAction(() => (performer: PinAuthResult) => executeSubmit(performer))
     setPinModalOpen(true)
   }
@@ -1712,7 +1766,8 @@ export default function BookingModal({
           endMinute,
           therapistId,
           secondaryTherapistId,
-          delayMinutes
+          delayMinutes,
+          lockerNumber
         }
 
         if (activeTab === 0) {
@@ -1929,8 +1984,21 @@ export default function BookingModal({
         // [신규 등록 모드 - 다중 예약 및 동시 배정 처리]
         // ==========================================
         const insertPayloads: any[] = []
-        // Store actual service segments so this matches the pre-PIN simulator.
-        const assignedSegments: { therapistId: number; startMs: number; endMs: number }[] = []
+        
+        // 1. 모든 예약자 및 동반인의 개별 서비스 세그먼트 수집
+        interface ServiceSegment {
+          guestIndex: number
+          type: 'wet' | 'dry'
+          price: number
+          startTimeISO: string
+          endTimeISO: string
+          requestedTherapistId?: number
+          startMs: number
+          endMs: number
+        }
+
+        const segmentsToAssign: ServiceSegment[] = []
+        const offset = getLocalTimezoneOffsetString()
 
         for (let i = 0; i < personCount; i++) {
           const comp = activeCompanions[i]
@@ -1948,7 +2016,6 @@ export default function BookingModal({
           const sMinStr = String(comp.startMinute).padStart(2, '0')
           const eHourStr = String(comp.endHour).padStart(2, '0')
           const eMinStr = String(comp.endMinute).padStart(2, '0')
-          const offset = getLocalTimezoneOffsetString()
 
           const compStartISO = `${date}T${sHourStr}:${sMinStr}:00${offset}`
           const compEndISO = `${date}T${eHourStr}:${eMinStr}:00${offset}`
@@ -1956,45 +2023,114 @@ export default function BookingModal({
           const compStartMs = new Date(compStartISO).getTime()
           const compEndMs = new Date(compEndISO).getTime()
 
-          // 콤보의 내부 세그먼트 빌드
-          const bathDur = compPlan.bath_duration_minutes || 60
-          const bathStart = compStartISO
+          if (compIsCombo) {
+            const bathDur = compPlan.bath_duration_minutes || 60
+            const bathStart = compStartISO
+            const bathEndObj = new Date(compStartMs + bathDur * 60000)
+            const bathEnd = `${date}T${String(bathEndObj.getHours()).padStart(2, '0')}:${String(bathEndObj.getMinutes()).padStart(2, '0')}:00${offset}`
 
-          const bathEndObj = new Date(compStartMs + bathDur * 60000)
-          const bathEnd = `${date}T${String(bathEndObj.getHours()).padStart(2, '0')}:${String(bathEndObj.getMinutes()).padStart(2, '0')}:00${offset}`
+            const dryStartObj = new Date(compStartMs + (bathDur + (comp.delayMinutes ?? 30)) * 60000)
+            const dryStart = `${date}T${String(dryStartObj.getHours()).padStart(2, '0')}:${String(dryStartObj.getMinutes()).padStart(2, '0')}:00${offset}`
+            const dryEnd = compEndISO
 
-          const dryStartObj = new Date(compStartMs + (bathDur + (comp.delayMinutes ?? 30)) * 60000)
-          const dryStart = `${date}T${String(dryStartObj.getHours()).padStart(2, '0')}:${String(dryStartObj.getMinutes()).padStart(2, '0')}:00${offset}`
-          const dryEnd = compEndISO
+            // 콤보의 습식(wet) 세그먼트
+            segmentsToAssign.push({
+              guestIndex: i,
+              type: 'wet',
+              price: Number(compPlan.bath_price || 0),
+              startTimeISO: bathStart,
+              endTimeISO: bathEnd,
+              requestedTherapistId: comp.secondaryTherapistId === 'auto' ? undefined : Number(comp.secondaryTherapistId),
+              startMs: compStartMs,
+              endMs: new Date(bathEnd).getTime()
+            })
 
-          // 시간대가 겹치는 다른 탭의 선점 마사지사 ID 모으기
-          const mainStartMs = compIsCombo ? new Date(dryStart).getTime() : compStartMs
-          const mainEndMs = compIsCombo ? new Date(dryEnd).getTime() : compEndMs
-          const blockedTherapists = assignedSegments
-            .filter(segment => segment.startMs < mainEndMs && segment.endMs > mainStartMs)
-            .map(segment => segment.therapistId)
+            // 콤보의 건식(dry) 세그먼트
+            segmentsToAssign.push({
+              guestIndex: i,
+              type: 'dry',
+              price: Number(compPlan.massage_price || 0),
+              startTimeISO: dryStart,
+              endTimeISO: dryEnd,
+              requestedTherapistId: comp.therapistId === 'auto' ? undefined : Number(comp.therapistId),
+              startMs: new Date(dryStart).getTime(),
+              endMs: compEndMs
+            })
+          } else {
+            // 단일 요금제 세그먼트
+            const isWet = compPlan.category === 'wet'
+            const segPrice = isWet 
+              ? Number(compPlan.bath_price || compPlan.price || 0)
+              : Number(compPlan.massage_price || compPlan.price || 0)
 
-          let assignedId: number | null = null
-          let assignedName = ''
-          let assignedSecondaryId: number | null = null
-          let assignedSecondaryName = ''
+            segmentsToAssign.push({
+              guestIndex: i,
+              type: isWet ? 'wet' : 'dry',
+              price: segPrice,
+              startTimeISO: compStartISO,
+              endTimeISO: compEndISO,
+              requestedTherapistId: comp.therapistId === 'auto' ? undefined : Number(comp.therapistId),
+              startMs: compStartMs,
+              endMs: compEndMs
+            })
+          }
+        }
 
-          const reqTherapistId = comp.therapistId === 'auto' ? undefined : Number(comp.therapistId)
-          const mainCategory = compIsCombo ? 'dry' : compPlan.category
+        // 2. 금액(price) 기준 내림차순 정렬 (동일 금액이면 예약 정렬 유지)
+        segmentsToAssign.sort((a, b) => b.price - a.price)
 
+        // 3. 정렬된 서비스 세그먼트 순으로 마사지사 배정 실행
+        interface GuestAssignmentResult {
+          assignedId: number | null
+          assignedName: string
+          assignedSecondaryId: number | null
+          assignedSecondaryName: string
+        }
+
+        const guestResults: GuestAssignmentResult[] = Array.from({ length: personCount }, () => ({
+          assignedId: null,
+          assignedName: '',
+          assignedSecondaryId: null,
+          assignedSecondaryName: ''
+        }))
+
+        // 선점 마사지사 관리
+        const assignedSegments: { therapistId: number; startMs: number; endMs: number; guestIndex: number }[] = []
+
+        for (const seg of segmentsToAssign) {
+          // A. 다른 예약자들 중 이 세그먼트 시간대와 겹치는 선점 마사지사 ID 수집
+          const blockedTherapists = [
+            ...assignedSegments
+              .filter(segment => segment.startMs < seg.endMs && segment.endMs > seg.startMs)
+              .map(segment => segment.therapistId)
+          ]
+
+          // B. 콤보 상품인 경우, 동일한 손님(guestIndex)의 다른 세그먼트에 이미 배정된 마사지사 ID 제외 추가
+          const sameGuestAssignments = assignedSegments.filter(s => s.guestIndex === seg.guestIndex)
+          sameGuestAssignments.forEach(s => {
+            if (!blockedTherapists.includes(s.therapistId)) {
+              blockedTherapists.push(s.therapistId)
+            }
+          })
+
+          // C. 마사지사 배정
           const assignResult = await assignTherapist({
             supabase,
-            startTime: compIsCombo ? dryStart : compStartISO,
-            endTime: compIsCombo ? dryEnd : compEndISO,
-            price: comp.price,
-            therapistId: reqTherapistId,
-            category: mainCategory,
+            startTime: seg.startTimeISO,
+            endTime: seg.endTimeISO,
+            price: seg.price,
+            therapistId: seg.requestedTherapistId,
+            category: seg.type,
             excludeTherapistIds: blockedTherapists
           })
 
           if (!assignResult.success || !assignResult.therapistId) {
-            console.error("Companion assignment dry error:", assignResult.error)
-            setErrorMsg(assignResult.error || (language === 'ko' ? '건식 마사지사 배정에 실패했습니다.' : 'Failed to assign dry therapist.'))
+            console.error(`Companion assignment error (Category: ${seg.type}, Guest: ${seg.guestIndex}):`, assignResult.error)
+            const errMsg = seg.type === 'wet'
+              ? (language === 'ko' ? '습식 마사지사 배정에 실패했습니다.' : 'Failed to assign wet therapist.')
+              : (language === 'ko' ? '건식 마사지사 배정에 실패했습니다.' : 'Failed to assign dry therapist.')
+            setErrorMsg(assignResult.error || errMsg)
+            
             const guestProposals = scanGuestProposals()
             setPendingProposal({
               guests: guestProposals
@@ -2003,55 +2139,54 @@ export default function BookingModal({
             return
           }
 
-          assignedId = assignResult.therapistId
-          assignedName = assignResult.therapistName || ''
+          const assignedTherapistId = assignResult.therapistId
+          const assignedTherapistName = assignResult.therapistName || ''
 
-          if (compIsCombo) {
-            const reqSecondaryId = comp.secondaryTherapistId === 'auto' ? undefined : Number(comp.secondaryTherapistId)
-            const bathStartMs = compStartMs
-            const bathEndMs = new Date(bathEnd).getTime()
-            const secondaryBlocked = [
-              ...assignedSegments
-                .filter(segment => segment.startMs < bathEndMs && segment.endMs > bathStartMs)
-                .map(segment => segment.therapistId),
-              assignedId
-            ]
-
-            const assignSecondaryResult = await assignTherapist({
-              supabase,
-              startTime: bathStart,
-              endTime: bathEnd,
-              price: comp.price,
-              therapistId: reqSecondaryId,
-              category: 'wet',
-              excludeTherapistIds: secondaryBlocked
-            })
-
-            if (!assignSecondaryResult.success || !assignSecondaryResult.therapistId) {
-              console.error("Companion assignment wet error:", assignSecondaryResult.error)
-              setErrorMsg(assignSecondaryResult.error || (language === 'ko' ? '습식 마사지사 배정에 실패했습니다.' : 'Failed to assign wet therapist.'))
-              const guestProposals = scanGuestProposals()
-              setPendingProposal({
-                guests: guestProposals
-              })
-              setLoading(false)
-              return
+          // D. 결과를 guestResults에 매핑
+          if (seg.type === 'wet') {
+            const comp = activeCompanions[seg.guestIndex]
+            const compPlan = pricingPlans.find(p => p.id.toString() === comp.planId)
+            if (compPlan && compPlan.category === 'combo') {
+              guestResults[seg.guestIndex].assignedSecondaryId = assignedTherapistId
+              guestResults[seg.guestIndex].assignedSecondaryName = assignedTherapistName
+            } else {
+              guestResults[seg.guestIndex].assignedId = assignedTherapistId
+              guestResults[seg.guestIndex].assignedName = assignedTherapistName
             }
-
-            assignedSecondaryId = assignSecondaryResult.therapistId
-            assignedSecondaryName = assignSecondaryResult.therapistName || ''
+          } else {
+            guestResults[seg.guestIndex].assignedId = assignedTherapistId
+            guestResults[seg.guestIndex].assignedName = assignedTherapistName
           }
 
-          assignedSegments.push({ therapistId: assignedId, startMs: mainStartMs, endMs: mainEndMs })
-          if (assignedSecondaryId) {
-            assignedSegments.push({
-              therapistId: assignedSecondaryId,
-              startMs: compStartMs,
-              endMs: new Date(bathEnd).getTime()
-            })
-          }
+          // E. 선점 정보 기록
+          assignedSegments.push({
+            therapistId: assignedTherapistId,
+            startMs: seg.startMs,
+            endMs: seg.endMs,
+            guestIndex: seg.guestIndex
+          })
+        }
 
-          const targetName = i === 0 ? customerName : `${customerName} (동반 ${i})`
+        // 4. 배정이 정상 완료되면 insertPayloads 구성
+        for (let i = 0; i < personCount; i++) {
+          const comp = activeCompanions[i]
+          const compPlan = pricingPlans.find(p => p.id.toString() === comp.planId)
+          if (!compPlan) continue
+
+          const sHourStr = String(comp.startHour).padStart(2, '0')
+          const sMinStr = String(comp.startMinute).padStart(2, '0')
+          const eHourStr = String(comp.endHour).padStart(2, '0')
+          const eMinStr = String(comp.endMinute).padStart(2, '0')
+
+          const compStartISO = `${date}T${sHourStr}:${sMinStr}:00${offset}`
+          const compEndISO = `${date}T${eHourStr}:${eMinStr}:00${offset}`
+
+          const nameClean = customerName.trim()
+          const targetName = nameClean
+            ? (i === 0 ? nameClean : `${nameClean} (동반 ${i})`)
+            : (i === 0 ? "Walk-in" : `Walk-in (동반 ${i})`)
+          const resResult = guestResults[i]
+
           insertPayloads.push({
             customer_name: targetName,
             customer_phone: stripPhone(customerPhone),
@@ -2059,11 +2194,13 @@ export default function BookingModal({
             end_time: compEndISO,
             price: comp.price,
             pricing_plan_id: Number(comp.planId),
-            therapist_id: assignedId,
-            secondary_therapist_id: assignedSecondaryId,
+            therapist_id: resResult.assignedId,
+            secondary_therapist_id: resResult.assignedSecondaryId,
             delay_minutes: comp.delayMinutes,
             created_by: performerUuid,
-            status: 'confirmed'
+            status: 'confirmed',
+            is_checked_in: isWalkIn,
+            locker_number: isWalkIn ? (comp.lockerNumber || '').trim() : null
           })
         }
 
@@ -2277,7 +2414,7 @@ export default function BookingModal({
         <div className="flex items-center justify-between py-3.5 px-5 border-b border-stone-200 bg-stone-100">
           <h2 className="text-lg font-bold tracking-tight text-stone-800 flex items-center gap-2">
             <Calendar className="w-5 h-5 text-emerald-700" />
-            {isEditMode ? t('booking.modal.edit') : t('booking.modal.new')}
+            {isEditMode ? t('booking.modal.edit') : isWalkIn ? (language === 'ko' ? 'Walk-in 접수' : 'Walk-In Registration') : t('booking.modal.new')}
           </h2>
           <button
             onClick={onClose}
@@ -2298,7 +2435,9 @@ export default function BookingModal({
 
           {/* 고객명 */}
           <div className={`relative ${activeInput === 'name' && showSuggestions && suggestions.length > 0 ? 'z-30' : 'z-10'}`}>
-            <label className="block text-xs font-bold text-stone-600 mb-1.5 uppercase tracking-wider">{t('booking.modal.client_name')}</label>
+            <label className="block text-xs font-bold text-stone-600 mb-1.5 uppercase tracking-wider">
+              {isWalkIn ? (language === 'ko' ? '고객명 (선택)' : 'Client Name (Optional)') : t('booking.modal.client_name')}
+            </label>
             <div className="relative">
               <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-stone-400">
                 <User className="w-4 h-4" />
@@ -2376,7 +2515,9 @@ export default function BookingModal({
 
           {/* 연락처 */}
           <div className={`relative ${activeInput === 'phone' && showSuggestions && suggestions.length > 0 ? 'z-30' : 'z-10'}`}>
-            <label className="block text-xs font-bold text-stone-600 mb-1.5 uppercase tracking-wider">{t('list.table.phone')}</label>
+            <label className="block text-xs font-bold text-stone-600 mb-1.5 uppercase tracking-wider">
+              {isWalkIn ? (language === 'ko' ? '전화번호 (선택)' : 'Phone Number (Optional)') : t('list.table.phone')}
+            </label>
             <div className="relative">
               <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-stone-400">
                 <Phone className="w-4 h-4" />
@@ -2683,6 +2824,9 @@ export default function BookingModal({
                     const newHour = Number(e.target.value)
                     setStartHour(newHour)
                     updateEndTimeWithPlan(newHour, startMinute, selectedPlanId)
+                    if (activeTab > 0) {
+                      setIsSameTimeApplied(false)
+                    }
                   }}
                   className="flex-1 bg-white border border-stone-200 rounded-xl px-3 py-3 text-xs text-stone-800 focus:outline-none focus:border-emerald-500/80 transition-colors disabled:opacity-50"
                 >
@@ -2699,6 +2843,9 @@ export default function BookingModal({
                     const newMinute = Number(e.target.value)
                     setStartMinute(newMinute)
                     updateEndTimeWithPlan(startHour, newMinute, selectedPlanId)
+                    if (activeTab > 0) {
+                      setIsSameTimeApplied(false)
+                    }
                   }}
                   className="flex-1 bg-white border border-stone-200 rounded-xl px-3 py-3 text-xs text-stone-800 focus:outline-none focus:border-emerald-500/80 transition-colors disabled:opacity-50"
                 >
@@ -2757,7 +2904,12 @@ export default function BookingModal({
                   setDelayMinutesDraft(nextValue)
                   if (nextValue !== '') {
                     const parsed = Number(nextValue)
-                    if (Number.isFinite(parsed)) setDelayMinutes(parsed)
+                    if (Number.isFinite(parsed)) {
+                      setDelayMinutes(parsed)
+                      if (activeTab > 0) {
+                        setIsSameTimeApplied(false)
+                      }
+                    }
                   }
                 }}
                 onBlur={commitDelayMinutes}
@@ -2765,6 +2917,28 @@ export default function BookingModal({
                 className="w-16 bg-white border border-stone-200 rounded-lg px-2 py-2 text-xs text-stone-800 focus:outline-none focus:border-emerald-500/80 transition-colors disabled:opacity-50"
               />
               <span className="text-xs text-stone-500">분</span>
+            </div>
+          )}
+
+          {/* Walk-in일 때 라커번호 입력칸 노출 */}
+          {isWalkIn && !isEditMode && (
+            <div>
+              <label className="block text-xs font-bold text-stone-600 mb-1.5 uppercase tracking-wider">
+                🔑 {language === 'ko' ? '라커 번호 (필수)' : 'Locker Number (Required)'}
+              </label>
+              <div className="relative">
+                <span className="absolute inset-y-0 left-0 flex items-center pl-3 text-stone-400">
+                  <Key className="w-4 h-4" />
+                </span>
+                <input
+                  type="text"
+                  placeholder={language === 'ko' ? '라커 번호 입력' : 'Enter Locker Number'}
+                  value={lockerNumber}
+                  disabled={!canModify || isFormLocked}
+                  onChange={(e) => setLockerNumber(e.target.value)}
+                  className="w-full bg-white border border-stone-200 rounded-xl pl-9 pr-3.5 py-3 text-sm text-stone-800 placeholder-stone-400 focus:outline-none focus:border-emerald-500/80 transition-colors disabled:opacity-50"
+                />
+              </div>
             </div>
           )}
 
@@ -3175,7 +3349,9 @@ export default function BookingModal({
                     ? (language === 'ko' ? '처리 중...' : 'Processing...')
                     : isEditMode
                       ? t('therapist.save')
-                      : (language === 'ko' ? '예약 접수하기' : 'Book Now')}
+                      : isWalkIn
+                        ? (language === 'ko' ? '체크인 및 접수' : 'Check-In & Book')
+                        : (language === 'ko' ? '예약 접수하기' : 'Book Now')}
                 </button>
               )}
             </div>

@@ -8,7 +8,7 @@ import CalendarView, { Reservation, Therapist } from '@/components/dashboard/Cal
 import ListView from '@/components/dashboard/ListView'
 import BookingModal from '@/components/dashboard/BookingModal'
 import DashboardLayout from '@/components/layout/DashboardLayout'
-import { Plus } from 'lucide-react'
+import { Plus, Key } from 'lucide-react'
 import { toLocalDateString } from '@/utils/booking/dateUtils'
 
 export default function Home() {
@@ -47,6 +47,7 @@ export default function Home() {
   
   // 예약 등록/수정 모달 관련 상태
   const [isModalOpen, setIsModalOpen] = useState(false)
+  const [isWalkIn, setIsWalkIn] = useState(false)
   const [selectedRes, setSelectedRes] = useState<Reservation | null>(null)
   const [initialTime, setInitialTime] = useState<Date | null>(null)
   const [initialTherapistId, setInitialTherapistId] = useState<number | null>(null)
@@ -104,6 +105,7 @@ export default function Home() {
     setSelectedRes(res)
     setInitialTime(null)
     setInitialTherapistId(null)
+    setIsWalkIn(false)
     setIsModalOpen(true)
   }
 
@@ -111,6 +113,7 @@ export default function Home() {
     setSelectedRes(null)
     setInitialTime(time)
     setInitialTherapistId(therapistId || null)
+    setIsWalkIn(false)
     setIsModalOpen(true)
   }
 
@@ -118,6 +121,15 @@ export default function Home() {
     setSelectedRes(null)
     setInitialTime(null)
     setInitialTherapistId(null)
+    setIsWalkIn(false)
+    setIsModalOpen(true)
+  }
+
+  const handleOpenWalkIn = () => {
+    setSelectedRes(null)
+    setInitialTime(null)
+    setInitialTherapistId(null)
+    setIsWalkIn(true)
     setIsModalOpen(true)
   }
 
@@ -158,12 +170,20 @@ export default function Home() {
             </div>
             
             {currentUser.role !== 'therapist' && (
-              <button
-                onClick={handleOpenNewReservation}
-                className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-emerald-700 hover:bg-emerald-600 text-white shadow-sm shadow-emerald-900/10 px-4 py-2 text-xs font-bold transition-all hover:scale-[1.01] active:scale-[0.99]"
-              >
-                <Plus className="w-4 h-4" /> {t('calendar.new_booking')}
-              </button>
+              <div className="flex gap-2">
+                <button
+                  onClick={handleOpenNewReservation}
+                  className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-emerald-700 hover:bg-emerald-600 text-white shadow-sm shadow-emerald-900/10 px-4 py-2 text-xs font-bold transition-all hover:scale-[1.01] active:scale-[0.99]"
+                >
+                  <Plus className="w-4 h-4" /> {t('calendar.new_booking')}
+                </button>
+                <button
+                  onClick={handleOpenWalkIn}
+                  className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-sky-700 hover:bg-sky-600 text-white shadow-sm shadow-sky-900/10 px-4 py-2 text-xs font-bold transition-all hover:scale-[1.01] active:scale-[0.99]"
+                >
+                  <Key className="w-4 h-4" /> {language === 'ko' ? 'Walk-in 접수' : 'Walk-In'}
+                </button>
+              </div>
             )}
           </div>
         </div>
@@ -223,6 +243,7 @@ export default function Home() {
         initialTime={initialTime}
         initialTherapistId={initialTherapistId}
         defaultDate={toLocalDateString(currentDate)}
+        isWalkIn={isWalkIn}
       />
     </DashboardLayout>
   )

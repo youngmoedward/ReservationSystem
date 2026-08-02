@@ -6,7 +6,7 @@ import { createClient } from '@/utils/supabase/client'
 import { useUserSim } from '@/app/providers'
 import { useLanguage } from '@/app/LanguageContext'
 import { toLocalDateString, toUIDateString } from '@/utils/booking/dateUtils'
-import { Layers, User, Award, Clock, ChevronLeft, ChevronRight, Plus } from 'lucide-react'
+import { Layers, User, Award, Clock, ChevronLeft, ChevronRight, Plus, Key } from 'lucide-react'
 import BookingModal from '@/components/dashboard/BookingModal'
 import { Therapist, Reservation } from '@/components/dashboard/CalendarView'
 
@@ -41,6 +41,7 @@ export default function TodaySchedulePage() {
   const [currentTherapistType, setCurrentTherapistType] = useState<'wet' | 'dry' | 'both' | null>(null)
   const [loading, setLoading] = useState(true)
   const [isBookingModalOpen, setIsBookingModalOpen] = useState(false)
+  const [isWalkIn, setIsWalkIn] = useState(false)
   const [selectedReservation, setSelectedReservation] = useState<any>(null)
   const [initialTime, setInitialTime] = useState<Date | null>(null)
   const [initialTherapistId, setInitialTherapistId] = useState<number | null>(null)
@@ -299,6 +300,7 @@ export default function TodaySchedulePage() {
     setSelectedReservation(rawRes)
     setInitialTime(null)
     setInitialTherapistId(null)
+    setIsWalkIn(false)
     setIsBookingModalOpen(true)
   }
 
@@ -311,6 +313,7 @@ export default function TodaySchedulePage() {
     setSelectedReservation(null)
     setInitialTime(targetTime)
     setInitialTherapistId(thId)
+    setIsWalkIn(false)
     setIsBookingModalOpen(true)
   }
 
@@ -323,6 +326,20 @@ export default function TodaySchedulePage() {
     setSelectedReservation(null)
     setInitialTime(targetTime)
     setInitialTherapistId(null)
+    setIsWalkIn(false)
+    setIsBookingModalOpen(true)
+  }
+
+  const handleTopWalkInClick = () => {
+    if (!canModify) return
+    
+    const parts = selectedDate.split('-').map(Number)
+    const targetTime = new Date(parts[0], parts[1] - 1, parts[2], 9, 0, 0)
+    
+    setSelectedReservation(null)
+    setInitialTime(targetTime)
+    setInitialTherapistId(null)
+    setIsWalkIn(true)
     setIsBookingModalOpen(true)
   }
 
@@ -428,12 +445,20 @@ export default function TodaySchedulePage() {
             </div>
 
             {canModify && (
-              <button
-                onClick={handleTopNewBookingClick}
-                className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-emerald-700 hover:bg-emerald-600 active:scale-95 text-white shadow-sm shadow-emerald-900/10 px-4 py-2 text-xs font-bold transition-all cursor-pointer ml-auto sm:ml-0"
-              >
-                <Plus className="w-4 h-4" /> {language === 'ko' ? '신규 예약 접수' : 'New Booking'}
-              </button>
+              <div className="flex gap-2 ml-auto sm:ml-0">
+                <button
+                  onClick={handleTopNewBookingClick}
+                  className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-emerald-700 hover:bg-emerald-600 active:scale-95 text-white shadow-sm shadow-emerald-900/10 px-4 py-2 text-xs font-bold transition-all cursor-pointer"
+                >
+                  <Plus className="w-4 h-4" /> {language === 'ko' ? '신규 예약 접수' : 'New Booking'}
+                </button>
+                <button
+                  onClick={handleTopWalkInClick}
+                  className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-sky-700 hover:bg-sky-600 active:scale-95 text-white shadow-sm shadow-sky-900/10 px-4 py-2 text-xs font-bold transition-all cursor-pointer"
+                >
+                  <Key className="w-4 h-4" /> {language === 'ko' ? 'Walk-in 접수' : 'Walk-In'}
+                </button>
+              </div>
             )}
           </div>
         </div>
@@ -706,6 +731,7 @@ export default function TodaySchedulePage() {
           reservations={reservations}
           currentUserId={currentUser.id}
           currentUserRole={currentUser.role}
+          isWalkIn={isWalkIn}
         />
       )}
     </DashboardLayout>

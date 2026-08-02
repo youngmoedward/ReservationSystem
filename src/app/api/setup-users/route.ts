@@ -68,16 +68,32 @@ export async function GET() {
         await supabase.from('employee').delete().eq('id', oldMgrId)
       }
       
-      // Upsert manager profile
-      const { error: dbErr } = await supabase.from('employee').upsert({
-        id: mgrUser.id,
+      // Check if manager already has a profile in employee table
+      const { data: existingMgr } = await supabase
+        .from('employee')
+        .select('id')
+        .eq('id', mgrUser.id)
+        .maybeSingle()
+
+      const managerPayload: any = {
         name: '관리자(홍길동)',
         role: 'manager',
-        email: 'manager@spa.com',
-        pin_code: '1002'
-      })
-      if (dbErr) logs.push(`Error upserting manager profile: ${dbErr.message}`)
-      else logs.push(`Manager profile successfully linked.`)
+        email: 'manager@spa.com'
+      }
+
+      if (existingMgr) {
+        const { error: dbErr } = await supabase.from('employee').update(managerPayload).eq('id', mgrUser.id)
+        if (dbErr) logs.push(`Error updating manager profile: ${dbErr.message}`)
+        else logs.push(`Manager profile successfully updated.`)
+      } else {
+        const { error: dbErr } = await supabase.from('employee').insert({
+          id: mgrUser.id,
+          ...managerPayload,
+          pin_code: '1002'
+        })
+        if (dbErr) logs.push(`Error inserting manager profile: ${dbErr.message}`)
+        else logs.push(`Manager profile successfully created.`)
+      }
     }
 
     // 2. Register Staff 1
@@ -93,16 +109,34 @@ export async function GET() {
         await supabase.from('employee').delete().eq('id', oldStaff1Id)
       }
       
-      // Upsert staff 1
-      const { error: dbErr } = await supabase.from('employee').upsert({
-        id: staff1User.id,
+      // Check if staff 1 already has a profile
+      const { data: existingStaff1 } = await supabase
+        .from('employee')
+        .select('id')
+        .eq('id', staff1User.id)
+        .maybeSingle()
+
+      const staff1Payload: any = {
         name: '직원A(이순신)',
         role: 'staff',
-        email: 'staff1@spa.com',
-        pin_code: '1003'
-      })
-      if (dbErr) logs.push(`Error upserting staff 1 profile: ${dbErr.message}`)
-      else if (oldStaff1Id !== staff1User.id) {
+        email: 'staff1@spa.com'
+      }
+
+      if (existingStaff1) {
+        const { error: dbErr } = await supabase.from('employee').update(staff1Payload).eq('id', staff1User.id)
+        if (dbErr) logs.push(`Error updating staff 1 profile: ${dbErr.message}`)
+        else logs.push(`Staff 1 profile successfully updated.`)
+      } else {
+        const { error: dbErr } = await supabase.from('employee').insert({
+          id: staff1User.id,
+          ...staff1Payload,
+          pin_code: '1003'
+        })
+        if (dbErr) logs.push(`Error inserting staff 1 profile: ${dbErr.message}`)
+        else logs.push(`Staff 1 profile successfully created.`)
+      }
+
+      if (oldStaff1Id !== staff1User.id) {
         logs.push(`Staff 1 profile linked. Re-assigning references to new ID.`)
         await supabase.from('reservations').update({ created_by: staff1User.id }).is('created_by', null)
         await supabase.from('reservation_logs').update({ performed_by: staff1User.id }).is('performed_by', null)
@@ -119,15 +153,31 @@ export async function GET() {
         await supabase.from('employee').delete().eq('id', oldStaff2Id)
       }
       
-      const { error: dbErr } = await supabase.from('employee').upsert({
-        id: staff2User.id,
+      // Check if staff 2 already has a profile
+      const { data: existingStaff2 } = await supabase
+        .from('employee')
+        .select('id')
+        .eq('id', staff2User.id)
+        .maybeSingle()
+
+      const staff2Payload: any = {
         name: '직원B(강감찬)',
         role: 'staff',
-        email: 'staff2@spa.com',
-        pin_code: '1005'
-      })
-      if (dbErr) logs.push(`Error upserting staff 2 profile: ${dbErr.message}`)
-      else logs.push(`Staff 2 profile linked.`)
+        email: 'staff2@spa.com'
+      }
+
+      if (existingStaff2) {
+        const { error: dbErr } = await supabase.from('employee').update(staff2Payload).eq('id', staff2User.id)
+        if (dbErr) logs.push(`Error updating staff 2 profile: ${dbErr.message}`)
+        else logs.push(`Staff 2 profile successfully updated.`)
+      } else {
+        const { error: dbErr } = await supabase.from('employee').insert({
+          id: staff2User.id,
+          ...staff2Payload,
+          pin_code: '1005'
+        })
+        if (dbErr) logs.push(`Error inserting staff 2 profile: ${dbErr.message}`)
+      }
     }
 
     // 4. Register 5 Therapists
