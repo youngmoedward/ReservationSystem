@@ -45,6 +45,7 @@ export default function TodaySchedulePage() {
   const [selectedReservation, setSelectedReservation] = useState<any>(null)
   const [initialTime, setInitialTime] = useState<Date | null>(null)
   const [initialTherapistId, setInitialTherapistId] = useState<number | null>(null)
+  const [activeFloorTab, setActiveFloorTab] = useState<'wet' | 'dry'>('wet')
 
   // 조회 대상 날짜 상태 (기본값: 오늘)
   const [selectedDate, setSelectedDate] = useState<string>(toLocalDateString(new Date()))
@@ -264,7 +265,7 @@ export default function TodaySchedulePage() {
     
     return {
       timeStr,
-      priceStr: `${priceVal}(${duration}m)`,
+      priceStr: `${priceVal}`,
       durationStr: `${duration}분`,
       planName: language === 'ko' ? plan.name_ko : plan.name_en
     }
@@ -463,257 +464,273 @@ export default function TodaySchedulePage() {
           </div>
         </div>
 
-        {/* 1F 습식 마사지 섹션 */}
-        {show1F && (
-          <div className="bg-[#faf7f0]/95 border border-stone-300 rounded-3xl p-5 shadow-sm space-y-4">
-            <div className="flex items-center gap-2 border-b border-stone-200 pb-3">
-              <span className="bg-sky-600 text-white font-extrabold text-xs px-2.5 py-1 rounded-lg uppercase tracking-wider">
-                1F
-              </span>
-              <h3 className="text-sm font-extrabold text-sky-850">
-                {language === 'ko' ? '🧴 1층 습식 마사지 (Wet Massage)' : '🧴 1F Wet Massage Services'}
-              </h3>
+        {/* 콘텐츠 영역: 탭으로 구분된 습식 / 건식 마사지사 판널 */}
+        {(show1F || show2F) && (
+          <div className="bg-[#faf7f0]/95 border border-stone-300 rounded-3xl shadow-sm overflow-hidden">
+
+            {/* 탭 네비게이션 */}
+            <div className="flex border-b border-stone-200 bg-stone-50">
+              {show1F && (
+                <button
+                  onClick={() => setActiveFloorTab('wet')}
+                  className={`flex items-center gap-2 px-6 py-3.5 text-sm font-extrabold transition-all ${
+                    activeFloorTab === 'wet'
+                      ? 'bg-white text-sky-700 border-b-2 border-sky-600 shadow-sm'
+                      : 'text-stone-500 hover:text-stone-700 hover:bg-stone-100'
+                  }`}
+                >
+                  <span className={`text-xs px-2 py-0.5 rounded-md font-extrabold ${
+                    activeFloorTab === 'wet' ? 'bg-sky-600 text-white' : 'bg-stone-200 text-stone-500'
+                  }`}>1F</span>
+                  {language === 'ko' ? '🧴 습식 마사지 (Wet)' : '🧴 Wet Massage'}
+                </button>
+              )}
+              {show2F && (
+                <button
+                  onClick={() => setActiveFloorTab('dry')}
+                  className={`flex items-center gap-2 px-6 py-3.5 text-sm font-extrabold transition-all ${
+                    activeFloorTab === 'dry'
+                      ? 'bg-white text-amber-700 border-b-2 border-amber-600 shadow-sm'
+                      : 'text-stone-500 hover:text-stone-700 hover:bg-stone-100'
+                  }`}
+                >
+                  <span className={`text-xs px-2 py-0.5 rounded-md font-extrabold ${
+                    activeFloorTab === 'dry' ? 'bg-amber-600 text-white' : 'bg-stone-200 text-stone-500'
+                  }`}>2F</span>
+                  {language === 'ko' ? '🧘‍♂️ 건식 마사지 (Dry)' : '🧘‍♂️ Dry Massage'}
+                </button>
+              )}
             </div>
 
-            {wetTherapists.length === 0 ? (
-              <p className="text-xs text-stone-400 py-4 text-center">
-                {language === 'ko' ? '등록된 습식 마사지사가 없습니다.' : 'No registered wet therapists.'}
-              </p>
-            ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-1.5">
-                {wetTherapists.map((th, index) => {
-                  const items = getTherapistReservations(th.id)
-                  const totalPt = items.reduce((sum, item) => sum + (item?.point || 0), 0)
-                  const { isOff, label: statusLabel } = getTherapistStatus(th.id, 'wet')
-                  return (
-                    <div
-                      key={th.id}
-                      className={`w-full min-w-0 bg-white border border-stone-200 rounded-xl p-2 shadow-sm space-y-2 hover:border-sky-300 hover:shadow-md transition-all animate-in fade-in slide-in-from-bottom-2 duration-200 ${isOff ? 'opacity-65' : ''}`}
-                    >
-                      <div className="flex items-center justify-between bg-sky-50/50 border border-sky-100 rounded-lg p-1.5">
-                        <div className="flex items-center gap-1.5 min-w-0">
-                          <div className="w-5 h-5 bg-sky-600 text-white rounded-md flex items-center justify-center text-[10px] font-bold shadow-sm flex-shrink-0">
-                            <User className="w-3 h-3" />
+            {/* 1F 습식 마사지 판널 */}
+            {show1F && activeFloorTab === 'wet' && (
+              <div className="p-5 space-y-4">
+                {wetTherapists.length === 0 ? (
+                  <p className="text-xs text-stone-400 py-4 text-center">
+                    {language === 'ko' ? '등록된 습식 마사지사가 없습니다.' : 'No registered wet therapists.'}
+                  </p>
+                ) : (
+                  <div className="grid grid-cols-2 xl:grid-cols-4 gap-3">
+                    {wetTherapists.map((th) => {
+                      const items = getTherapistReservations(th.id)
+                      const totalPt = items.reduce((sum, item) => sum + (item?.point || 0), 0)
+                      const { isOff, label: statusLabel } = getTherapistStatus(th.id, 'wet')
+                      return (
+                        <div
+                          key={th.id}
+                          className={`w-full bg-white border border-stone-200 rounded-xl p-3 shadow-sm space-y-2.5 hover:border-sky-300 hover:shadow-md transition-all animate-in fade-in slide-in-from-bottom-2 duration-200 ${isOff ? 'opacity-65' : ''}`}
+                        >
+                          <div className="flex items-center justify-between bg-sky-50/50 border border-sky-100 rounded-lg p-2">
+                            <div className="flex items-center gap-2 min-w-0">
+                              <div className="w-6 h-6 bg-sky-600 text-white rounded-md flex items-center justify-center text-[10px] font-bold shadow-sm flex-shrink-0">
+                                <User className="w-3.5 h-3.5" />
+                              </div>
+                              <span className="text-xs font-black text-stone-850 truncate">{th.name}</span>
+                              {statusLabel && (
+                                <span className={`text-[9px] font-bold flex-shrink-0 ${isOff ? 'text-rose-600' : 'text-stone-500'}`}>
+                                  {statusLabel}
+                                </span>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-1.5 flex-shrink-0">
+                              {canModify && !isOff && (
+                                <button
+                                  onClick={() => handleNewBookingClick(th.id, isOff)}
+                                  className="w-5 h-5 bg-sky-600 hover:bg-sky-700 active:scale-95 text-white rounded-md flex items-center justify-center shadow transition-all cursor-pointer"
+                                  title={language === 'ko' ? '신규 예약 접수' : 'New Booking'}
+                                >
+                                  <Plus className="w-3.5 h-3.5" />
+                                </button>
+                              )}
+                              <div className="bg-sky-100/80 border border-sky-200/50 rounded px-2 py-0.5 font-mono font-black text-[10px] text-sky-800">
+                                {totalPt}
+                              </div>
+                            </div>
                           </div>
-                          <span className="text-[11px] font-black text-stone-850 truncate">{th.name}</span>
-                          {statusLabel && (
-                            <span className={`text-[9px] font-bold flex-shrink-0 ${isOff ? 'text-rose-600' : 'text-stone-500'}`}>
-                              {statusLabel}
-                            </span>
-                          )}
-                        </div>
-                        <div className="flex items-center gap-1 flex-shrink-0">
-                          {canModify && !isOff && (
-                            <button
-                              onClick={() => handleNewBookingClick(th.id, isOff)}
-                              className="w-4.5 h-4.5 bg-sky-600 hover:bg-sky-700 active:scale-95 text-white rounded-md flex items-center justify-center shadow transition-all cursor-pointer"
-                              title={language === 'ko' ? '신규 예약 접수' : 'New Booking'}
-                            >
-                              <Plus className="w-3 h-3" />
-                            </button>
-                          )}
-                          <div className="bg-sky-100/80 border border-sky-200/50 rounded px-1.5 py-0.5 font-mono font-black text-[10px] text-sky-800">
-                            {totalPt}
-                          </div>
-                        </div>
-                      </div>
 
-                      <div className="overflow-hidden border border-stone-150 rounded-xl">
-                        <table className="w-full text-left border-collapse table-fixed">
-                          <thead>
-                            <tr className="bg-stone-50 text-[10px] font-black text-stone-400 uppercase border-b border-stone-150">
-                              <th className="p-1.5 w-[20%] text-center border-r border-stone-150">🔑</th>
-                              <th className="p-1.5 w-[25%] text-center border-r border-stone-150">Time</th>
-                              <th className="p-1.5 w-[37%] border-r border-stone-150 text-center">Price</th>
-                              <th className="p-1.5 w-[18%] text-center">Pt</th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-stone-100">
-                            {items.length === 0 ? (
-                              <tr>
-                                <td colSpan={4} className="p-3 text-center text-[10.5px] text-stone-400 font-bold bg-stone-50/30">
-                                  {isOff ? (language === 'ko' ? '휴무' : 'Off') : (language === 'ko' ? '비어있음' : 'Empty')}
-                                </td>
-                              </tr>
-                            ) : (
-                              items.map(item => {
-                                const isCheckedIn = !!item.rawReservation.is_checked_in
-                                const lockerNo = item.rawReservation.locker_number
-                                return (
-                                  <tr
-                                    key={item.id}
-                                    onClick={() => handleRowClick(item.rawReservation)}
-                                    className={`transition-all ${
-                                      isCheckedIn
-                                        ? 'bg-emerald-50 text-emerald-950 border-y border-emerald-250/30 hover:bg-emerald-100/85 font-medium'
-                                        : canModify
-                                        ? 'cursor-pointer hover:bg-sky-50/40'
-                                        : ''
-                                    }`}
-                                    title={
-                                      language === 'ko'
-                                        ? `예약자: ${item.customerName}`
-                                        : `Client: ${item.customerName}`
-                                    }
-                                  >
-                                    <td className="p-1.5 text-center border-r border-stone-100 text-[10.5px] font-bold text-stone-700">
-                                      {isCheckedIn && lockerNo ? (
-                                        <span className="inline-flex items-center px-1 py-0.5 rounded bg-emerald-50 text-emerald-850 border border-emerald-100/50 text-[10px] font-black leading-none">
-                                          {lockerNo}
-                                        </span>
-                                      ) : (
-                                        <span className="text-stone-300">-</span>
-                                      )}
-                                    </td>
-                                    <td className="p-1.5 text-center font-mono text-[11px] font-black text-sky-850 border-r border-stone-100">
-                                      {item.timeStr}
-                                    </td>
-                                    <td className="p-1.5 text-center font-mono text-[10.5px] font-bold text-stone-700 border-r border-stone-100">
-                                      {item.priceStr}
-                                    </td>
-                                    <td className="py-1.5 px-0 text-center font-mono text-[11px] font-black text-sky-600 bg-sky-50/10">
-                                      {item.point}
+                          <div className="overflow-hidden border border-stone-150 rounded-xl">
+                            <table className="w-full text-left border-collapse table-fixed">
+                              <thead>
+                                <tr className="bg-stone-50 text-[10px] font-black text-stone-400 uppercase border-b border-stone-150">
+                                  <th className="p-1.5 w-[20%] text-center border-r border-stone-150">🔑</th>
+                                  <th className="p-1.5 w-[25%] text-center border-r border-stone-150">Time</th>
+                                  <th className="p-1.5 w-[37%] border-r border-stone-150 text-center">Price</th>
+                                  <th className="p-1.5 w-[18%] text-center">Pt</th>
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-stone-100">
+                                {items.length === 0 ? (
+                                  <tr>
+                                    <td colSpan={4} className="p-3 text-center text-[10.5px] text-stone-400 font-bold bg-stone-50/30">
+                                      {isOff ? (language === 'ko' ? '휴무' : 'Off') : (language === 'ko' ? '비어있음' : 'Empty')}
                                     </td>
                                   </tr>
-                                )
-                              })
-                            )}
-                          </tbody>
-                        </table>
-                      </div>
-                    </div>
-                  )
-                })}
+                                ) : (
+                                  items.map(item => {
+                                    const isCheckedIn = !!item.rawReservation.is_checked_in
+                                    const lockerNo = item.rawReservation.locker_number
+                                    return (
+                                      <tr
+                                        key={item.id}
+                                        onClick={() => handleRowClick(item.rawReservation)}
+                                        className={`transition-all ${
+                                          isCheckedIn
+                                            ? 'bg-emerald-50 text-emerald-950 border-y border-emerald-250/30 hover:bg-emerald-100/85 font-medium'
+                                            : canModify
+                                            ? 'cursor-pointer hover:bg-sky-50/40'
+                                            : ''
+                                        }`}
+                                        title={language === 'ko' ? `예약자: ${item.customerName}` : `Client: ${item.customerName}`}
+                                      >
+                                        <td className="p-1.5 text-center border-r border-stone-100 text-[10.5px] font-bold text-stone-700">
+                                          {isCheckedIn && lockerNo ? (
+                                            <span className="inline-flex items-center px-1 py-0.5 rounded bg-emerald-50 text-emerald-850 border border-emerald-100/50 text-[10px] font-black leading-none">
+                                              {lockerNo}
+                                            </span>
+                                          ) : (
+                                            <span className="text-stone-300">-</span>
+                                          )}
+                                        </td>
+                                        <td className="p-1.5 text-center font-mono text-[11px] font-black text-sky-850 border-r border-stone-100">
+                                          {item.timeStr}
+                                        </td>
+                                        <td className="p-1.5 text-center font-mono text-[10.5px] font-bold text-stone-700 border-r border-stone-100">
+                                          {item.priceStr}
+                                        </td>
+                                        <td className="py-1.5 px-0 text-center font-mono text-[11px] font-black text-sky-600 bg-sky-50/10">
+                                          {item.point}
+                                        </td>
+                                      </tr>
+                                    )
+                                  })
+                                )}
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
               </div>
             )}
+
+            {/* 2F 건식 마사지 판널 */}
+            {show2F && activeFloorTab === 'dry' && (
+              <div className="p-5 space-y-4">
+                {dryTherapists.length === 0 ? (
+                  <p className="text-xs text-stone-400 py-4 text-center">
+                    {language === 'ko' ? '등록된 건식 마사지사가 없습니다.' : 'No registered dry therapists.'}
+                  </p>
+                ) : (
+                  <div className="grid grid-cols-2 xl:grid-cols-4 gap-3">
+                    {dryTherapists.map((th) => {
+                      const items = getTherapistReservations(th.id)
+                      const totalPt = items.reduce((sum, item) => sum + (item?.point || 0), 0)
+                      const { isOff, label: statusLabel } = getTherapistStatus(th.id, 'dry')
+                      return (
+                        <div
+                          key={th.id}
+                          className={`w-full bg-white border border-stone-200 rounded-xl p-3 shadow-sm space-y-2.5 hover:border-amber-300 hover:shadow-md transition-all animate-in fade-in slide-in-from-bottom-2 duration-200 ${isOff ? 'opacity-65' : ''}`}
+                        >
+                          <div className="flex items-center justify-between bg-amber-50/50 border border-amber-100 rounded-lg p-2">
+                            <div className="flex items-center gap-2 min-w-0">
+                              <div className="w-6 h-6 bg-amber-600 text-white rounded-md flex items-center justify-center text-[10px] font-bold shadow-sm flex-shrink-0">
+                                <User className="w-3.5 h-3.5" />
+                              </div>
+                              <span className="text-xs font-black text-stone-850 truncate">{th.name}</span>
+                              {statusLabel && (
+                                <span className={`text-[9px] font-bold flex-shrink-0 ${isOff ? 'text-rose-600' : 'text-stone-500'}`}>
+                                  {statusLabel}
+                                </span>
+                              )}
+                            </div>
+                            <div className="flex items-center gap-1.5 flex-shrink-0">
+                              {canModify && !isOff && (
+                                <button
+                                  onClick={() => handleNewBookingClick(th.id, isOff)}
+                                  className="w-5 h-5 bg-amber-600 hover:bg-amber-700 active:scale-95 text-white rounded-md flex items-center justify-center shadow transition-all cursor-pointer"
+                                  title={language === 'ko' ? '신규 예약 접수' : 'New Booking'}
+                                >
+                                  <Plus className="w-3.5 h-3.5" />
+                                </button>
+                              )}
+                              <div className="bg-amber-100/80 border border-amber-200/50 rounded px-2 py-0.5 font-mono font-black text-[10px] text-amber-855">
+                                {totalPt}
+                              </div>
+                            </div>
+                          </div>
+
+                          <div className="overflow-hidden border border-stone-150 rounded-xl">
+                            <table className="w-full text-left border-collapse table-fixed">
+                              <thead>
+                                <tr className="bg-stone-50 text-[10px] font-black text-stone-400 uppercase border-b border-stone-150">
+                                  <th className="p-1.5 w-[20%] text-center border-r border-stone-150">🔑</th>
+                                  <th className="p-1.5 w-[25%] text-center border-r border-stone-150">Time</th>
+                                  <th className="p-1.5 w-[37%] border-r border-stone-150 text-center">Price</th>
+                                  <th className="p-1.5 w-[18%] text-center">Pt</th>
+                                </tr>
+                              </thead>
+                              <tbody className="divide-y divide-stone-100">
+                                {items.length === 0 ? (
+                                  <tr>
+                                    <td colSpan={4} className="p-3 text-center text-[10.5px] text-stone-400 font-bold bg-stone-50/30">
+                                      {isOff ? (language === 'ko' ? '휴무' : 'Off') : (language === 'ko' ? '비어있음' : 'Empty')}
+                                    </td>
+                                  </tr>
+                                ) : (
+                                  items.map(item => {
+                                    const isCheckedIn = !!item.rawReservation.is_checked_in
+                                    const lockerNo = item.rawReservation.locker_number
+                                    return (
+                                      <tr
+                                        key={item.id}
+                                        onClick={() => handleRowClick(item.rawReservation)}
+                                        className={`transition-all ${
+                                          isCheckedIn
+                                            ? 'bg-emerald-50 text-emerald-950 border-y border-emerald-250/30 hover:bg-emerald-100/85 font-medium'
+                                            : canModify
+                                            ? 'cursor-pointer hover:bg-amber-50/30'
+                                            : ''
+                                        }`}
+                                        title={language === 'ko' ? `예약자: ${item.customerName}` : `Client: ${item.customerName}`}
+                                      >
+                                        <td className="p-1.5 text-center border-r border-stone-100 text-[10.5px] font-bold text-stone-700">
+                                          {isCheckedIn && lockerNo ? (
+                                            <span className="inline-flex items-center px-1 py-0.5 rounded bg-emerald-50 text-emerald-850 border border-emerald-100/50 text-[10px] font-black leading-none">
+                                              {lockerNo}
+                                            </span>
+                                          ) : (
+                                            <span className="text-stone-300">-</span>
+                                          )}
+                                        </td>
+                                        <td className="p-1.5 text-center font-mono text-[11px] font-black text-amber-850 border-r border-stone-100">
+                                          {item.timeStr}
+                                        </td>
+                                        <td className="p-1.5 text-center font-mono text-[10.5px] font-bold text-stone-700 border-r border-stone-100">
+                                          {item.priceStr}
+                                        </td>
+                                        <td className="py-1.5 px-0 text-center font-mono text-[11px] font-black text-amber-600 bg-amber-50/10">
+                                          {item.point}
+                                        </td>
+                                      </tr>
+                                    )
+                                  })
+                                )}
+                              </tbody>
+                            </table>
+                          </div>
+                        </div>
+                      )
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
+
           </div>
         )}
 
-        {/* 2F 건식 마사지 섹션 */}
-        {show2F && (
-          <div className="bg-[#faf7f0]/95 border border-stone-300 rounded-3xl p-5 shadow-sm space-y-4">
-            <div className="flex items-center gap-2 border-b border-stone-200 pb-3">
-              <span className="bg-amber-600 text-white font-extrabold text-xs px-2.5 py-1 rounded-lg uppercase tracking-wider">
-                2F
-              </span>
-              <h3 className="text-sm font-extrabold text-amber-850">
-                {language === 'ko' ? '🧘‍♂️ 2층 건식 마사지 (Dry Massage)' : '🧘‍♂️ 2F Dry Massage Services'}
-              </h3>
-            </div>
-
-            {dryTherapists.length === 0 ? (
-              <p className="text-xs text-stone-400 py-4 text-center">
-                {language === 'ko' ? '등록된 건식 마사지사가 없습니다.' : 'No registered dry therapists.'}
-              </p>
-            ) : (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-6 gap-1.5">
-                {dryTherapists.map((th, index) => {
-                  const items = getTherapistReservations(th.id)
-                  const totalPt = items.reduce((sum, item) => sum + (item?.point || 0), 0)
-                  const { isOff, label: statusLabel } = getTherapistStatus(th.id, 'dry')
-                  return (
-                    <div
-                      key={th.id}
-                      className={`w-full min-w-0 bg-white border border-stone-200 rounded-xl p-2 shadow-sm space-y-2 hover:border-amber-300 hover:shadow-md transition-all animate-in fade-in slide-in-from-bottom-2 duration-200 ${isOff ? 'opacity-65' : ''}`}
-                    >
-                      <div className="flex items-center justify-between bg-amber-50/50 border border-amber-100 rounded-lg p-1.5">
-                        <div className="flex items-center gap-1.5 min-w-0">
-                          <div className="w-5 h-5 bg-amber-600 text-white rounded-md flex items-center justify-center text-[10px] font-bold shadow-sm flex-shrink-0">
-                            <User className="w-3 h-3" />
-                          </div>
-                          <span className="text-[11px] font-black text-stone-850 truncate">{th.name}</span>
-                          {statusLabel && (
-                            <span className={`text-[9px] font-bold flex-shrink-0 ${isOff ? 'text-rose-600' : 'text-stone-500'}`}>
-                              {statusLabel}
-                            </span>
-                          )}
-                        </div>
-                        <div className="flex items-center gap-1 flex-shrink-0">
-                          {canModify && !isOff && (
-                            <button
-                              onClick={() => handleNewBookingClick(th.id, isOff)}
-                              className="w-4.5 h-4.5 bg-amber-600 hover:bg-amber-700 active:scale-95 text-white rounded-md flex items-center justify-center shadow transition-all cursor-pointer"
-                              title={language === 'ko' ? '신규 예약 접수' : 'New Booking'}
-                            >
-                              <Plus className="w-3 h-3" />
-                            </button>
-                          )}
-                          <div className="bg-amber-100/80 border border-amber-200/50 rounded px-1.5 py-0.5 font-mono font-black text-[10px] text-amber-855">
-                            {totalPt}
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="overflow-hidden border border-stone-150 rounded-xl">
-                        <table className="w-full text-left border-collapse table-fixed">
-                          <thead>
-                            <tr className="bg-stone-50 text-[10px] font-black text-stone-400 uppercase border-b border-stone-150">
-                              <th className="p-1.5 w-[20%] text-center border-r border-stone-150">🔑</th>
-                              <th className="p-1.5 w-[25%] text-center border-r border-stone-150">Time</th>
-                              <th className="p-1.5 w-[37%] border-r border-stone-150 text-center">Price</th>
-                              <th className="p-1.5 w-[18%] text-center">Pt</th>
-                            </tr>
-                          </thead>
-                          <tbody className="divide-y divide-stone-100">
-                            {items.length === 0 ? (
-                              <tr>
-                                <td colSpan={4} className="p-3 text-center text-[10.5px] text-stone-400 font-bold bg-stone-50/30">
-                                  {isOff ? (language === 'ko' ? '휴무' : 'Off') : (language === 'ko' ? '비어있음' : 'Empty')}
-                                </td>
-                              </tr>
-                            ) : (
-                              items.map(item => {
-                                const isCheckedIn = !!item.rawReservation.is_checked_in
-                                const lockerNo = item.rawReservation.locker_number
-                                return (
-                                  <tr
-                                    key={item.id}
-                                    onClick={() => handleRowClick(item.rawReservation)}
-                                    className={`transition-all ${
-                                      isCheckedIn
-                                        ? 'bg-emerald-50 text-emerald-950 border-y border-emerald-250/30 hover:bg-emerald-100/85 font-medium'
-                                        : canModify
-                                        ? 'cursor-pointer hover:bg-amber-50/30'
-                                        : ''
-                                    }`}
-                                    title={
-                                      language === 'ko'
-                                        ? `예약자: ${item.customerName}`
-                                        : `Client: ${item.customerName}`
-                                    }
-                                  >
-                                    <td className="p-1.5 text-center border-r border-stone-100 text-[10.5px] font-bold text-stone-700">
-                                      {isCheckedIn && lockerNo ? (
-                                        <span className="inline-flex items-center px-1 py-0.5 rounded bg-emerald-50 text-emerald-850 border border-emerald-100/50 text-[10px] font-black leading-none">
-                                          {lockerNo}
-                                        </span>
-                                      ) : (
-                                        <span className="text-stone-300">-</span>
-                                      )}
-                                    </td>
-                                    <td className="p-1.5 text-center font-mono text-[11px] font-black text-amber-850 border-r border-stone-100">
-                                      {item.timeStr}
-                                    </td>
-                                    <td className="p-1.5 text-center font-mono text-[10.5px] font-bold text-stone-700 border-r border-stone-100">
-                                      {item.priceStr}
-                                    </td>
-                                    <td className="py-1.5 px-0 text-center font-mono text-[11px] font-black text-amber-600 bg-amber-50/10">
-                                      {item.point}
-                                    </td>
-                                  </tr>
-                                )
-                              })
-                            )}
-                          </tbody>
-                        </table>
-                      </div>
-                    </div>
-                  )
-                })}
-              </div>
-            )}
-          </div>
-        )}
       </div>
       {isBookingModalOpen && (
         <BookingModal
