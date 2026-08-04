@@ -3,11 +3,12 @@
 import React, { useEffect, useState } from 'react'
 import DashboardLayout from '@/components/layout/DashboardLayout'
 import { createClient } from '@/utils/supabase/client'
-import { useUserSim } from '@/app/providers'
+import { useUserSim, UserSim } from '@/app/providers'
 import { useLanguage } from '@/app/LanguageContext'
 import { toLocalDateString, toUIDateString } from '@/utils/booking/dateUtils'
-import { Layers, User, Award, Clock, ChevronLeft, ChevronRight, Plus, Key } from 'lucide-react'
+import { Layers, User, Award, Clock, ChevronLeft, ChevronRight, Plus, Key, List } from 'lucide-react'
 import BookingModal from '@/components/dashboard/BookingModal'
+import TodayReservationListModal from '@/components/dashboard/TodayReservationListModal'
 import { Therapist, Reservation } from '@/components/dashboard/CalendarView'
 
 // 요금제 인터페이스
@@ -32,6 +33,7 @@ export default function TodaySchedulePage() {
   const { language, t } = useLanguage()
 
   // 데이터 상태
+  const [employees, setEmployees] = useState<UserSim[]>([])
   const [therapists, setTherapists] = useState<Therapist[]>([])
   const [reservations, setReservations] = useState<Reservation[]>([])
   const [pricingPlans, setPricingPlans] = useState<PricingPlan[]>([])
@@ -41,6 +43,7 @@ export default function TodaySchedulePage() {
   const [currentTherapistType, setCurrentTherapistType] = useState<'wet' | 'dry' | 'both' | null>(null)
   const [loading, setLoading] = useState(true)
   const [isBookingModalOpen, setIsBookingModalOpen] = useState(false)
+  const [isReservationListModalOpen, setIsReservationListModalOpen] = useState(false)
   const [isWalkIn, setIsWalkIn] = useState(false)
   const [selectedReservation, setSelectedReservation] = useState<any>(null)
   const [initialTime, setInitialTime] = useState<Date | null>(null)
@@ -126,7 +129,7 @@ export default function TodaySchedulePage() {
         
         const { data: resData } = await supabase
           .from('reservations')
-          .select('id, customer_name, customer_phone, therapist_id, secondary_therapist_id, pricing_plan_id, start_time, end_time, price, status, is_checked_in, locker_number')
+          .select('*')
           .eq('status', 'confirmed')
           .gte('start_time', startOfDay)
           .lte('start_time', endOfDay)
@@ -138,6 +141,12 @@ export default function TodaySchedulePage() {
           .from('pricing_plans')
           .select('*')
         setPricingPlans(planData || [])
+
+        // 4.5. 직원 목록 조회
+        const { data: empData } = await supabase
+          .from('employee')
+          .select('id, name, role')
+        if (empData) setEmployees(empData as UserSim[])
 
         // 5. 누적 포인트 조회 (선택된 날짜 기준)
         const { data: pointsData } = await supabase
@@ -212,7 +221,7 @@ export default function TodaySchedulePage() {
     } else if (schedType === 'pm_half') {
       label = language === 'ko' ? '(오후반차)' : '(PM Off)'
     } else if (pVal) {
-      label = `(P: ${pVal})`
+      label = `(Priority : ${pVal})`
     }
 
     return {
@@ -281,11 +290,15 @@ export default function TodaySchedulePage() {
         
         const pt = getReservationPoint(res, plan, therapistId)
         const info = getFormattedTimeAndPlan(res, plan, therapistId)
+        const isRequested = res.therapist_id === therapistId 
+          ? !!res.is_requested 
+          : !!res.is_requested_secondary
         
         return {
           id: res.id,
           customerName: res.customer_name,
           point: pt,
+          isRequested,
           rawReservation: res,
           ...info
         }
@@ -459,6 +472,12 @@ export default function TodaySchedulePage() {
                 >
                   <Key className="w-4 h-4" /> {language === 'ko' ? 'Walk-in 접수' : 'Walk-In'}
                 </button>
+                <button
+                  onClick={() => setIsReservationListModalOpen(true)}
+                  className="inline-flex items-center justify-center gap-1.5 rounded-xl bg-amber-700 hover:bg-amber-600 active:scale-95 text-white shadow-sm shadow-amber-900/10 px-4 py-2 text-xs font-bold transition-all cursor-pointer"
+                >
+                  <List className="w-4 h-4" /> {language === 'ko' ? '예약 목록' : 'Reservation List'}
+                </button>
               </div>
             )}
           </div>
@@ -469,35 +488,39 @@ export default function TodaySchedulePage() {
           <div className="bg-[#faf7f0]/95 border border-stone-300 rounded-3xl shadow-sm overflow-hidden">
 
             {/* 탭 네비게이션 */}
-            <div className="flex border-b border-stone-200 bg-stone-50">
+            <div className="flex items-center gap-2.5 p-3.5 bg-stone-100/90 border-b border-stone-200">
               {show1F && (
                 <button
                   onClick={() => setActiveFloorTab('wet')}
-                  className={`flex items-center gap-2 px-6 py-3.5 text-sm font-extrabold transition-all ${
+                  className={`flex items-center gap-2.5 px-5 py-2.5 rounded-xl text-sm font-black transition-all cursor-pointer ${
                     activeFloorTab === 'wet'
-                      ? 'bg-white text-sky-700 border-b-2 border-sky-600 shadow-sm'
-                      : 'text-stone-500 hover:text-stone-700 hover:bg-stone-100'
+                      ? 'bg-gradient-to-r from-sky-600 to-sky-700 text-white shadow-md border border-sky-700 scale-[1.02]'
+                      : 'bg-white text-stone-600 hover:text-sky-800 hover:bg-sky-50/50 border border-stone-250 shadow-xs opacity-85 hover:opacity-100'
                   }`}
                 >
-                  <span className={`text-xs px-2 py-0.5 rounded-md font-extrabold ${
-                    activeFloorTab === 'wet' ? 'bg-sky-600 text-white' : 'bg-stone-200 text-stone-500'
+                  <span className={`text-xs px-2 py-0.5 rounded-md font-black transition-all ${
+                    activeFloorTab === 'wet'
+                      ? 'bg-white/25 text-white border border-white/30'
+                      : 'bg-sky-50 text-sky-700 border border-sky-200/60'
                   }`}>1F</span>
-                  {language === 'ko' ? '🧴 습식 마사지 (Wet)' : '🧴 Wet Massage'}
+                  <span>{language === 'ko' ? '🧴 습식 마사지 (Wet)' : '🧴 Wet Massage'}</span>
                 </button>
               )}
               {show2F && (
                 <button
                   onClick={() => setActiveFloorTab('dry')}
-                  className={`flex items-center gap-2 px-6 py-3.5 text-sm font-extrabold transition-all ${
+                  className={`flex items-center gap-2.5 px-5 py-2.5 rounded-xl text-sm font-black transition-all cursor-pointer ${
                     activeFloorTab === 'dry'
-                      ? 'bg-white text-amber-700 border-b-2 border-amber-600 shadow-sm'
-                      : 'text-stone-500 hover:text-stone-700 hover:bg-stone-100'
+                      ? 'bg-gradient-to-r from-amber-600 to-amber-700 text-white shadow-md border border-amber-700 scale-[1.02]'
+                      : 'bg-white text-stone-600 hover:text-amber-800 hover:bg-amber-50/50 border border-stone-250 shadow-xs opacity-85 hover:opacity-100'
                   }`}
                 >
-                  <span className={`text-xs px-2 py-0.5 rounded-md font-extrabold ${
-                    activeFloorTab === 'dry' ? 'bg-amber-600 text-white' : 'bg-stone-200 text-stone-500'
+                  <span className={`text-xs px-2 py-0.5 rounded-md font-black transition-all ${
+                    activeFloorTab === 'dry'
+                      ? 'bg-white/25 text-white border border-white/30'
+                      : 'bg-amber-50 text-amber-700 border border-amber-200/60'
                   }`}>2F</span>
-                  {language === 'ko' ? '🧘‍♂️ 건식 마사지 (Dry)' : '🧘‍♂️ Dry Massage'}
+                  <span>{language === 'ko' ? '🧘‍♂️ 건식 마사지 (Dry)' : '🧘‍♂️ Dry Massage'}</span>
                 </button>
               )}
             </div>
@@ -510,7 +533,7 @@ export default function TodaySchedulePage() {
                     {language === 'ko' ? '등록된 습식 마사지사가 없습니다.' : 'No registered wet therapists.'}
                   </p>
                 ) : (
-                  <div className="grid grid-cols-2 xl:grid-cols-4 gap-3">
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-7 gap-1.5">
                     {wetTherapists.map((th) => {
                       const items = getTherapistReservations(th.id)
                       const totalPt = items.reduce((sum, item) => sum + (item?.point || 0), 0)
@@ -518,32 +541,29 @@ export default function TodaySchedulePage() {
                       return (
                         <div
                           key={th.id}
-                          className={`w-full bg-white border border-stone-200 rounded-xl p-3 shadow-sm space-y-2.5 hover:border-sky-300 hover:shadow-md transition-all animate-in fade-in slide-in-from-bottom-2 duration-200 ${isOff ? 'opacity-65' : ''}`}
+                          className={`w-full bg-white border border-stone-200 rounded-xl p-2 shadow-sm space-y-2 hover:border-sky-300 hover:shadow-md transition-all animate-in fade-in slide-in-from-bottom-2 duration-200 ${isOff ? 'opacity-65' : ''}`}
                         >
-                          <div className="flex items-center justify-between bg-sky-50/50 border border-sky-100 rounded-lg p-2">
-                            <div className="flex items-center gap-2 min-w-0">
-                              <div className="w-6 h-6 bg-sky-600 text-white rounded-md flex items-center justify-center text-[10px] font-bold shadow-sm flex-shrink-0">
-                                <User className="w-3.5 h-3.5" />
+                          <div className="bg-sky-50/50 border border-sky-100 rounded-lg p-1.5 space-y-1">
+                            {/* 第一 Line: 이름만 */}
+                            <div className="flex items-center gap-1.5 min-w-0">
+                              <div className="w-4 h-4 bg-sky-600 text-white rounded-md flex items-center justify-center text-[10px] font-bold shadow-sm flex-shrink-0">
+                                <User className="w-3 h-3" />
                               </div>
-                              <span className="text-xs font-black text-stone-850 truncate">{th.name}</span>
-                              {statusLabel && (
-                                <span className={`text-[9px] font-bold flex-shrink-0 ${isOff ? 'text-rose-600' : 'text-stone-500'}`}>
-                                  {statusLabel}
-                                </span>
-                              )}
+                              <span className="text-xs font-black text-stone-850 truncate" title={th.name}>{th.name}</span>
                             </div>
-                            <div className="flex items-center gap-1.5 flex-shrink-0">
-                              {canModify && !isOff && (
-                                <button
-                                  onClick={() => handleNewBookingClick(th.id, isOff)}
-                                  className="w-5 h-5 bg-sky-600 hover:bg-sky-700 active:scale-95 text-white rounded-md flex items-center justify-center shadow transition-all cursor-pointer"
-                                  title={language === 'ko' ? '신규 예약 접수' : 'New Booking'}
-                                >
-                                  <Plus className="w-3.5 h-3.5" />
-                                </button>
-                              )}
-                              <div className="bg-sky-100/80 border border-sky-200/50 rounded px-2 py-0.5 font-mono font-black text-[10px] text-sky-800">
-                                {totalPt}
+                            {/* 第二 Line: Priority & 포인트 (+ 버튼 제거) */}
+                            <div className="flex items-center justify-between text-[10px] pt-0.5 border-t border-sky-100/60">
+                              <div className="font-bold truncate">
+                                {statusLabel ? (
+                                  <span className={isOff ? 'text-rose-600 font-extrabold' : 'text-stone-500'}>
+                                    {statusLabel}
+                                  </span>
+                                ) : (
+                                  <span className="text-stone-400 font-medium">{language === 'ko' ? '기본' : 'Standard'}</span>
+                                )}
+                              </div>
+                              <div className="bg-sky-100/80 border border-sky-200/50 rounded px-1.5 py-0.2 font-mono font-black text-[10px] text-sky-800 flex-shrink-0">
+                                {totalPt} Pt
                               </div>
                             </div>
                           </div>
@@ -552,16 +572,17 @@ export default function TodaySchedulePage() {
                             <table className="w-full text-left border-collapse table-fixed">
                               <thead>
                                 <tr className="bg-stone-50 text-[10px] font-black text-stone-400 uppercase border-b border-stone-150">
-                                  <th className="p-1.5 w-[20%] text-center border-r border-stone-150">🔑</th>
-                                  <th className="p-1.5 w-[25%] text-center border-r border-stone-150">Time</th>
-                                  <th className="p-1.5 w-[37%] border-r border-stone-150 text-center">Price</th>
-                                  <th className="p-1.5 w-[18%] text-center">Pt</th>
+                                  <th className="p-1 w-[14%] text-center border-r border-stone-150" title={language === 'ko' ? '지정 배정' : 'Requested'}>ⓒ</th>
+                                  <th className="p-1 w-[18%] text-center border-r border-stone-150">🔑</th>
+                                  <th className="p-1 w-[26%] text-center border-r border-stone-150">Time</th>
+                                  <th className="p-1 w-[26%] border-r border-stone-150 text-center">Price</th>
+                                  <th className="p-1 w-[16%] text-center">Pt</th>
                                 </tr>
                               </thead>
                               <tbody className="divide-y divide-stone-100">
                                 {items.length === 0 ? (
                                   <tr>
-                                    <td colSpan={4} className="p-3 text-center text-[10.5px] text-stone-400 font-bold bg-stone-50/30">
+                                    <td colSpan={5} className="p-3 text-center text-[10.5px] text-stone-400 font-bold bg-stone-50/30">
                                       {isOff ? (language === 'ko' ? '휴무' : 'Off') : (language === 'ko' ? '비어있음' : 'Empty')}
                                     </td>
                                   </tr>
@@ -582,9 +603,21 @@ export default function TodaySchedulePage() {
                                         }`}
                                         title={language === 'ko' ? `예약자: ${item.customerName}` : `Client: ${item.customerName}`}
                                       >
-                                        <td className="p-1.5 text-center border-r border-stone-100 text-[10.5px] font-bold text-stone-700">
+                                        <td className="p-1 text-center border-r border-stone-100 text-[10.5px] font-bold text-stone-700">
+                                          {item.isRequested ? (
+                                            <span
+                                              className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-rose-100 text-rose-700 text-[10px] font-black cursor-pointer"
+                                              title={language === 'ko' ? `예약자: ${item.customerName}` : `Client: ${item.customerName}`}
+                                            >
+                                              ⓒ
+                                            </span>
+                                          ) : (
+                                            <span className="text-stone-300">-</span>
+                                          )}
+                                        </td>
+                                        <td className="p-1.5 text-center border-r border-stone-100 text-[10.5px] font-bold text-stone-750">
                                           {isCheckedIn && lockerNo ? (
-                                            <span className="inline-flex items-center px-1 py-0.5 rounded bg-emerald-50 text-emerald-850 border border-emerald-100/50 text-[10px] font-black leading-none">
+                                            <span className="inline-flex items-center px-1 py-0.5 rounded bg-emerald-50 text-emerald-855 border border-emerald-100/50 text-[9px] font-black leading-none">
                                               {lockerNo}
                                             </span>
                                           ) : (
@@ -623,7 +656,7 @@ export default function TodaySchedulePage() {
                     {language === 'ko' ? '등록된 건식 마사지사가 없습니다.' : 'No registered dry therapists.'}
                   </p>
                 ) : (
-                  <div className="grid grid-cols-2 xl:grid-cols-4 gap-3">
+                  <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-7 gap-1.5">
                     {dryTherapists.map((th) => {
                       const items = getTherapistReservations(th.id)
                       const totalPt = items.reduce((sum, item) => sum + (item?.point || 0), 0)
@@ -631,32 +664,29 @@ export default function TodaySchedulePage() {
                       return (
                         <div
                           key={th.id}
-                          className={`w-full bg-white border border-stone-200 rounded-xl p-3 shadow-sm space-y-2.5 hover:border-amber-300 hover:shadow-md transition-all animate-in fade-in slide-in-from-bottom-2 duration-200 ${isOff ? 'opacity-65' : ''}`}
+                          className={`w-full bg-white border border-stone-200 rounded-xl p-2 shadow-sm space-y-2 hover:border-amber-300 hover:shadow-md transition-all animate-in fade-in slide-in-from-bottom-2 duration-200 ${isOff ? 'opacity-65' : ''}`}
                         >
-                          <div className="flex items-center justify-between bg-amber-50/50 border border-amber-100 rounded-lg p-2">
-                            <div className="flex items-center gap-2 min-w-0">
-                              <div className="w-6 h-6 bg-amber-600 text-white rounded-md flex items-center justify-center text-[10px] font-bold shadow-sm flex-shrink-0">
-                                <User className="w-3.5 h-3.5" />
+                          <div className="bg-amber-50/50 border border-amber-100 rounded-lg p-1.5 space-y-1">
+                            {/* 第一 Line: 이름만 */}
+                            <div className="flex items-center gap-1.5 min-w-0">
+                              <div className="w-4 h-4 bg-amber-600 text-white rounded-md flex items-center justify-center text-[10px] font-bold shadow-sm flex-shrink-0">
+                                <User className="w-3 h-3" />
                               </div>
-                              <span className="text-xs font-black text-stone-850 truncate">{th.name}</span>
-                              {statusLabel && (
-                                <span className={`text-[9px] font-bold flex-shrink-0 ${isOff ? 'text-rose-600' : 'text-stone-500'}`}>
-                                  {statusLabel}
-                                </span>
-                              )}
+                              <span className="text-xs font-black text-stone-850 truncate" title={th.name}>{th.name}</span>
                             </div>
-                            <div className="flex items-center gap-1.5 flex-shrink-0">
-                              {canModify && !isOff && (
-                                <button
-                                  onClick={() => handleNewBookingClick(th.id, isOff)}
-                                  className="w-5 h-5 bg-amber-600 hover:bg-amber-700 active:scale-95 text-white rounded-md flex items-center justify-center shadow transition-all cursor-pointer"
-                                  title={language === 'ko' ? '신규 예약 접수' : 'New Booking'}
-                                >
-                                  <Plus className="w-3.5 h-3.5" />
-                                </button>
-                              )}
-                              <div className="bg-amber-100/80 border border-amber-200/50 rounded px-2 py-0.5 font-mono font-black text-[10px] text-amber-855">
-                                {totalPt}
+                            {/* 第二 Line: Priority & 포인트 (+ 버튼 제거) */}
+                            <div className="flex items-center justify-between text-[10px] pt-0.5 border-t border-amber-100/60">
+                              <div className="font-bold truncate">
+                                {statusLabel ? (
+                                  <span className={isOff ? 'text-rose-600 font-extrabold' : 'text-stone-500'}>
+                                    {statusLabel}
+                                  </span>
+                                ) : (
+                                  <span className="text-stone-400 font-medium">{language === 'ko' ? '기본' : 'Standard'}</span>
+                                )}
+                              </div>
+                              <div className="bg-amber-100/80 border border-amber-200/50 rounded px-1.5 py-0.2 font-mono font-black text-[10px] text-amber-855 flex-shrink-0">
+                                {totalPt} Pt
                               </div>
                             </div>
                           </div>
@@ -665,16 +695,17 @@ export default function TodaySchedulePage() {
                             <table className="w-full text-left border-collapse table-fixed">
                               <thead>
                                 <tr className="bg-stone-50 text-[10px] font-black text-stone-400 uppercase border-b border-stone-150">
-                                  <th className="p-1.5 w-[20%] text-center border-r border-stone-150">🔑</th>
-                                  <th className="p-1.5 w-[25%] text-center border-r border-stone-150">Time</th>
-                                  <th className="p-1.5 w-[37%] border-r border-stone-150 text-center">Price</th>
-                                  <th className="p-1.5 w-[18%] text-center">Pt</th>
+                                  <th className="p-1 w-[14%] text-center border-r border-stone-150" title={language === 'ko' ? '지정 배정' : 'Requested'}>ⓒ</th>
+                                  <th className="p-1 w-[18%] text-center border-r border-stone-150">🔑</th>
+                                  <th className="p-1 w-[26%] text-center border-r border-stone-150">Time</th>
+                                  <th className="p-1 w-[26%] border-r border-stone-150 text-center">Price</th>
+                                  <th className="p-1 w-[16%] text-center">Pt</th>
                                 </tr>
                               </thead>
                               <tbody className="divide-y divide-stone-100">
                                 {items.length === 0 ? (
                                   <tr>
-                                    <td colSpan={4} className="p-3 text-center text-[10.5px] text-stone-400 font-bold bg-stone-50/30">
+                                    <td colSpan={5} className="p-3 text-center text-[10.5px] text-stone-400 font-bold bg-stone-50/30">
                                       {isOff ? (language === 'ko' ? '휴무' : 'Off') : (language === 'ko' ? '비어있음' : 'Empty')}
                                     </td>
                                   </tr>
@@ -695,9 +726,21 @@ export default function TodaySchedulePage() {
                                         }`}
                                         title={language === 'ko' ? `예약자: ${item.customerName}` : `Client: ${item.customerName}`}
                                       >
-                                        <td className="p-1.5 text-center border-r border-stone-100 text-[10.5px] font-bold text-stone-700">
+                                        <td className="p-1 text-center border-r border-stone-100 text-[10.5px] font-bold text-stone-700">
+                                          {item.isRequested ? (
+                                            <span
+                                              className="inline-flex items-center justify-center w-4 h-4 rounded-full bg-rose-100 text-rose-700 text-[10px] font-black cursor-pointer"
+                                              title={language === 'ko' ? `예약자: ${item.customerName}` : `Client: ${item.customerName}`}
+                                            >
+                                              ⓒ
+                                            </span>
+                                          ) : (
+                                            <span className="text-stone-300">-</span>
+                                          )}
+                                        </td>
+                                        <td className="p-1.5 text-center border-r border-stone-100 text-[10.5px] font-bold text-stone-750">
                                           {isCheckedIn && lockerNo ? (
-                                            <span className="inline-flex items-center px-1 py-0.5 rounded bg-emerald-50 text-emerald-850 border border-emerald-100/50 text-[10px] font-black leading-none">
+                                            <span className="inline-flex items-center px-1 py-0.5 rounded bg-emerald-50 text-emerald-855 border border-emerald-100/50 text-[9px] font-black leading-none">
                                               {lockerNo}
                                             </span>
                                           ) : (
@@ -749,6 +792,19 @@ export default function TodaySchedulePage() {
           currentUserId={currentUser.id}
           currentUserRole={currentUser.role}
           isWalkIn={isWalkIn}
+        />
+      )}
+      {isReservationListModalOpen && (
+        <TodayReservationListModal
+          isOpen={isReservationListModalOpen}
+          onClose={() => setIsReservationListModalOpen(false)}
+          selectedDate={selectedDate}
+          onDateChange={setSelectedDate}
+          reservations={reservations}
+          therapists={therapists}
+          employees={employees || []}
+          pricingPlans={pricingPlans}
+          language={language}
         />
       )}
     </DashboardLayout>

@@ -1355,8 +1355,15 @@ export default function BookingModal({
         setStartMinute(sm)
         setEndHour(eh)
         setEndMinute(em)
-        setTherapistId(selectedReservation.therapist_id?.toString() || 'auto')
-        setSecondaryTherapistId((selectedReservation as any).secondary_therapist_id?.toString() || 'auto')
+        const initTherapistId = (selectedReservation.is_requested && selectedReservation.therapist_id)
+          ? selectedReservation.therapist_id.toString()
+          : 'auto'
+        const initSecTherapistId = ((selectedReservation as any).is_requested_secondary && (selectedReservation as any).secondary_therapist_id)
+          ? (selectedReservation as any).secondary_therapist_id.toString()
+          : 'auto'
+
+        setTherapistId(initTherapistId)
+        setSecondaryTherapistId(initSecTherapistId)
 
         setPersonCount(1)
         setActiveTab(0)
@@ -1367,8 +1374,8 @@ export default function BookingModal({
           startMinute: sm,
           endHour: eh,
           endMinute: em,
-          therapistId: selectedReservation.therapist_id?.toString() || 'auto',
-          secondaryTherapistId: (selectedReservation as any).secondary_therapist_id?.toString() || 'auto',
+          therapistId: initTherapistId,
+          secondaryTherapistId: initSecTherapistId,
           delayMinutes: (selectedReservation as any).delay_minutes ?? 30
         }])
         setDelayMinutes((selectedReservation as any).delay_minutes ?? 30)
@@ -1942,7 +1949,9 @@ export default function BookingModal({
             therapist_id: assignedId,
             secondary_therapist_id: assignedSecondaryId,
             delay_minutes: delayMinutes,
-            status: 'confirmed'
+            status: 'confirmed',
+            is_requested: therapistId !== 'auto',
+            is_requested_secondary: secondaryTherapistId !== 'auto'
           })
           .eq('id', selectedReservation.id)
 
@@ -2200,7 +2209,9 @@ export default function BookingModal({
             created_by: performerUuid,
             status: 'confirmed',
             is_checked_in: isWalkIn,
-            locker_number: isWalkIn ? (comp.lockerNumber || '').trim() : null
+            locker_number: isWalkIn ? (comp.lockerNumber || '').trim() : null,
+            is_requested: comp.therapistId !== 'auto',
+            is_requested_secondary: comp.secondaryTherapistId !== 'auto'
           })
         }
 

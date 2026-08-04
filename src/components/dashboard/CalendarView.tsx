@@ -36,6 +36,8 @@ export interface Reservation {
   created_at: string
   is_checked_in?: boolean
   locker_number?: string | null
+  is_requested?: boolean
+  is_requested_secondary?: boolean
 }
 
 interface CalendarViewProps {
