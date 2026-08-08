@@ -518,13 +518,13 @@ export default function TodayReservationListModal({
                           >
                             <td className="p-1 text-center font-mono text-[10.5px] text-stone-400 font-bold">{idx + 1}</td>
                             <td className="p-1 text-center whitespace-nowrap">
-                              {isCheckedIn ? (
-                                <span className="px-1.5 py-0.5 rounded-full text-[9px] font-extrabold bg-sky-600 text-white border border-sky-700 shadow-xs">
-                                  {language === 'ko' ? '체크인' : 'Checked In'}
-                                </span>
-                              ) : isAssigned ? (
+                              {isAssigned ? (
                                 <span className="px-1.5 py-0.5 rounded-full text-[9px] font-extrabold bg-stone-900 text-white border border-stone-950 shadow-xs">
                                   {language === 'ko' ? '배정' : 'Assigned'}
+                                </span>
+                              ) : isCheckedIn ? (
+                                <span className="px-1.5 py-0.5 rounded-full text-[9px] font-extrabold bg-sky-600 text-white border border-sky-700 shadow-xs">
+                                  {language === 'ko' ? '체크인' : 'Checked In'}
                                 </span>
                               ) : (
                                 <span className="px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-stone-200 text-stone-700 border border-stone-300">
@@ -644,13 +644,13 @@ export default function TodayReservationListModal({
                           >
                             <td className="p-1 text-center font-mono text-[10.5px] text-stone-400 font-bold">{idx + 1}</td>
                             <td className="p-1 text-center whitespace-nowrap">
-                              {isCheckedIn ? (
-                                <span className="px-1.5 py-0.5 rounded-full text-[9px] font-extrabold bg-sky-600 text-white border border-sky-700 shadow-xs">
-                                  {language === 'ko' ? '체크인' : 'Checked In'}
-                                </span>
-                              ) : isAssigned ? (
+                              {isAssigned ? (
                                 <span className="px-1.5 py-0.5 rounded-full text-[9px] font-extrabold bg-stone-900 text-white border border-stone-950 shadow-xs">
                                   {language === 'ko' ? '배정' : 'Assigned'}
+                                </span>
+                              ) : isCheckedIn ? (
+                                <span className="px-1.5 py-0.5 rounded-full text-[9px] font-extrabold bg-sky-600 text-white border border-sky-700 shadow-xs">
+                                  {language === 'ko' ? '체크인' : 'Checked In'}
                                 </span>
                               ) : (
                                 <span className="px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-stone-200 text-stone-700 border border-stone-300">

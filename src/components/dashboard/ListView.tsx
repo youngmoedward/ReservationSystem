@@ -161,13 +161,17 @@ export default function ListView({
                       className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-[10px] font-semibold ${
                         res.status === 'cancelled'
                           ? 'bg-rose-50 text-rose-700 border border-rose-200'
+                          : (res.status === 'assigned' || res.is_primary_assigned || res.is_secondary_assigned)
+                          ? 'bg-stone-900 text-white border border-stone-950 shadow-sm'
                           : res.locker_number
                           ? 'bg-sky-50 text-sky-700 border border-sky-200 shadow-sm shadow-sky-900/5'
-                          : 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                          : 'bg-stone-100 text-stone-700 border border-stone-300'
                       }`}
                     >
                       {res.status === 'cancelled' 
                         ? t('calendar.legend.cancelled') 
+                        : (res.status === 'assigned' || res.is_primary_assigned || res.is_secondary_assigned)
+                        ? (language === 'ko' ? '배정' : 'Assigned')
                         : res.locker_number 
                         ? (language === 'ko' ? '체크인 완료' : 'Checked In') 
                         : t('calendar.legend.confirmed')}
@@ -265,13 +269,17 @@ export default function ListView({
                       className={`inline-flex items-center rounded-full px-2 py-0.5 text-[10px] font-semibold uppercase ${
                         res.status === 'cancelled'
                           ? 'bg-rose-50 text-rose-700 border border-rose-200'
+                          : (res.status === 'assigned' || res.is_primary_assigned || res.is_secondary_assigned)
+                          ? 'bg-stone-900 text-white border border-stone-950 shadow-sm'
                           : res.locker_number
                           ? 'bg-sky-50 text-sky-700 border border-sky-200'
-                          : 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                          : 'bg-stone-100 text-stone-700 border border-stone-300'
                       }`}
                     >
                       {res.status === 'cancelled' 
                         ? t('calendar.legend.cancelled') 
+                        : (res.status === 'assigned' || res.is_primary_assigned || res.is_secondary_assigned)
+                        ? (language === 'ko' ? '배정' : 'Assigned')
                         : res.locker_number 
                         ? (language === 'ko' ? '체크인 완료' : 'Checked In') 
                         : t('calendar.legend.confirmed')}
