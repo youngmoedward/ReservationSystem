@@ -4,7 +4,7 @@ import React, { useEffect } from 'react'
 import { useRouter, usePathname } from 'next/navigation'
 import { useUserSim } from '@/app/providers'
 import { useLanguage } from '@/app/LanguageContext'
-import { Calendar, List, Settings, Users, LogIn, LogOut, BarChart3, ShieldAlert, Layers, ShieldCheck } from 'lucide-react'
+import { Calendar, List, Settings, Users, LogIn, LogOut, BarChart3, ShieldAlert, Layers, ShieldCheck, Clock } from 'lucide-react'
 
 interface DashboardLayoutProps {
   children: React.ReactNode
@@ -161,6 +161,16 @@ export default function DashboardLayout({ children }: DashboardLayoutProps) {
                 }`}
             >
               <Calendar className="w-4 h-4" /> {t('nav.schedule')}
+            </button>
+
+            <button
+              onClick={() => navigateTo('/dashboard/operating-hours')}
+              className={`inline-flex items-center gap-1.5 flex-shrink-0 px-4 py-2 text-xs font-bold rounded-xl border transition-all ${pathname === '/dashboard/operating-hours'
+                ? 'bg-white border-stone-300 text-emerald-800 shadow-sm'
+                : 'bg-transparent border-transparent text-stone-700 hover:text-stone-900 hover:bg-stone-50/40'
+                }`}
+            >
+              <Clock className="w-4 h-4" /> {t('nav.operating_hours')}
             </button>
 
             {/* [권한별 분기] Manager인 경우 요금관리 좌측에 권한 관리 메뉴 배치 */}

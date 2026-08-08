@@ -3,6 +3,8 @@
 import React, { useState, useEffect, useRef } from 'react'
 import { X, Calendar, User, Phone, DollarSign, UserCheck, Trash2, Ban, Key } from 'lucide-react'
 import { assignTherapist } from '@/utils/booking/assignTherapist'
+import { reassignTherapists } from '@/utils/booking/reassignTherapists'
+import { getOperatingHoursForDate, OperatingHoursInfo } from '@/utils/booking/operatingHours'
 import { Reservation, Therapist } from './CalendarView'
 import { SupabaseClient } from '@supabase/supabase-js'
 import { UserSim } from '@/app/providers'
@@ -86,6 +88,51 @@ export default function BookingModal({
   const [isSameTimeApplied, setIsSameTimeApplied] = useState(true)
   const [lockerNumber, setLockerNumber] = useState('')
   const [isCheckedIn, setIsCheckedIn] = useState(false)
+  const [opInfo, setOpInfo] = useState<OperatingHoursInfo | null>(null)
+
+  useEffect(() => {
+    if (!isOpen || !date) return
+    const fetchOperatingHours = async () => {
+      const info = await getOperatingHoursForDate(supabase, date)
+      setOpInfo(info)
+    }
+    fetchOperatingHours()
+  }, [date, isOpen, supabase])
+
+  const hasFormChanges = () => {
+    if (!selectedReservation) return true // New booking counts as change
+
+    const tzo = -new Date().getTimezoneOffset()
+    const dif = tzo >= 0 ? '+' : '-'
+    const pad = (num: number) => String(Math.floor(Math.abs(num))).padStart(2, '0')
+    const offset = `${dif}${pad(tzo / 60)}:${pad(tzo % 60)}`
+    
+    const sHourStr = String(startHour).padStart(2, '0')
+    const sMinStr = String(startMinute).padStart(2, '0')
+    const eHourStr = String(endHour).padStart(2, '0')
+    const eMinStr = String(endMinute).padStart(2, '0')
+
+    const newStartISO = `${date}T${sHourStr}:${sMinStr}:00${offset}`
+    const newEndISO = `${date}T${eHourStr}:${eMinStr}:00${offset}`
+
+    const isNameDiff = (selectedReservation.customer_name || '').trim() !== customerName.trim()
+    const isPhoneDiff = stripPhone(selectedReservation.customer_phone || '') !== stripPhone(customerPhone)
+    const isPriceDiff = Number(selectedReservation.price) !== Number(price)
+    const isPlanDiff = selectedReservation.pricing_plan_id !== (selectedPlanId ? Number(selectedPlanId) : null)
+    
+    const isStartDiff = new Date(selectedReservation.start_time).getTime() !== new Date(newStartISO).getTime()
+    const isEndDiff = new Date(selectedReservation.end_time).getTime() !== new Date(newEndISO).getTime()
+    
+    const isTherapistDiff = selectedReservation.therapist_id !== (therapistId === 'auto' ? null : Number(therapistId))
+    const isSecTherapistDiff = (selectedReservation as any).secondary_therapist_id !== (secondaryTherapistId === 'auto' ? null : Number(secondaryTherapistId))
+    
+    const isReqDiff = !!selectedReservation.is_requested !== (therapistId !== 'auto')
+    const isReqSecDiff = !!selectedReservation.is_requested_secondary !== (secondaryTherapistId !== 'auto')
+
+    const isDelayDiff = ((selectedReservation as any).delay_minutes ?? 30) !== delayMinutes
+
+    return isNameDiff || isPhoneDiff || isPriceDiff || isPlanDiff || isStartDiff || isEndDiff || isTherapistDiff || isSecTherapistDiff || isReqDiff || isReqSecDiff || isDelayDiff
+  }
 
   interface GuestProposal {
     name: string
@@ -1592,27 +1639,96 @@ export default function BookingModal({
 
     try {
       const performerUuid = await getEmployeeUuidByPin(performer.pin)
+      const hasChanges = hasFormChanges()
 
-      const { error } = await supabase
-        .from('reservations')
-        .update({
-          is_checked_in: true,
-          locker_number: cleanedLocker
-        })
-        .eq('id', selectedReservation.id)
+      if (hasChanges) {
+        if (opInfo) {
+          if (opInfo.is_closed) {
+            setErrorMsg(language === 'ko' ? '선택하신 날짜는 휴무일로 지정되어 예약 변경 및 체크인이 불가능합니다.' : 'Check-in cannot be processed on a holiday.')
+            return
+          }
+          const openHour = parseInt(opInfo.open_time.split(':')[0], 10)
+          const closeHour = parseInt(opInfo.close_time.split(':')[0], 10)
+          if (startHour < openHour || startHour > closeHour || endHour > closeHour) {
+            setErrorMsg(language === 'ko'
+              ? `예약 시간은 영업시간(${opInfo.open_time} ~ ${opInfo.close_time}) 내에서만 가능합니다.`
+              : `Reservation time must be within operating hours (${opInfo.open_time} ~ ${opInfo.close_time}).`)
+            return
+          }
+        }
 
-      if (error) throw error
+        const tzo = -new Date().getTimezoneOffset()
+        const dif = tzo >= 0 ? '+' : '-'
+        const pad = (num: number) => String(Math.floor(Math.abs(num))).padStart(2, '0')
+        const offset = `${dif}${pad(tzo / 60)}:${pad(tzo % 60)}`
 
-      // 예약 이력 로그 기록 (performed_by에는 직원의 UUID만 넣고 details에 상세 이력 문자열 입력)
-      await supabase
-        .from('reservation_logs')
-        .insert({
-          reservation_id: selectedReservation.id,
-          performed_by: performerUuid,
-          action: 'update',
-          log_type: 'reservation',
-          details: `[수행자: ${performer.userName}] 체크인 완료 (라커 번호: ${cleanedLocker})`
-        })
+        const sHourStr = String(startHour).padStart(2, '0')
+        const sMinStr = String(startMinute).padStart(2, '0')
+        const eHourStr = String(endHour).padStart(2, '0')
+        const eMinStr = String(endMinute).padStart(2, '0')
+
+        const startTimeISO = `${date}T${sHourStr}:${sMinStr}:00${offset}`
+        const endTimeISO = `${date}T${eHourStr}:${eMinStr}:00${offset}`
+
+        const assignedId = therapistId === 'auto' ? null : Number(therapistId)
+        const assignedSecondaryId = secondaryTherapistId === 'auto' ? null : Number(secondaryTherapistId)
+
+        const { error } = await supabase
+          .from('reservations')
+          .update({
+            customer_name: customerName,
+            customer_phone: stripPhone(customerPhone),
+            start_time: startTimeISO,
+            end_time: endTimeISO,
+            price,
+            pricing_plan_id: selectedPlanId ? Number(selectedPlanId) : null,
+            therapist_id: assignedId,
+            secondary_therapist_id: assignedSecondaryId,
+            delay_minutes: delayMinutes,
+            status: 'confirmed',
+            is_requested: therapistId !== 'auto',
+            is_requested_secondary: secondaryTherapistId !== 'auto',
+            is_checked_in: true,
+            locker_number: cleanedLocker
+          })
+          .eq('id', selectedReservation.id)
+
+        if (error) throw error
+
+        await supabase
+          .from('reservation_logs')
+          .insert({
+            reservation_id: selectedReservation.id,
+            performed_by: performerUuid,
+            action: 'update',
+            log_type: 'reservation',
+            details: `[수행자: ${performer.userName}] 변경 후 체크인 완료 (라커 번호: ${cleanedLocker})`
+          })
+
+        // 변경 건이 있는 체크인이므로, 해당 예약 건의 시작 시간부터 당일 재배정 실시
+        await reassignTherapists(supabase, date, startTimeISO, language)
+
+      } else {
+        const { error } = await supabase
+          .from('reservations')
+          .update({
+            is_checked_in: true,
+            locker_number: cleanedLocker
+          })
+          .eq('id', selectedReservation.id)
+
+        if (error) throw error
+
+        await supabase
+          .from('reservation_logs')
+          .insert({
+            reservation_id: selectedReservation.id,
+            performed_by: performerUuid,
+            action: 'update',
+            log_type: 'reservation',
+            details: `[수행자: ${performer.userName}] 체크인 완료 (라커 번호: ${cleanedLocker})`
+          })
+      }
 
       setIsCheckedIn(true)
       onSuccess()
@@ -1640,6 +1756,25 @@ export default function BookingModal({
   // 4. 예약 등록 / 수정 처리 핸들러
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
+
+    // 영업시간 및 휴무일 최종 검증
+    if (opInfo) {
+      if (opInfo.is_closed) {
+        setErrorMsg(language === 'ko' ? '선택하신 날짜는 휴무일로 지정되어 예약이 불가능합니다.' : 'Reservations cannot be made on a holiday.')
+        return
+      }
+      
+      const openHour = parseInt(opInfo.open_time.split(':')[0], 10)
+      const closeHour = parseInt(opInfo.close_time.split(':')[0], 10)
+      
+      if (startHour < openHour || startHour > closeHour || endHour > closeHour) {
+        setErrorMsg(language === 'ko' 
+          ? `예약 시간은 영업시간(${opInfo.open_time} ~ ${opInfo.close_time}) 내에서만 가능합니다.` 
+          : `Reservation time must be within operating hours (${opInfo.open_time} ~ ${opInfo.close_time}).`)
+        return
+      }
+    }
+
     if (!isWalkIn && !customerName.trim()) {
       setErrorMsg(language === 'ko' ? '고객 이름을 입력해 주세요.' : 'Please enter client name.')
       return
@@ -1957,6 +2092,12 @@ export default function BookingModal({
 
         if (error) throw error
 
+        // 기존 예약 시작 시간과 변경 후 예약 시작 시간 중 더 빠른 시간을 기준점으로 재배정 실행
+        const earliestStart = new Date(selectedReservation.start_time).getTime() < new Date(startTimeISO).getTime()
+          ? selectedReservation.start_time
+          : startTimeISO
+        await reassignTherapists(supabase, date, earliestStart, language)
+
         await supabase.from('reservation_logs').insert({
           reservation_id: selectedReservation.id,
           action: 'update',
@@ -2223,6 +2364,15 @@ export default function BookingModal({
 
         if (error) throw error
 
+        // 신규 등록된 예약건들 중 가장 이른 시작 시간을 기준으로 당일 재배정 실행
+        if (insertPayloads.length > 0) {
+          const earliestStart = insertPayloads.reduce((min, cur) => 
+            new Date(cur.start_time).getTime() < new Date(min).getTime() ? cur.start_time : min, 
+            insertPayloads[0].start_time
+          )
+          await reassignTherapists(supabase, date, earliestStart, language)
+        }
+
         // 신규 등록 이력 로깅
         if (insertedData && Array.isArray(insertedData)) {
           for (const row of insertedData) {
@@ -2299,6 +2449,9 @@ export default function BookingModal({
         .eq('id', selectedReservation.id)
 
       if (error) throw error
+
+      // 예약 취소/노쇼 완료 시, 해당 취소된 예약의 시작 시간을 기준으로 당일 후속 예약 재배정 실행
+      await reassignTherapists(supabase, date, selectedReservation.start_time, language)
 
       // 이력 로그 기록
       const cancelTypeTransKey = selectedCancelType === 'request'
@@ -2419,6 +2572,11 @@ export default function BookingModal({
   // ==========================================
   // [기본 입력 폼 렌더러]
   // ==========================================
+  const startOpHour = opInfo ? parseInt(opInfo.open_time.split(':')[0], 10) : 9
+  const endOpHour = opInfo ? parseInt(opInfo.close_time.split(':')[0], 10) : 21
+  const hoursRangeLength = endOpHour - startOpHour + 1
+  const opHoursArray = Array.from({ length: Math.max(1, hoursRangeLength) }, (_, i) => i + startOpHour)
+
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-stone-900/30 backdrop-blur-sm animate-in fade-in duration-200">
       <div className="w-full max-w-3xl bg-stone-50 border border-stone-200 rounded-2xl shadow-2xl flex flex-col max-h-[80vh] overflow-hidden">
@@ -2438,12 +2596,19 @@ export default function BookingModal({
         </div>
 
         {/* 폼 */}
-        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto py-4 px-5 space-y-3.5">
-          {errorMsg && (
-            <div className="p-3 text-xs font-semibold rounded-lg bg-rose-500/10 text-rose-400 border border-rose-500/20">
-              ⚠️ {errorMsg}
+        <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto py-4 px-5 space-y-3.5 relative">
+          {opInfo?.is_closed && (
+            <div className="p-3 text-xs font-bold rounded-lg bg-rose-500/10 text-rose-600 border border-rose-500/20 flex items-center gap-2">
+              🚨 {language === 'ko' ? '선택하신 날짜는 휴무일로 지정되어 예약 접수가 불가능합니다.' : 'Selected date is marked as holiday. Booking is disabled.'}
             </div>
           )}
+
+          <div className={opInfo?.is_closed ? "opacity-60 pointer-events-none select-none" : ""}>
+            {errorMsg && (
+              <div className="p-3 text-xs font-semibold rounded-lg bg-rose-500/10 text-rose-400 border border-rose-500/20">
+                ⚠️ {errorMsg}
+              </div>
+            )}
 
           {/* 고객명 */}
           <div className={`relative ${activeInput === 'name' && showSuggestions && suggestions.length > 0 ? 'z-30' : 'z-10'}`}>
@@ -2842,7 +3007,7 @@ export default function BookingModal({
                   }}
                   className="flex-1 bg-white border border-stone-200 rounded-xl px-3 py-3 text-xs text-stone-800 focus:outline-none focus:border-emerald-500/80 transition-colors disabled:opacity-50"
                 >
-                  {Array.from({ length: 16 }, (_, i) => i + 9).map(h => (
+                  {opHoursArray.map(h => (
                     <option key={h} value={h}>
                       {language === 'ko' ? `${h}시` : `${String(h).padStart(2, '0')}:00`}
                     </option>
@@ -2879,7 +3044,7 @@ export default function BookingModal({
                   value={endHour}
                   className="flex-1 bg-stone-50 border border-stone-200 rounded-xl px-3 py-3 text-xs text-stone-500 cursor-not-allowed focus:outline-none"
                 >
-                  {Array.from({ length: 16 }, (_, i) => i + 9).map(h => (
+                  {opHoursArray.map(h => (
                     <option key={h} value={h}>
                       {language === 'ko' ? `${h}시` : `${String(h).padStart(2, '0')}:00`}
                     </option>
@@ -3237,7 +3402,8 @@ export default function BookingModal({
               )}
             </div>
           )}
-        </form>
+        </div>
+      </form>
 
         {/* 푸터 액션 */}
         {isCancelling ? (
@@ -3334,7 +3500,7 @@ export default function BookingModal({
                   <button
                     type="button"
                     onClick={handleCheckIn}
-                    disabled={!canModify || loading}
+                    disabled={!canModify || loading || !!opInfo?.is_closed}
                     className="rounded-lg bg-sky-600 hover:bg-sky-500 text-white px-3 py-1.5 text-xs font-bold transition-all disabled:opacity-50 cursor-pointer animate-none"
                   >
                     {language === 'ko' ? '체크인' : 'Check In'}
@@ -3354,7 +3520,7 @@ export default function BookingModal({
               {canModify && !isFormLocked && (
                 <button
                   onClick={handleSubmit}
-                  disabled={loading}
+                  disabled={loading || !!opInfo?.is_closed}
                   className="rounded-xl bg-emerald-700 hover:bg-emerald-600 text-white shadow-sm shadow-emerald-900/10 px-6 py-3 text-xs font-bold transition-all disabled:opacity-50 flex items-center justify-center"
                 >
                   {loading
