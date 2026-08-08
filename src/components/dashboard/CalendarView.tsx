@@ -30,7 +30,7 @@ export interface Reservation {
   secondary_therapist_id?: number | null
   pricing_plan_id?: number | null
   created_by: string | null
-  status: 'confirmed' | 'cancelled'
+  status: 'confirmed' | 'assigned' | 'cancelled'
   cancellation_type?: 'request' | 'noshow' | null
   penalty_points?: number
   created_at: string
@@ -38,6 +38,9 @@ export interface Reservation {
   locker_number?: string | null
   is_requested?: boolean
   is_requested_secondary?: boolean
+  is_walk_in?: boolean
+  is_primary_assigned?: boolean
+  is_secondary_assigned?: boolean
 }
 
 interface CalendarViewProps {

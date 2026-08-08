@@ -1,6 +1,6 @@
 'use client'
 
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useState, useCallback, useRef } from 'react'
 import DashboardLayout from '@/components/layout/DashboardLayout'
 import { createClient } from '@/utils/supabase/client'
 import { useUserSim, UserSim } from '@/app/providers'
@@ -49,6 +49,7 @@ export default function TodaySchedulePage() {
   const [initialTime, setInitialTime] = useState<Date | null>(null)
   const [initialTherapistId, setInitialTherapistId] = useState<number | null>(null)
   const [activeFloorTab, setActiveFloorTab] = useState<'wet' | 'dry'>('wet')
+  const dateInputRef = useRef<HTMLInputElement>(null)
 
   // 조회 대상 날짜 상태 (기본값: 오늘)
   const [selectedDate, setSelectedDate] = useState<string>(toLocalDateString(new Date()))
@@ -82,128 +83,128 @@ export default function TodaySchedulePage() {
     return `${uiDate} (${dayLabel})`
   }
 
-  useEffect(() => {
-    async function fetchData() {
-      try {
-        setLoading(true)
+  const fetchData = useCallback(async () => {
+    try {
+      setLoading(true)
 
-        // 1. 마사지사 목록 조회
-        const { data: thData } = await supabase
-          .from('therapists')
-          .select('id, name, massage_type, is_active')
-          .eq('is_active', true)
-          .order('name', { ascending: true })
+      // 1. 마사지사 목록 조회
+      const { data: thData } = await supabase
+        .from('therapists')
+        .select('id, name, massage_type, is_active')
+        .eq('is_active', true)
+        .order('name', { ascending: true })
 
-        const activeTherapists = thData || []
-        setTherapists(activeTherapists as any[])
+      const activeTherapists = thData || []
+      setTherapists(activeTherapists as any[])
 
-        // 2. 만약 현재 사용자가 therapist 권한인 경우 본인의 massage_type 확인
-        if (currentUser.role === 'msg1') {
-          setCurrentTherapistType('dry')
-        } else if (currentUser.role === 'msg2') {
-          setCurrentTherapistType('wet')
-        } else if (currentUser.role === 'therapist' && currentUser.therapistId) {
-          const myProfile = activeTherapists.find(t => t.id === currentUser.therapistId)
-          if (myProfile) {
-            setCurrentTherapistType(myProfile.massage_type)
-          } else {
-            const { data: myDbProfile } = await supabase
-              .from('therapists')
-              .select('massage_type')
-              .eq('id', currentUser.therapistId)
-              .single()
-            if (myDbProfile) {
-              setCurrentTherapistType(myDbProfile.massage_type)
-            }
+      // 2. 만약 현재 사용자가 therapist 권한인 경우 본인의 massage_type 확인
+      if (currentUser.role === 'msg1') {
+        setCurrentTherapistType('dry')
+      } else if (currentUser.role === 'msg2') {
+        setCurrentTherapistType('wet')
+      } else if (currentUser.role === 'therapist' && currentUser.therapistId) {
+        const myProfile = activeTherapists.find(t => t.id === currentUser.therapistId)
+        if (myProfile) {
+          setCurrentTherapistType(myProfile.massage_type)
+        } else {
+          const { data: myDbProfile } = await supabase
+            .from('therapists')
+            .select('massage_type')
+            .eq('id', currentUser.therapistId)
+            .single()
+          if (myDbProfile) {
+            setCurrentTherapistType(myDbProfile.massage_type)
           }
         }
-
-        // 브라우저 로컬 오프셋 계산
-        const tzo = -new Date().getTimezoneOffset()
-        const dif = tzo >= 0 ? '+' : '-'
-        const pad = (num: number) => String(Math.floor(Math.abs(num))).padStart(2, '0')
-        const offset = `${dif}${pad(tzo / 60)}:${pad(tzo % 60)}`
-
-        const startOfDay = `${selectedDate}T00:00:00${offset}`
-        const endOfDay = `${selectedDate}T23:59:59${offset}`
-        
-        const { data: resData } = await supabase
-          .from('reservations')
-          .select('*')
-          .eq('status', 'confirmed')
-          .gte('start_time', startOfDay)
-          .lte('start_time', endOfDay)
-
-        setReservations((resData || []) as any[])
-
-        // 4. 요금제 정보 조회
-        const { data: planData } = await supabase
-          .from('pricing_plans')
-          .select('*')
-        setPricingPlans(planData || [])
-
-        // 4.5. 직원 목록 조회
-        const { data: empData } = await supabase
-          .from('employee')
-          .select('id, name, role')
-        if (empData) setEmployees(empData as UserSim[])
-
-        // 5. 누적 포인트 조회 (선택된 날짜 기준)
-        const { data: pointsData } = await supabase
-          .from('therapist_daily_points')
-          .select('therapist_id, points')
-          .eq('date', selectedDate)
-
-        const ptsMap: Record<number, number> = {}
-        if (pointsData) {
-          pointsData.forEach(p => {
-            ptsMap[p.therapist_id] = Number(p.points)
-          })
-        }
-        setDailyPoints(ptsMap)
-
-        // 6. 요일 우선순위 및 휴무 일정 동시 로드
-        const parts = selectedDate.split('-').map(Number)
-        const dateObj = new Date(parts[0], parts[1] - 1, parts[2])
-        const jsDay = dateObj.getDay()
-        const dbDayOfWeek = jsDay === 0 ? 6 : jsDay - 1
-
-        const { data: priData } = await supabase
-          .from('therapist_priorities')
-          .select('therapist_id, service_type, priority_val')
-          .eq('day_of_week', dbDayOfWeek)
-
-        const { data: schedData } = await supabase
-          .from('therapist_schedule')
-          .select('therapist_id, availability_type')
-          .eq('date', selectedDate)
-
-        const priMap: Record<number, Record<string, string>> = {}
-        if (priData) {
-          priData.forEach(p => {
-            if (!priMap[p.therapist_id]) priMap[p.therapist_id] = {}
-            priMap[p.therapist_id][p.service_type] = p.priority_val
-          })
-        }
-        setPrioritiesState(priMap)
-
-        const schedMap: Record<number, string> = {}
-        if (schedData) {
-          schedData.forEach(s => {
-            schedMap[s.therapist_id] = s.availability_type
-          })
-        }
-        setSchedulesState(schedMap)
-
-      } catch (err) {
-        console.error('Failed to load today work schedule data:', err)
-      } finally {
-        setLoading(false)
       }
-    }
 
-    fetchData()
+      // 브라우저 로컬 오프셋 계산
+      const tzo = -new Date().getTimezoneOffset()
+      const dif = tzo >= 0 ? '+' : '-'
+      const pad = (num: number) => String(Math.floor(Math.abs(num))).padStart(2, '0')
+      const offset = `${dif}${pad(tzo / 60)}:${pad(tzo % 60)}`
+
+      const startOfDay = `${selectedDate}T00:00:00${offset}`
+      const endOfDay = `${selectedDate}T23:59:59${offset}`
+      
+      const { data: resData } = await supabase
+        .from('reservations')
+        .select('*')
+        .in('status', ['confirmed', 'assigned'])
+        .gte('start_time', startOfDay)
+        .lte('start_time', endOfDay)
+
+      setReservations((resData || []) as any[])
+
+      // 4. 요금제 정보 조회
+      const { data: planData } = await supabase
+        .from('pricing_plans')
+        .select('*')
+      setPricingPlans(planData || [])
+
+      // 4.5. 직원 목록 조회
+      const { data: empData } = await supabase
+        .from('employee')
+        .select('id, name, role')
+      if (empData) setEmployees(empData as UserSim[])
+
+      // 5. 누적 포인트 조회 (선택된 날짜 기준)
+      const { data: pointsData } = await supabase
+        .from('therapist_daily_points')
+        .select('therapist_id, points')
+        .eq('date', selectedDate)
+
+      const ptsMap: Record<number, number> = {}
+      if (pointsData) {
+        pointsData.forEach(p => {
+          ptsMap[p.therapist_id] = Number(p.points)
+        })
+      }
+      setDailyPoints(ptsMap)
+
+      // 6. 요일 우선순위 및 휴무 일정 동시 로드
+      const parts = selectedDate.split('-').map(Number)
+      const dateObj = new Date(parts[0], parts[1] - 1, parts[2])
+      const jsDay = dateObj.getDay()
+      const dbDayOfWeek = jsDay === 0 ? 6 : jsDay - 1
+
+      const { data: priData } = await supabase
+        .from('therapist_priorities')
+        .select('therapist_id, service_type, priority_val')
+        .eq('day_of_week', dbDayOfWeek)
+
+      const { data: schedData } = await supabase
+        .from('therapist_schedule')
+        .select('therapist_id, availability_type')
+        .eq('date', selectedDate)
+
+      const priMap: Record<number, Record<string, string>> = {}
+      if (priData) {
+        priData.forEach(p => {
+          if (!priMap[p.therapist_id]) priMap[p.therapist_id] = {}
+          priMap[p.therapist_id][p.service_type] = p.priority_val
+        })
+      }
+      setPrioritiesState(priMap)
+
+      const schedMap: Record<number, string> = {}
+      if (schedData) {
+        schedData.forEach(s => {
+          schedMap[s.therapist_id] = s.availability_type
+        })
+      }
+      setSchedulesState(schedMap)
+
+    } catch (err) {
+      console.error('Failed to load today work schedule data:', err)
+    } finally {
+      setLoading(false)
+    }
   }, [supabase, currentUser, selectedDate])
+
+  useEffect(() => {
+    fetchData()
+  }, [fetchData])
 
   // 특정 마사지사의 특정 요일 우선순위 및 휴무 여부 텍스트 반환
   const getTherapistStatus = (therapistId: number, serviceType: 'wet' | 'dry') => {
@@ -293,12 +294,19 @@ export default function TodaySchedulePage() {
         const isRequested = res.therapist_id === therapistId 
           ? !!res.is_requested 
           : !!res.is_requested_secondary
+
+        // 파트별 배정 상태 판별
+        const isPrimary = res.therapist_id === therapistId
+        const isPartAssigned = isPrimary
+          ? !!(res.is_primary_assigned || res.status === 'assigned')
+          : !!res.is_secondary_assigned
         
         return {
           id: res.id,
           customerName: res.customer_name,
           point: pt,
           isRequested,
+          isPartAssigned,
           rawReservation: res,
           ...info
         }
@@ -307,15 +315,175 @@ export default function TodaySchedulePage() {
       .sort((a, b) => a.timeStr.localeCompare(b.timeStr))
   }
 
+  // 배정 확정 시간 범위 상태 (기본값: 현재 시간 ~ 30분 뒤)
+  const getInitialTimes = () => {
+    const now = new Date()
+    const p = (n: number) => String(n).padStart(2, '0')
+    const from = `${p(now.getHours())}:${p(now.getMinutes())}`
+    const toDate = new Date(now.getTime() + 30 * 60000)
+    const to = `${p(toDate.getHours())}:${p(toDate.getMinutes())}`
+    return { from, to }
+  }
+
+  const [assignFromTime, setAssignFromTime] = useState<string>(() => getInitialTimes().from)
+  const [assignToTime, setAssignToTime] = useState<string>(() => getInitialTimes().to)
+
   const canModify = currentUser.role === 'manager' || currentUser.role === 'staff' || currentUser.role === 'leader'
 
-  const handleRowClick = (rawRes: any) => {
+  const handleRowClick = (rawRes: any, therapistId?: number) => {
     if (!canModify) return
+
+    // 파트별 수정 차단 (콤보 예약은 파트 단위로 독립 관리)
+    if (rawRes.status === 'assigned') {
+      alert(language === 'ko' ? '배정 확정된 예약은 수정할 수 없습니다.' : 'Assigned bookings cannot be modified.')
+      return
+    }
+    if (therapistId && rawRes.secondary_therapist_id) {
+      // 콤보 예약 파트별 체크
+      if (therapistId === rawRes.secondary_therapist_id && rawRes.is_secondary_assigned) {
+        alert(language === 'ko' ? '배정 확정된 습식 파트는 수정할 수 없습니다.' : 'Assigned wet part cannot be modified.')
+        return
+      }
+      if (therapistId === rawRes.therapist_id && rawRes.is_primary_assigned) {
+        alert(language === 'ko' ? '배정 확정된 건식 파트는 수정할 수 없습니다.' : 'Assigned dry part cannot be modified.')
+        return
+      }
+    } else if (rawRes.is_primary_assigned) {
+      // 단일 요금제
+      alert(language === 'ko' ? '배정 확정된 예약은 수정할 수 없습니다.' : 'Assigned bookings cannot be modified.')
+      return
+    }
+
     setSelectedReservation(rawRes)
     setInitialTime(null)
     setInitialTherapistId(null)
     setIsWalkIn(false)
     setIsBookingModalOpen(true)
+  }
+
+  // 배정 확정 시간 일괄 로킹 처리 (체크인 건만, 콤보 파트별 독립)
+  const handleBatchAssign = async () => {
+    if (!canModify) return
+    if (!assignFromTime || !assignToTime) {
+      alert(language === 'ko' ? '배정 확정 시간을 선택해 주세요.' : 'Please select assignment time range.')
+      return
+    }
+
+    const tzo = -new Date().getTimezoneOffset()
+    const dif = tzo >= 0 ? '+' : '-'
+    const pad = (num: number) => String(Math.floor(Math.abs(num))).padStart(2, '0')
+    const offset = `${dif}${pad(tzo / 60)}:${pad(tzo % 60)}`
+
+    const fromISO = `${selectedDate}T${assignFromTime}:00${offset}`
+    const toISO = `${selectedDate}T${assignToTime}:59${offset}`
+
+    const fromMs = new Date(fromISO).getTime()
+    const toMs = new Date(toISO).getTime()
+
+    // 체크인 상태인 confirmed 건만 대상
+    const checkedInReservations = reservations.filter(r =>
+      r.status === 'confirmed' && r.is_checked_in === true
+    )
+
+    // 각 예약별로 파트 단위 업데이트 payload 결정
+    type AssignUpdate = { id: number; payload: Record<string, any>; partLabel: string }
+    const updates: AssignUpdate[] = []
+
+    checkedInReservations.forEach(r => {
+      const plan = pricingPlans.find(p => p.id === r.pricing_plan_id)
+      const isCombo = plan?.category === 'combo'
+      const startMs = new Date(r.start_time).getTime()
+
+      if (isCombo && plan) {
+        const bathDur = plan.bath_duration_minutes || 60
+        const delayMin = (r as any).delay_minutes ?? 30
+        const dryStartMs = startMs + (bathDur + delayMin) * 60000
+
+        let assignPrimary = false
+        let assignSecondary = false
+
+        // 습식(secondary) 시작시간 체크
+        if (startMs >= fromMs && startMs <= toMs && !r.is_secondary_assigned) {
+          assignSecondary = true
+        }
+        // 건식(primary) 시작시간 체크
+        if (dryStartMs >= fromMs && dryStartMs <= toMs && !r.is_primary_assigned) {
+          assignPrimary = true
+        }
+
+        if (assignPrimary || assignSecondary) {
+          const payload: Record<string, any> = {}
+          const parts: string[] = []
+          if (assignSecondary) { payload.is_secondary_assigned = true; parts.push('습식') }
+          if (assignPrimary) { payload.is_primary_assigned = true; parts.push('건식') }
+
+          // 양쪽 모두 배정 완료 시 status도 변경
+          const willBothAssigned =
+            (assignPrimary || !!r.is_primary_assigned) &&
+            (assignSecondary || !!r.is_secondary_assigned)
+          if (willBothAssigned) payload.status = 'assigned'
+
+          updates.push({ id: r.id, payload, partLabel: parts.join('+') })
+        }
+      } else {
+        // 단일 요금제
+        if (startMs >= fromMs && startMs <= toMs && !r.is_primary_assigned) {
+          updates.push({
+            id: r.id,
+            payload: { is_primary_assigned: true, status: 'assigned' },
+            partLabel: '전체'
+          })
+        }
+      }
+    })
+
+    if (updates.length === 0) {
+      alert(language === 'ko' ? '해당 시간 범위 내에 배정할 체크인 예약이 없습니다.' : 'No checked-in bookings found in selected time range.')
+      return
+    }
+
+    const confirmMsg = language === 'ko'
+      ? `${updates.length}건의 예약 파트를 '배정' 상태로 확정하시겠습니까?\n(배정 후에는 해당 파트의 수정이 불가합니다.)`
+      : `Lock ${updates.length} booking part(s) into 'Assigned' status?\n(Once assigned, edits will be disabled.)`
+
+    if (!confirm(confirmMsg)) return
+
+    try {
+      setLoading(true)
+
+      // 각 예약별로 개별 업데이트 (payload가 다르므로)
+      for (const upd of updates) {
+        const { error } = await supabase
+          .from('reservations')
+          .update(upd.payload)
+          .eq('id', upd.id)
+        if (error) throw error
+      }
+
+      await supabase.from('reservation_logs').insert(
+        updates.map(upd => ({
+          reservation_id: upd.id,
+          performed_by: null,
+          action: 'update',
+          log_type: 'reservation',
+          details: `[수행자: ${currentUser.name}] 배정 확정 처리 [${upd.partLabel}] (${assignFromTime} ~ ${assignToTime})`
+        }))
+      )
+
+      alert(language === 'ko' ? `${updates.length}건의 예약 파트가 '배정' 상태로 확정되었습니다.` : `${updates.length} booking part(s) assigned.`)
+
+      // 로컬 상태 업데이트
+      const updateMap = new Map(updates.map(u => [u.id, u.payload]))
+      setReservations(prev => prev.map(r => {
+        const p = updateMap.get(r.id)
+        return p ? { ...r, ...p } as any : r
+      }))
+    } catch (err: any) {
+      console.error('Failed to batch assign:', err)
+      alert(err.message || 'Failed to update assignment status.')
+    } finally {
+      setLoading(false)
+    }
   }
 
   const handleNewBookingClick = (thId: number, isOff: boolean) => {
@@ -454,8 +622,22 @@ export default function TodaySchedulePage() {
               {language === 'ko' ? '오늘' : 'Today'}
             </button>
 
-            <div className="bg-white border border-stone-300 px-4 py-1.5 rounded-xl shadow-inner font-mono text-xs font-black text-stone-850">
-              {getDisplayDateWithDay(selectedDate)}
+            <div className="relative">
+              <div
+                onClick={() => dateInputRef.current?.showPicker()}
+                className="bg-white border border-stone-300 px-4 py-1.5 rounded-xl shadow-inner font-mono text-xs font-black text-stone-850 cursor-pointer hover:border-emerald-500 hover:bg-emerald-50/30 transition-all"
+                title={language === 'ko' ? '클릭하여 날짜 선택' : 'Click to pick a date'}
+              >
+                {getDisplayDateWithDay(selectedDate)}
+              </div>
+              <input
+                ref={dateInputRef}
+                type="date"
+                value={selectedDate}
+                onChange={(e) => { if (e.target.value) setSelectedDate(e.target.value) }}
+                className="absolute inset-0 opacity-0 w-full h-full pointer-events-none"
+                tabIndex={-1}
+              />
             </div>
 
             {canModify && (
@@ -523,6 +705,35 @@ export default function TodaySchedulePage() {
                   <span>{language === 'ko' ? '🧘‍♂️ 건식 마사지 (Dry)' : '🧘‍♂️ Dry Massage'}</span>
                 </button>
               )}
+
+              {/* 배정 확정 시간 & 배정 버튼 컨트롤러 */}
+              {canModify && (
+                <div className="ml-auto flex items-center gap-2 bg-white/90 border border-stone-300 px-3 py-1.5 rounded-xl shadow-xs text-xs">
+                  <span className="font-extrabold text-stone-700 text-xs flex items-center gap-1">
+                    <Clock className="w-3.5 h-3.5 text-stone-500" />
+                    {language === 'ko' ? '배정 확정 시간:' : 'Lock Time:'}
+                  </span>
+                  <input
+                    type="time"
+                    value={assignFromTime}
+                    onChange={(e) => setAssignFromTime(e.target.value)}
+                    className="bg-stone-50 border border-stone-300 rounded-lg px-2 py-1 text-xs font-mono font-bold text-stone-800 focus:outline-none focus:ring-2 focus:ring-stone-400"
+                  />
+                  <span className="text-stone-400 font-bold">~</span>
+                  <input
+                    type="time"
+                    value={assignToTime}
+                    onChange={(e) => setAssignToTime(e.target.value)}
+                    className="bg-stone-50 border border-stone-300 rounded-lg px-2 py-1 text-xs font-mono font-bold text-stone-800 focus:outline-none focus:ring-2 focus:ring-stone-400"
+                  />
+                  <button
+                    onClick={handleBatchAssign}
+                    className="px-3.5 py-1 bg-stone-900 hover:bg-black active:scale-95 text-white rounded-lg text-xs font-extrabold shadow-sm transition-all cursor-pointer border border-stone-950"
+                  >
+                    {language === 'ko' ? '배정' : 'Assign'}
+                  </button>
+                </div>
+              )}
             </div>
 
             {/* 1F 습식 마사지 판널 */}
@@ -541,15 +752,25 @@ export default function TodaySchedulePage() {
                       return (
                         <div
                           key={th.id}
-                          className={`w-full bg-white border border-stone-200 rounded-xl p-2 shadow-sm space-y-2 hover:border-sky-300 hover:shadow-md transition-all animate-in fade-in slide-in-from-bottom-2 duration-200 ${isOff ? 'opacity-65' : ''}`}
+                          className={`w-full rounded-xl p-2 shadow-sm space-y-2 transition-all animate-in fade-in slide-in-from-bottom-2 duration-200 ${
+                            isOff
+                              ? 'bg-stone-100/60 border border-stone-250 opacity-40 grayscale-[25%]'
+                              : 'bg-white border border-stone-200 hover:border-sky-300 hover:shadow-md'
+                          }`}
                         >
-                          <div className="bg-sky-50/50 border border-sky-100 rounded-lg p-1.5 space-y-1">
+                          <div className={`border rounded-lg p-1.5 space-y-1 ${
+                            isOff ? 'bg-stone-100/80 border-stone-200/80' : 'bg-sky-50/50 border-sky-100'
+                          }`}>
                             {/* 第一 Line: 이름만 */}
                             <div className="flex items-center gap-1.5 min-w-0">
-                              <div className="w-4 h-4 bg-sky-600 text-white rounded-md flex items-center justify-center text-[10px] font-bold shadow-sm flex-shrink-0">
+                              <div className={`w-4 h-4 text-white rounded-md flex items-center justify-center text-[10px] font-bold shadow-sm flex-shrink-0 ${
+                                isOff ? 'bg-stone-400' : 'bg-sky-600'
+                              }`}>
                                 <User className="w-3 h-3" />
                               </div>
-                              <span className="text-xs font-black text-stone-850 truncate" title={th.name}>{th.name}</span>
+                              <span className={`text-xs truncate ${isOff ? 'text-stone-500 font-bold' : 'text-stone-850 font-black'}`} title={th.name}>
+                                {th.name}
+                              </span>
                             </div>
                             {/* 第二 Line: Priority & 포인트 (+ 버튼 제거) */}
                             <div className="flex items-center justify-between text-[10px] pt-0.5 border-t border-sky-100/60">
@@ -593,9 +814,11 @@ export default function TodaySchedulePage() {
                                     return (
                                       <tr
                                         key={item.id}
-                                        onClick={() => handleRowClick(item.rawReservation)}
+                                        onClick={() => handleRowClick(item.rawReservation, th.id)}
                                         className={`transition-all ${
-                                          isCheckedIn
+                                          item.isPartAssigned
+                                            ? 'bg-stone-100/80 text-stone-500 opacity-70'
+                                            : isCheckedIn
                                             ? 'bg-emerald-50 text-emerald-950 border-y border-emerald-250/30 hover:bg-emerald-100/85 font-medium'
                                             : canModify
                                             ? 'cursor-pointer hover:bg-sky-50/40'
@@ -664,15 +887,25 @@ export default function TodaySchedulePage() {
                       return (
                         <div
                           key={th.id}
-                          className={`w-full bg-white border border-stone-200 rounded-xl p-2 shadow-sm space-y-2 hover:border-amber-300 hover:shadow-md transition-all animate-in fade-in slide-in-from-bottom-2 duration-200 ${isOff ? 'opacity-65' : ''}`}
+                          className={`w-full rounded-xl p-2 shadow-sm space-y-2 transition-all animate-in fade-in slide-in-from-bottom-2 duration-200 ${
+                            isOff
+                              ? 'bg-stone-100/60 border border-stone-250 opacity-40 grayscale-[25%]'
+                              : 'bg-white border border-stone-200 hover:border-amber-300 hover:shadow-md'
+                          }`}
                         >
-                          <div className="bg-amber-50/50 border border-amber-100 rounded-lg p-1.5 space-y-1">
+                          <div className={`border rounded-lg p-1.5 space-y-1 ${
+                            isOff ? 'bg-stone-100/80 border-stone-200/80' : 'bg-amber-50/50 border-amber-100'
+                          }`}>
                             {/* 第一 Line: 이름만 */}
                             <div className="flex items-center gap-1.5 min-w-0">
-                              <div className="w-4 h-4 bg-amber-600 text-white rounded-md flex items-center justify-center text-[10px] font-bold shadow-sm flex-shrink-0">
+                              <div className={`w-4 h-4 text-white rounded-md flex items-center justify-center text-[10px] font-bold shadow-sm flex-shrink-0 ${
+                                isOff ? 'bg-stone-400' : 'bg-amber-600'
+                              }`}>
                                 <User className="w-3 h-3" />
                               </div>
-                              <span className="text-xs font-black text-stone-850 truncate" title={th.name}>{th.name}</span>
+                              <span className={`text-xs truncate ${isOff ? 'text-stone-500 font-bold' : 'text-stone-850 font-black'}`} title={th.name}>
+                                {th.name}
+                              </span>
                             </div>
                             {/* 第二 Line: Priority & 포인트 (+ 버튼 제거) */}
                             <div className="flex items-center justify-between text-[10px] pt-0.5 border-t border-amber-100/60">
@@ -780,7 +1013,8 @@ export default function TodaySchedulePage() {
           isOpen={isBookingModalOpen}
           onClose={() => setIsBookingModalOpen(false)}
           onSuccess={() => {
-            window.location.reload()
+            setIsBookingModalOpen(false)
+            fetchData()
           }}
           selectedReservation={selectedReservation}
           initialTime={initialTime}
@@ -805,6 +1039,8 @@ export default function TodaySchedulePage() {
           employees={employees || []}
           pricingPlans={pricingPlans}
           language={language}
+          onRefresh={fetchData}
+          onRowClick={handleRowClick}
         />
       )}
     </DashboardLayout>

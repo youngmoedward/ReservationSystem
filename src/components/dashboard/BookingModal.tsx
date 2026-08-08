@@ -2211,7 +2211,8 @@ export default function BookingModal({
             is_checked_in: isWalkIn,
             locker_number: isWalkIn ? (comp.lockerNumber || '').trim() : null,
             is_requested: comp.therapistId !== 'auto',
-            is_requested_secondary: comp.secondaryTherapistId !== 'auto'
+            is_requested_secondary: comp.secondaryTherapistId !== 'auto',
+            is_walk_in: isWalkIn
           })
         }
 

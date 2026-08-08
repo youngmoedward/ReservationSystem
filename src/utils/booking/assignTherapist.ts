@@ -123,11 +123,11 @@ export async function assignTherapist({
       return { success: false, error: '요금제 정보를 불러오는 데 실패했습니다.' }
     }
 
-    // 5. 예약하려는 시간대(startTime ~ endTime)와 겹치며 확정(confirmed)된 기존 예약 목록 조회 (건식 및 습식 동시 대조)
+    // 5. 예약하려는 시간대(startTime ~ endTime)와 겹치며 확정(confirmed/assigned)된 기존 예약 목록 조회 (건식 및 습식 동시 대조)
     let overlappingQuery = supabase
       .from('reservations')
       .select('therapist_id, secondary_therapist_id, start_time, end_time, pricing_plan_id')
-      .eq('status', 'confirmed')
+      .in('status', ['confirmed', 'assigned'])
       .lt('start_time', endTime)
       .gt('end_time', startTime)
 
@@ -223,11 +223,11 @@ export async function assignTherapist({
     const endOfDay = `${bookingDateStr}T23:59:59${offset}`
     const therapistIds = availableTherapists.map(t => t.id)
 
-    // 해당 날짜의 확정된 전체 예약 목록 조회
+    // 해당 날짜의 확정(confirmed/assigned)된 전체 예약 목록 조회
     const { data: dayReservations, error: dayResError } = await supabase
       .from('reservations')
       .select('id, therapist_id, secondary_therapist_id, pricing_plan_id, status')
-      .eq('status', 'confirmed')
+      .in('status', ['confirmed', 'assigned'])
       .gte('start_time', startOfDay)
       .lte('start_time', endOfDay)
 

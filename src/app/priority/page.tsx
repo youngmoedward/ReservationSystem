@@ -34,8 +34,6 @@ const DAYS_OF_WEEK = [
   { key: 6, short: 'Sun', full: '일요일' },
 ]
 
-const PRIORITY_OPTIONS = ['x', '1', '2', '3', '4', '5', '6', '7', '8', '9', '10']
-
 export default function PriorityPage() {
   const supabase = createClient()
   const { currentUser } = useUserSim()
@@ -96,13 +94,63 @@ export default function PriorityPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
 
-  // 2. 셀 우선순위 값 변경 핸들러
-  const handlePriorityChange = (therapistId: number, serviceType: 'wet' | 'dry', dayOfWeek: number, value: string) => {
-    const key = `${therapistId}_${serviceType}_${dayOfWeek}`
-    setPriorityMap(prev => ({
-      ...prev,
-      [key]: value
-    }))
+  // 1F 습식 마사지사 목록 (wet 또는 both)
+  const wetTherapists = therapists.filter(t => t.massage_type === 'wet' || t.massage_type === 'both' || !t.massage_type)
+  // 2F 건식 마사지사 목록 (dry 또는 both)
+  const dryTherapists = therapists.filter(t => t.massage_type === 'dry' || t.massage_type === 'both' || !t.massage_type)
+
+  // 특정 서비스타입, 요일, 우선순위(rank)에 배정된 마사지사 ID 가져오기
+  const getTherapistIdAtRank = (serviceType: 'wet' | 'dry', dayOfWeek: number, rank: number): number | '' => {
+    const list = serviceType === 'wet' ? wetTherapists : dryTherapists
+    const found = list.find(t => priorityMap[`${t.id}_${serviceType}_${dayOfWeek}`] === String(rank))
+    return found ? found.id : ''
+  }
+
+  // 특정 서비스타입, 요일의 우선순위별 배정 현황 (therapist_id -> rank)
+  const getAssignedTherapistsForDay = (serviceType: 'wet' | 'dry', dayOfWeek: number): Record<number, number> => {
+    const assigned: Record<number, number> = {}
+    const list = serviceType === 'wet' ? wetTherapists : dryTherapists
+    list.forEach(t => {
+      const val = priorityMap[`${t.id}_${serviceType}_${dayOfWeek}`]
+      if (val && val !== 'x') {
+        const r = parseInt(val, 10)
+        if (!isNaN(r)) {
+          assigned[t.id] = r
+        }
+      }
+    })
+    return assigned
+  }
+
+  // 셀 마사지사 변경 처리 핸들러 (rank 기준)
+  const handleRankAssignmentChange = (
+    serviceType: 'wet' | 'dry',
+    dayOfWeek: number,
+    rank: number,
+    newTherapistIdStr: string
+  ) => {
+    const list = serviceType === 'wet' ? wetTherapists : dryTherapists
+    const newTherapistId = newTherapistIdStr ? Number(newTherapistIdStr) : null
+
+    setPriorityMap(prev => {
+      const nextMap = { ...prev }
+
+      // 1. 기존에 이 (serviceType, dayOfWeek, rank) 위치에 배정되어 있던 마사지사가 있다면 'x'로 해제
+      list.forEach(t => {
+        const key = `${t.id}_${serviceType}_${dayOfWeek}`
+        if (nextMap[key] === String(rank)) {
+          nextMap[key] = 'x'
+        }
+      })
+
+      // 2. 새로운 마사지사가 선택되었다면 해당 마사지사의 이 요일 우선순위를 rank로 설정
+      if (newTherapistId) {
+        const newKey = `${newTherapistId}_${serviceType}_${dayOfWeek}`
+        nextMap[newKey] = String(rank)
+      }
+
+      return nextMap
+    })
   }
 
   const [pinModalOpen, setPinModalOpen] = useState(false)
@@ -116,7 +164,6 @@ export default function PriorityPage() {
     const payload: TherapistPriority[] = []
 
     // 습식 마사지사 (wet / both)
-    const wetTherapists = therapists.filter(t => t.massage_type !== 'dry')
     wetTherapists.forEach(t => {
       DAYS_OF_WEEK.forEach(day => {
         const key = `${t.id}_wet_${day.key}`
@@ -130,7 +177,6 @@ export default function PriorityPage() {
     })
 
     // 건식 마사지사 (dry / both)
-    const dryTherapists = therapists.filter(t => t.massage_type !== 'wet')
     dryTherapists.forEach(t => {
       DAYS_OF_WEEK.forEach(day => {
         const key = `${t.id}_dry_${day.key}`
@@ -244,11 +290,6 @@ export default function PriorityPage() {
     )
   }
 
-  // 1F 습식 마사지사 목록 (wet 또는 both)
-  const wetTherapists = therapists.filter(t => t.massage_type === 'wet' || t.massage_type === 'both' || !t.massage_type)
-  // 2F 건식 마사지사 목록 (dry 또는 both)
-  const dryTherapists = therapists.filter(t => t.massage_type === 'dry' || t.massage_type === 'both' || !t.massage_type)
-
   return (
     <DashboardLayout>
       <div className="space-y-6">
@@ -331,8 +372,8 @@ export default function PriorityPage() {
                 <table className="w-full text-center border-collapse">
                   <thead>
                     <tr className="bg-sky-50/70 border-b border-sky-200 text-xs font-bold text-sky-950">
-                      <th className="py-3 px-4 text-left w-36 border-r border-sky-200">
-                        {language === 'ko' ? '마사지사' : 'Therapist'}
+                      <th className="py-3 px-4 text-center w-36 border-r border-sky-200">
+                        {language === 'ko' ? '습식 우선순위' : 'Wet Priority'}
                       </th>
                       {DAYS_OF_WEEK.map(day => (
                         <th key={day.key} className="py-3 px-3 w-28 border-r border-sky-200 last:border-r-0">
@@ -349,32 +390,44 @@ export default function PriorityPage() {
                         </td>
                       </tr>
                     ) : (
-                      wetTherapists.map(t => (
-                        <tr key={`wet_${t.id}`} className="hover:bg-sky-50/40 transition-colors">
-                          <td className="py-2.5 px-4 text-left font-black text-stone-800 bg-stone-50/70 border-r border-stone-200">
-                            {t.name}
+                      Array.from({ length: wetTherapists.length }, (_, i) => i + 1).map(rank => (
+                        <tr key={`wet_rank_${rank}`} className="hover:bg-sky-50/40 transition-colors">
+                          <td className="py-2.5 px-4 text-center font-black text-stone-800 bg-sky-50/40 border-r border-stone-200 text-sm">
+                            {rank}
                           </td>
                           {DAYS_OF_WEEK.map(day => {
-                            const key = `${t.id}_wet_${day.key}`
-                            const currentVal = priorityMap[key] || 'x'
-                            const isOff = currentVal === 'x'
+                            const currentTherapistId = getTherapistIdAtRank('wet', day.key, rank)
+                            const assignedMap = getAssignedTherapistsForDay('wet', day.key)
+                            const hasSelected = currentTherapistId !== ''
 
                             return (
                               <td key={day.key} className="p-1 border-r border-stone-200 last:border-r-0">
                                 <select
-                                  value={currentVal}
-                                  onChange={(e) => handlePriorityChange(t.id, 'wet', day.key, e.target.value)}
-                                  className={`w-full text-center py-2 px-1 rounded-xl font-black text-xs transition-all focus:outline-none focus:ring-2 focus:ring-sky-500 cursor-pointer ${
-                                    isOff
-                                      ? 'bg-stone-300 text-stone-600 border border-stone-400/80 shadow-inner'
-                                      : 'bg-white text-stone-950 border border-stone-300 shadow-xs'
+                                  value={currentTherapistId}
+                                  onChange={(e) => handleRankAssignmentChange('wet', day.key, rank, e.target.value)}
+                                  className={`w-full text-center py-2 px-1 rounded-xl font-bold text-xs transition-all focus:outline-none focus:ring-2 focus:ring-sky-500 cursor-pointer ${
+                                    hasSelected
+                                      ? 'bg-white text-stone-900 border border-stone-300 shadow-xs font-black'
+                                      : 'bg-stone-50/70 text-stone-400 border border-stone-200'
                                   }`}
                                 >
-                                  {PRIORITY_OPTIONS.map(opt => (
-                                    <option key={opt} value={opt} className="bg-white text-stone-900 font-bold">
-                                      {opt}
-                                    </option>
-                                  ))}
+                                  <option value="" className="bg-white text-stone-400">
+                                    {language === 'ko' ? '- 선택 없음 -' : '- Unassigned -'}
+                                  </option>
+                                  {wetTherapists.map(t => {
+                                    const assignedRank = assignedMap[t.id]
+                                    const isAssignedOther = assignedRank !== undefined && assignedRank !== rank
+                                    return (
+                                      <option
+                                        key={t.id}
+                                        value={t.id}
+                                        disabled={isAssignedOther}
+                                        className={isAssignedOther ? 'bg-stone-100 text-stone-400' : 'bg-white text-stone-900 font-bold'}
+                                      >
+                                        {t.name} {isAssignedOther ? `(${language === 'ko' ? `P:${assignedRank} 배정됨` : `P:${assignedRank}`})` : ''}
+                                      </option>
+                                    )
+                                  })}
                                 </select>
                               </td>
                             )
@@ -408,8 +461,8 @@ export default function PriorityPage() {
                 <table className="w-full text-center border-collapse">
                   <thead>
                     <tr className="bg-amber-50/70 border-b border-amber-200 text-xs font-bold text-amber-950">
-                      <th className="py-3 px-4 text-left w-36 border-r border-amber-200">
-                        {language === 'ko' ? '마사지사' : 'Therapist'}
+                      <th className="py-3 px-4 text-center w-36 border-r border-amber-200">
+                        {language === 'ko' ? '건식 우선순위' : 'Dry Priority'}
                       </th>
                       {DAYS_OF_WEEK.map(day => (
                         <th key={day.key} className="py-3 px-3 w-28 border-r border-amber-200 last:border-r-0">
@@ -426,32 +479,44 @@ export default function PriorityPage() {
                         </td>
                       </tr>
                     ) : (
-                      dryTherapists.map(t => (
-                        <tr key={`dry_${t.id}`} className="hover:bg-amber-50/40 transition-colors">
-                          <td className="py-2.5 px-4 text-left font-black text-stone-800 bg-stone-50/70 border-r border-stone-200">
-                            {t.name}
+                      Array.from({ length: dryTherapists.length }, (_, i) => i + 1).map(rank => (
+                        <tr key={`dry_rank_${rank}`} className="hover:bg-amber-50/40 transition-colors">
+                          <td className="py-2.5 px-4 text-center font-black text-stone-800 bg-amber-50/40 border-r border-stone-200 text-sm">
+                            {rank}
                           </td>
                           {DAYS_OF_WEEK.map(day => {
-                            const key = `${t.id}_dry_${day.key}`
-                            const currentVal = priorityMap[key] || 'x'
-                            const isOff = currentVal === 'x'
+                            const currentTherapistId = getTherapistIdAtRank('dry', day.key, rank)
+                            const assignedMap = getAssignedTherapistsForDay('dry', day.key)
+                            const hasSelected = currentTherapistId !== ''
 
                             return (
                               <td key={day.key} className="p-1 border-r border-stone-200 last:border-r-0">
                                 <select
-                                  value={currentVal}
-                                  onChange={(e) => handlePriorityChange(t.id, 'dry', day.key, e.target.value)}
-                                  className={`w-full text-center py-2 px-1 rounded-xl font-black text-xs transition-all focus:outline-none focus:ring-2 focus:ring-amber-500 cursor-pointer ${
-                                    isOff
-                                      ? 'bg-stone-300 text-stone-600 border border-stone-400/80 shadow-inner'
-                                      : 'bg-white text-stone-950 border border-stone-300 shadow-xs'
+                                  value={currentTherapistId}
+                                  onChange={(e) => handleRankAssignmentChange('dry', day.key, rank, e.target.value)}
+                                  className={`w-full text-center py-2 px-1 rounded-xl font-bold text-xs transition-all focus:outline-none focus:ring-2 focus:ring-amber-500 cursor-pointer ${
+                                    hasSelected
+                                      ? 'bg-white text-stone-900 border border-stone-300 shadow-xs font-black'
+                                      : 'bg-stone-50/70 text-stone-400 border border-stone-200'
                                   }`}
                                 >
-                                  {PRIORITY_OPTIONS.map(opt => (
-                                    <option key={opt} value={opt} className="bg-white text-stone-900 font-bold">
-                                      {opt}
-                                    </option>
-                                  ))}
+                                  <option value="" className="bg-white text-stone-400">
+                                    {language === 'ko' ? '- 선택 없음 -' : '- Unassigned -'}
+                                  </option>
+                                  {dryTherapists.map(t => {
+                                    const assignedRank = assignedMap[t.id]
+                                    const isAssignedOther = assignedRank !== undefined && assignedRank !== rank
+                                    return (
+                                      <option
+                                        key={t.id}
+                                        value={t.id}
+                                        disabled={isAssignedOther}
+                                        className={isAssignedOther ? 'bg-stone-100 text-stone-400' : 'bg-white text-stone-900 font-bold'}
+                                      >
+                                        {t.name} {isAssignedOther ? `(${language === 'ko' ? `P:${assignedRank} 배정됨` : `P:${assignedRank}`})` : ''}
+                                      </option>
+                                    )
+                                  })}
                                 </select>
                               </td>
                             )

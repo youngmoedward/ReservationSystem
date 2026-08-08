@@ -1,11 +1,12 @@
 'use client'
 
-import React, { useState } from 'react'
+import React, { useState, useRef } from 'react'
 import { X, ChevronLeft, ChevronRight, Search, User, Key, Clock, DollarSign } from 'lucide-react'
 import { Reservation, Therapist } from './CalendarView'
 import { UserSim } from '@/app/providers'
 import { formatUSPhone } from '@/utils/phoneFormatter'
 import { toLocalDateString } from '@/utils/booking/dateUtils'
+import { createClient } from '@/utils/supabase/client'
 
 export interface PricingPlan {
   id: number
@@ -32,6 +33,8 @@ interface TodayReservationListModalProps {
   employees: UserSim[]
   pricingPlans: PricingPlan[]
   language: 'ko' | 'en'
+  onRefresh?: () => void
+  onRowClick?: (reservation: Reservation) => void
 }
 
 export default function TodayReservationListModal({
@@ -43,10 +46,137 @@ export default function TodayReservationListModal({
   therapists,
   employees,
   pricingPlans,
-  language
+  language,
+  onRefresh,
+  onRowClick
 }: TodayReservationListModalProps) {
+  const supabase = createClient()
   const [isWalkInFilter, setIsWalkInFilter] = useState<'exclude' | 'include'>('exclude')
   const [searchTerm, setSearchTerm] = useState('')
+  const modalDateInputRef = useRef<HTMLInputElement>(null)
+
+  const getInitialTimes = () => {
+    const now = new Date()
+    const p = (n: number) => String(n).padStart(2, '0')
+    const from = `${p(now.getHours())}:${p(now.getMinutes())}`
+    const toDate = new Date(now.getTime() + 30 * 60000)
+    const to = `${p(toDate.getHours())}:${p(toDate.getMinutes())}`
+    return { from, to }
+  }
+
+  const [assignFromTime, setAssignFromTime] = useState<string>(() => getInitialTimes().from)
+  const [assignToTime, setAssignToTime] = useState<string>(() => getInitialTimes().to)
+
+  const handleBatchAssign = async () => {
+    if (!assignFromTime || !assignToTime) {
+      alert(language === 'ko' ? '배정 확정 시간을 선택해 주세요.' : 'Please select assignment time range.')
+      return
+    }
+
+    const tzo = -new Date().getTimezoneOffset()
+    const dif = tzo >= 0 ? '+' : '-'
+    const pad = (num: number) => String(Math.floor(Math.abs(num))).padStart(2, '0')
+    const offset = `${dif}${pad(tzo / 60)}:${pad(tzo % 60)}`
+
+    const fromISO = `${selectedDate}T${assignFromTime}:00${offset}`
+    const toISO = `${selectedDate}T${assignToTime}:59${offset}`
+
+    const fromMs = new Date(fromISO).getTime()
+    const toMs = new Date(toISO).getTime()
+
+    // 체크인 상태인 confirmed 건만 대상
+    const checkedInReservations = reservations.filter(r =>
+      r.status === 'confirmed' && r.is_checked_in === true
+    )
+
+    type AssignUpdate = { id: number; payload: Record<string, any>; partLabel: string }
+    const updates: AssignUpdate[] = []
+
+    checkedInReservations.forEach(r => {
+      const plan = pricingPlans.find(p => p.id === r.pricing_plan_id)
+      const isCombo = plan?.category === 'combo'
+      const startMs = new Date(r.start_time).getTime()
+
+      if (isCombo && plan) {
+        const bathDur = plan.bath_duration_minutes || 60
+        const delayMin = (r as any).delay_minutes ?? 30
+        const dryStartMs = startMs + (bathDur + delayMin) * 60000
+
+        let assignPrimary = false
+        let assignSecondary = false
+
+        if (startMs >= fromMs && startMs <= toMs && !r.is_secondary_assigned) {
+          assignSecondary = true
+        }
+        if (dryStartMs >= fromMs && dryStartMs <= toMs && !r.is_primary_assigned) {
+          assignPrimary = true
+        }
+
+        if (assignPrimary || assignSecondary) {
+          const payload: Record<string, any> = {}
+          const parts: string[] = []
+          if (assignSecondary) { payload.is_secondary_assigned = true; parts.push('습식') }
+          if (assignPrimary) { payload.is_primary_assigned = true; parts.push('건식') }
+
+          const willBothAssigned =
+            (assignPrimary || !!r.is_primary_assigned) &&
+            (assignSecondary || !!r.is_secondary_assigned)
+          if (willBothAssigned) payload.status = 'assigned'
+
+          updates.push({ id: r.id, payload, partLabel: parts.join('+') })
+        }
+      } else {
+        if (startMs >= fromMs && startMs <= toMs && !r.is_primary_assigned) {
+          updates.push({
+            id: r.id,
+            payload: { is_primary_assigned: true, status: 'assigned' },
+            partLabel: '전체'
+          })
+        }
+      }
+    })
+
+    if (updates.length === 0) {
+      alert(language === 'ko' ? '해당 시간 범위 내에 배정할 체크인 예약이 없습니다.' : 'No checked-in bookings found in selected time range.')
+      return
+    }
+
+    const confirmMsg = language === 'ko'
+      ? `${updates.length}건의 예약 파트를 '배정' 상태로 확정하시겠습니까?\n(배정 후에는 해당 파트의 수정이 불가합니다.)`
+      : `Lock ${updates.length} booking part(s) into 'Assigned' status?\n(Once assigned, edits will be disabled.)`
+
+    if (!confirm(confirmMsg)) return
+
+    try {
+      for (const upd of updates) {
+        const { error } = await supabase
+          .from('reservations')
+          .update(upd.payload)
+          .eq('id', upd.id)
+        if (error) throw error
+      }
+
+      await supabase.from('reservation_logs').insert(
+        updates.map(upd => ({
+          reservation_id: upd.id,
+          performed_by: null,
+          action: 'update',
+          log_type: 'reservation',
+          details: `[예약목록] 배정 확정 처리 [${upd.partLabel}] (${assignFromTime} ~ ${assignToTime})`
+        }))
+      )
+
+      alert(language === 'ko' ? `${updates.length}건의 예약 파트가 '배정' 상태로 확정되었습니다.` : `${updates.length} booking part(s) assigned.`)
+      if (onRefresh) {
+        onRefresh()
+      } else {
+        window.location.reload()
+      }
+    } catch (err: any) {
+      console.error('Failed to batch assign in modal:', err)
+      alert(err.message || 'Failed to update assignment status.')
+    }
+  }
 
   if (!isOpen) return null
 
@@ -84,8 +214,9 @@ export default function TodayReservationListModal({
   const cleanSearchPhone = searchTerm.replace(/\D/g, '')
 
   const filteredReservations = reservations.filter(res => {
-    // A. Walk-in 필터
-    const isWalkIn = res.customer_name.toLowerCase().startsWith('walk-in') || !res.customer_phone
+    // A. Walk-in 필터 (is_walk_in 필드 우선, 기존 데이터 호환 fallback)
+    const isWalkIn = (res as any).is_walk_in === true
+      || res.customer_name.toLowerCase().startsWith('walk-in')
     if (isWalkInFilter === 'exclude' && isWalkIn) {
       return false
     }
@@ -113,6 +244,7 @@ export default function TodayReservationListModal({
       reservation: Reservation
       therapistName: string
       isRequested: boolean
+      isPartAssigned: boolean
       timeStr: string
       priceVal: number
     }> = []
@@ -145,6 +277,7 @@ export default function TodayReservationListModal({
             reservation: res,
             therapistName: secTh?.name || (language === 'ko' ? '미지정' : 'Unassigned'),
             isRequested: !!(res as any).is_requested_secondary,
+            isPartAssigned: !!res.is_secondary_assigned,
             timeStr: sT,
             priceVal: plan.bath_price || 0
           })
@@ -158,6 +291,7 @@ export default function TodayReservationListModal({
             reservation: res,
             therapistName: mainTh?.name || (language === 'ko' ? '미지정' : 'Unassigned'),
             isRequested: !!res.is_requested,
+            isPartAssigned: !!(res.is_primary_assigned || res.status === 'assigned'),
             timeStr: sT,
             priceVal: plan.massage_price || 0
           })
@@ -178,6 +312,7 @@ export default function TodayReservationListModal({
             reservation: res,
             therapistName: mainTh?.name || (language === 'ko' ? '미지정' : 'Unassigned'),
             isRequested: !!res.is_requested,
+            isPartAssigned: !!(res.is_primary_assigned || res.status === 'assigned'),
             timeStr: sT,
             priceVal: Number(res.price)
           })
@@ -196,10 +331,10 @@ export default function TodayReservationListModal({
       <div className="bg-white border border-stone-200 rounded-3xl shadow-2xl w-[90vw] max-w-[1120px] h-[76vh] flex flex-col overflow-hidden">
         
         {/* 모달 헤더 바 */}
-        <div className="p-2.5 sm:p-3 border-b border-stone-200 bg-stone-50 flex flex-col md:flex-row md:items-center justify-between gap-2">
+        <div className="p-2 sm:p-2.5 border-b border-stone-200 bg-stone-50 flex flex-wrap md:flex-nowrap items-center justify-between gap-2">
           
-          {/* 날짜 조율 네비게이터 (오늘의 근무현황과 동일 포맷) */}
-          <div className="flex items-center gap-2">
+          {/* 좌측: 날짜 네비게이터 & 통합 검색창 (너비 축소 및 좌측 정렬) */}
+          <div className="flex items-center gap-2 flex-wrap sm:flex-nowrap">
             <div className="flex items-center bg-stone-200/70 p-1 rounded-xl">
               <button
                 onClick={() => changeDate(-1)}
@@ -222,29 +357,70 @@ export default function TodayReservationListModal({
             >
               {language === 'ko' ? '오늘' : 'Today'}
             </button>
-            <div className="bg-white border border-stone-200 px-3.5 py-1 rounded-xl font-mono text-xs font-black text-stone-800 shadow-xs">
-              {formattedDateStr}
+            <div className="relative">
+              <div
+                onClick={() => modalDateInputRef.current?.showPicker()}
+                className="bg-white border border-stone-200 px-3 py-1 rounded-xl font-mono text-xs font-black text-stone-800 shadow-xs cursor-pointer hover:border-sky-400 hover:bg-sky-50/30 transition-all"
+                title={language === 'ko' ? '클릭하여 날짜 선택' : 'Click to pick a date'}
+              >
+                {formattedDateStr}
+              </div>
+              <input
+                ref={modalDateInputRef}
+                type="date"
+                value={selectedDate}
+                onChange={(e) => { if (e.target.value) onDateChange(e.target.value) }}
+                className="absolute inset-0 opacity-0 w-full h-full pointer-events-none"
+                tabIndex={-1}
+              />
+            </div>
+
+            {/* 통합 검색창 */}
+            <div className="relative w-36 sm:w-44">
+              <Search className="w-3.5 h-3.5 text-stone-400 absolute left-2.5 top-1/2 -translate-y-1/2" />
+              <input
+                type="text"
+                placeholder={language === 'ko' ? '검색...' : 'Search...'}
+                value={searchTerm}
+                onChange={e => setSearchTerm(e.target.value)}
+                className="w-full pl-7 pr-2 py-1 bg-white border border-stone-200 rounded-xl text-xs font-medium focus:outline-none focus:border-sky-500 transition-all shadow-xs"
+              />
             </div>
           </div>
 
-          {/* 통합 검색창 */}
-          <div className="relative flex-1 max-w-xs">
-            <Search className="w-3.5 h-3.5 text-stone-400 absolute left-3 top-1/2 -translate-y-1/2" />
-            <input
-              type="text"
-              placeholder={language === 'ko' ? '고객명, 연락처, 마사지사 검색...' : 'Search customer, phone, therapist...'}
-              value={searchTerm}
-              onChange={e => setSearchTerm(e.target.value)}
-              className="w-full pl-8 pr-3 py-1.5 bg-white border border-stone-200 rounded-xl text-xs font-medium focus:outline-none focus:border-sky-500 transition-all shadow-xs"
-            />
-          </div>
+          {/* 우측 영역: 배정 확정 시간 설정, Walk-in 필터 버튼 & 닫기 */}
+          <div className="flex items-center gap-2 ml-auto">
+            {/* 배정 확정 시간 & 배정 버튼 */}
+            <div className="flex items-center gap-1 bg-white border border-stone-250 p-1 rounded-xl shadow-xs text-xs">
+              <span className="font-extrabold text-stone-700 text-[10.5px] px-1 flex items-center gap-1">
+                <Clock className="w-3 h-3 text-stone-500" />
+                {language === 'ko' ? '배정 확정 시간:' : 'Lock Time:'}
+              </span>
+              <input
+                type="time"
+                value={assignFromTime}
+                onChange={(e) => setAssignFromTime(e.target.value)}
+                className="bg-stone-50 border border-stone-300 rounded-md px-1 py-0.5 text-xs font-mono font-bold text-stone-800 focus:outline-none focus:ring-1 focus:ring-stone-500"
+              />
+              <span className="text-stone-400 font-bold">~</span>
+              <input
+                type="time"
+                value={assignToTime}
+                onChange={(e) => setAssignToTime(e.target.value)}
+                className="bg-stone-50 border border-stone-300 rounded-md px-1 py-0.5 text-xs font-mono font-bold text-stone-800 focus:outline-none focus:ring-1 focus:ring-stone-500"
+              />
+              <button
+                onClick={handleBatchAssign}
+                className="px-2.5 py-0.5 bg-stone-900 hover:bg-black active:scale-95 text-white rounded-md text-xs font-extrabold shadow-xs transition-all cursor-pointer border border-stone-950"
+              >
+                {language === 'ko' ? '배정' : 'Assign'}
+              </button>
+            </div>
 
-          {/* Walk-in 필터 버튼 & 닫기 */}
-          <div className="flex items-center gap-2.5">
             <div className="bg-stone-200/70 p-1 rounded-xl flex items-center gap-1">
               <button
                 onClick={() => setIsWalkInFilter('exclude')}
-                className={`px-2.5 py-1 rounded-lg text-xs font-black transition-all cursor-pointer ${
+                className={`px-2 py-1 rounded-lg text-xs font-black transition-all cursor-pointer ${
                   isWalkInFilter === 'exclude'
                     ? 'bg-emerald-600 text-white shadow-xs'
                     : 'text-stone-600 hover:bg-stone-100'
@@ -254,7 +430,7 @@ export default function TodayReservationListModal({
               </button>
               <button
                 onClick={() => setIsWalkInFilter('include')}
-                className={`px-2.5 py-1 rounded-lg text-xs font-black transition-all cursor-pointer ${
+                className={`px-2 py-1 rounded-lg text-xs font-black transition-all cursor-pointer ${
                   isWalkInFilter === 'include'
                     ? 'bg-emerald-600 text-white shadow-xs'
                     : 'text-stone-600 hover:bg-stone-100'
@@ -319,19 +495,40 @@ export default function TodayReservationListModal({
                     ) : (
                       wetItems.map((item, idx) => {
                         const isCheckedIn = !!item.reservation.is_checked_in
+                        const isAssigned = item.isPartAssigned
                         const lockerNo = item.reservation.locker_number
                         const phoneFormatted = formatUSPhone(item.reservation.customer_phone || '') || '-'
                         return (
-                          <tr key={item.id} className="hover:bg-sky-50/30 transition-all">
+                          <tr
+                            key={item.id}
+                            onClick={() => {
+                              if (isAssigned) {
+                                alert(language === 'ko' ? '배정 확정된 파트는 수정할 수 없습니다.' : 'Assigned part cannot be modified.')
+                                return
+                              }
+                              if (onRowClick) {
+                                onRowClick(item.reservation)
+                              }
+                            }}
+                            className={`transition-all ${
+                              isAssigned
+                                ? 'hover:bg-stone-200/50 bg-stone-50/50 opacity-70'
+                                : 'hover:bg-sky-50/30'
+                            }`}
+                          >
                             <td className="p-1 text-center font-mono text-[10.5px] text-stone-400 font-bold">{idx + 1}</td>
                             <td className="p-1 text-center whitespace-nowrap">
                               {isCheckedIn ? (
-                                <span className="px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-sky-100 text-sky-800 border border-sky-200">
+                                <span className="px-1.5 py-0.5 rounded-full text-[9px] font-extrabold bg-sky-600 text-white border border-sky-700 shadow-xs">
                                   {language === 'ko' ? '체크인' : 'Checked In'}
                                 </span>
+                              ) : isAssigned ? (
+                                <span className="px-1.5 py-0.5 rounded-full text-[9px] font-extrabold bg-stone-900 text-white border border-stone-950 shadow-xs">
+                                  {language === 'ko' ? '배정' : 'Assigned'}
+                                </span>
                               ) : (
-                                <span className="px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-250/50">
-                                  {language === 'ko' ? '확정' : 'Confirmed'}
+                                <span className="px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-stone-200 text-stone-700 border border-stone-300">
+                                  {language === 'ko' ? '예약' : 'Booked'}
                                 </span>
                               )}
                             </td>
@@ -424,19 +621,40 @@ export default function TodayReservationListModal({
                     ) : (
                       dryItems.map((item, idx) => {
                         const isCheckedIn = !!item.reservation.is_checked_in
+                        const isAssigned = item.isPartAssigned
                         const lockerNo = item.reservation.locker_number
                         const phoneFormatted = formatUSPhone(item.reservation.customer_phone || '') || '-'
                         return (
-                          <tr key={item.id} className="hover:bg-amber-50/30 transition-all">
+                          <tr
+                            key={item.id}
+                            onClick={() => {
+                              if (isAssigned) {
+                                alert(language === 'ko' ? '배정 확정된 파트는 수정할 수 없습니다.' : 'Assigned part cannot be modified.')
+                                return
+                              }
+                              if (onRowClick) {
+                                onRowClick(item.reservation)
+                              }
+                            }}
+                            className={`transition-all ${
+                              isAssigned
+                                ? 'hover:bg-stone-200/50 bg-stone-50/50 opacity-70'
+                                : 'hover:bg-amber-50/30'
+                            }`}
+                          >
                             <td className="p-1 text-center font-mono text-[10.5px] text-stone-400 font-bold">{idx + 1}</td>
                             <td className="p-1 text-center whitespace-nowrap">
                               {isCheckedIn ? (
-                                <span className="px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-sky-100 text-sky-800 border border-sky-200">
+                                <span className="px-1.5 py-0.5 rounded-full text-[9px] font-extrabold bg-sky-600 text-white border border-sky-700 shadow-xs">
                                   {language === 'ko' ? '체크인' : 'Checked In'}
                                 </span>
+                              ) : isAssigned ? (
+                                <span className="px-1.5 py-0.5 rounded-full text-[9px] font-extrabold bg-stone-900 text-white border border-stone-950 shadow-xs">
+                                  {language === 'ko' ? '배정' : 'Assigned'}
+                                </span>
                               ) : (
-                                <span className="px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-emerald-100 text-emerald-800 border border-emerald-250/50">
-                                  {language === 'ko' ? '확정' : 'Confirmed'}
+                                <span className="px-1.5 py-0.5 rounded-full text-[9px] font-bold bg-stone-200 text-stone-700 border border-stone-300">
+                                  {language === 'ko' ? '예약' : 'Booked'}
                                 </span>
                               )}
                             </td>
